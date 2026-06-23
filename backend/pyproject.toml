@@ -1,0 +1,26 @@
+[project]
+name = "pathin-api"
+version = "0.1.0"
+description = "Flask API for PathIn"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=3.1,<4",
+    "flask-cors>=6,<7",
+    "python-dotenv>=1.1,<2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4,<9",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["pathin_api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
