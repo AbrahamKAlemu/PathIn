@@ -21,8 +21,8 @@ export function ProfileSidebar() {
 
         <div className="absolute left-[20px] right-[16px] top-[151px]">
           <div className="flex min-w-0 items-center">
-            <h1 className="truncate text-[23px] font-bold leading-[26px] tracking-[-0.025em]">
-              Winston Isk...
+            <h1 className="truncate text-[18px] font-bold leading-[22px] tracking-[-0.025em]">
+              Winston Iskandar
             </h1>
             <LinkedInBadge className="ml-[8px] size-[14px] shrink-0 text-[10px]" />
           </div>
@@ -44,23 +44,23 @@ export function ProfileSidebar() {
               src="/linkedin/jane-street.png"
               width={120}
             />
-            <span className="ml-[13px] text-[15px] font-bold">Jane Street</span>
+            <span className="ml-[13px] text-[15px]">Jane Street</span>
           </div>
         </div>
       </section>
 
       <section className="mt-[8px] h-[164px] overflow-hidden rounded-[10px] border border-[#d4d4d4] bg-white text-[#191919]">
         <div className="h-[106px] border-b border-[#dedede] px-[20px] pt-[20px]">
-          <div className="flex items-center justify-between text-[15px] font-bold">
+          <div className="flex items-center justify-between text-[15px]">
             <span>Profile viewers</span>
             <span className="text-[#0a66c2]">649</span>
           </div>
-          <p className="mt-[21px] text-[15px] font-bold">View all analytics</p>
+          <p className="mt-[21px] text-[15px]">View all analytics</p>
         </div>
 
         <div className="flex h-[58px] items-center px-[21px]">
           <span className="size-[15px] shrink-0 rounded-[3px] bg-gradient-to-br from-[#f1b646] to-[#d47d00]" />
-          <span className="ml-[14px] text-[14px] font-bold leading-[17px]">
+          <span className="ml-[14px] text-[14px] leading-[17px]">
             Your Premium
             <br />
             features

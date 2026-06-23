@@ -55,7 +55,7 @@ function PuzzleRow({
     <div className="mt-[17px] flex items-center">
       {icon}
       <div className="ml-[11px] min-w-0">
-        <p className="truncate text-[17px] font-bold leading-[19px]">{name}</p>
+        <p className="truncate text-[17px] leading-[19px]">{name}</p>
         <p className="truncate text-[14px] leading-[18px] text-[#666]">
           18 connections played
         </p>
@@ -67,7 +67,7 @@ function PuzzleRow({
 
 export function NewsSidebar() {
   return (
-    <aside className="news-column self-start sticky top-16 h-[calc(100vh-64px)] overflow-y-auto rounded-[10px] border border-[#d4d4d4] bg-white px-[20px] pb-[20px] pt-[13px] text-[#191919]">
+    <aside className="news-column self-start sticky top-16 overflow-y-auto rounded-[10px] border border-[#d4d4d4] bg-white px-[16px] pb-[16px] pt-[13px] text-[#191919]">
       <div className="flex items-center justify-between">
         <h2 className="text-[25px] font-bold leading-[30px] tracking-[-0.025em]">
           LinkedIn News
@@ -77,32 +77,33 @@ export function NewsSidebar() {
 
       <div className="mt-[11px]">
         {newsItems.map((item, index) => (
-          <article className={index === 0 ? "" : "mt-[13px]"} key={item.lines[0]}>
-            <h3 className="text-[18px] font-bold leading-[21px] tracking-[-0.035em]">
+          <article className={index === 0 ? "" : "mt-[11px]"} key={item.lines[0]}>
+            <h3 className="text-[14px] font-bold leading-[18px] tracking-[-0.02em]">
               {item.lines.map((line) => (
                 <span className="block" key={line}>
                   {line}
                 </span>
               ))}
             </h3>
-            <p className="mt-[2px] text-[16px] leading-[19px] text-[#666]">
+            <p className="mt-[2px] text-[12px] leading-[16px] text-[#666]">
               {item.meta}
             </p>
           </article>
         ))}
       </div>
 
-      <div className="mt-[33px] flex items-center text-[18px] font-bold text-[#444]">
+      <div className="mt-[20px] flex items-center text-[14px] text-[#444]">
         <span>Show all news</span>
-        <span className="ml-[8px] text-[22px] leading-none">&rarr;</span>
+        <span className="ml-[8px] text-[16px] leading-none">&rarr;</span>
       </div>
 
-      <h3 className="mt-[27px] text-[19px] font-bold text-[#666]">
-        Today&apos;s puzzles
-      </h3>
-
-      <PuzzleRow icon={<WendIcon />} name="Wend #15" />
-      <PuzzleRow icon={<PatchesIcon />} name="Patches #..." />
+      <div className="mt-[16px] rounded-[8px] border border-[#d4d4d4] px-[14px] pb-[14px] pt-[12px]">
+        <h3 className="text-[15px] text-[#666]">
+          Today&apos;s puzzles
+        </h3>
+        <PuzzleRow icon={<WendIcon />} name="Wend #15" />
+        <PuzzleRow icon={<PatchesIcon />} name="Patches #..." />
+      </div>
     </aside>
   );
 }

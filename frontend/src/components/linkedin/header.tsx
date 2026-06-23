@@ -17,7 +17,7 @@ export function Header() {
 
         <div className="linkedin-search ml-[10px] flex h-[34px] w-[280px] shrink-0 -translate-y-[3px] items-center rounded-full border border-[#a6a6a6] px-[18px] text-[#555]">
           <Icon className="size-[16px] shrink-0 text-[#111]" name="search" />
-          <span className="ml-[15px] truncate text-[16px] leading-none">
+          <span className="ml-[15px] truncate text-[13px] leading-none">
             I&apos;m looking for...
           </span>
         </div>

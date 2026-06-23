@@ -18,7 +18,7 @@ function ComposerAction({
         className={`mr-[9px] size-[24px] max-[620px]:mr-[6px] max-[620px]:size-[20px] ${iconClass}`}
         name={icon}
       />
-      <span className="text-[18px] font-bold leading-none max-[620px]:text-[14px]">
+      <span className="text-[18px] leading-none max-[620px]:text-[14px]">
         {label}
       </span>
     </div>
@@ -35,7 +35,7 @@ function PostComposer() {
           src="/linkedin/profile-small.png"
         />
         <div className="ml-[11px] flex h-[56px] flex-1 items-center rounded-full border border-[#aaa] px-[24px] max-[620px]:ml-[10px] max-[620px]:h-[48px] max-[620px]:px-[16px]">
-          <span className="whitespace-nowrap text-[20px] font-bold text-[#222] max-[620px]:text-[16px]">
+          <span className="whitespace-nowrap text-[20px] text-[#222] max-[620px]:text-[16px]">
             Start a post
           </span>
         </div>
@@ -55,19 +55,25 @@ function SortBar() {
     <div className="flex h-[40px] items-center">
       <span className="h-px flex-1 bg-[#d6d6d6]" />
       <span className="ml-[20px] text-[14px] text-[#666]">Sort by:</span>
-      <span className="ml-[5px] text-[14px] font-bold text-[#555]">Top</span>
+      <span className="ml-[5px] text-[14px] text-[#555]">Top</span>
       <Icon className="ml-[8px] size-[11px] text-[#555]" name="chevron-down" />
     </div>
   );
 }
 
-const POST_ACTIONS = ["Like", "Comment", "Repost", "Send"] as const;
+const POST_ACTIONS = [
+  { icon: "like" as const, label: "Like" },
+  { icon: "comment" as const, label: "Comment" },
+  { icon: "repost" as const, label: "Repost" },
+  { icon: "forward" as const, label: "Send" },
+];
 
 function PostActionBar() {
   return (
-    <div className="flex h-[48px] flex-wrap justify-around border-t border-[#dedede] text-center text-[14px] font-bold text-[#555]">
-      {POST_ACTIONS.map((label) => (
-        <div className="flex flex-1 items-center justify-center" key={label}>
+    <div className="flex h-[48px] flex-wrap justify-around border-t border-[#dedede] text-[14px] text-[#555]">
+      {POST_ACTIONS.map(({ icon, label }) => (
+        <div className="flex flex-1 items-center justify-center gap-[6px]" key={label}>
+          <Icon className="size-[18px]" name={icon} />
           {label}
         </div>
       ))}
@@ -120,7 +126,7 @@ function FeedPost() {
 
           <div className="ml-[11px] flex shrink-0 items-start pt-[4px] text-[#0a66c2] max-[620px]:ml-[6px] max-[620px]:pt-[2px]">
             <Icon className="size-[19px] max-[620px]:size-[17px]" name="plus" />
-            <span className="ml-[4px] text-[18px] font-bold max-[620px]:ml-[3px] max-[620px]:text-[16px]">
+            <span className="ml-[4px] text-[18px] max-[620px]:ml-[3px] max-[620px]:text-[16px]">
               Follow
             </span>
           </div>
@@ -132,7 +138,7 @@ function FeedPost() {
         </p>
 
         <p className="mt-[27px] text-[16px] leading-[20px] text-[#666]">
-          <span className="font-bold text-[#222]">...</span> more
+          <span className="text-[#222]">...</span> more
         </p>
       </div>
 
@@ -186,7 +192,7 @@ function FeedPostCareerAdvice() {
           </div>
           <div className="ml-[11px] flex shrink-0 items-start pt-[4px] text-[#0a66c2] max-[620px]:ml-[6px]">
             <Icon className="size-[19px]" name="plus" />
-            <span className="ml-[4px] text-[18px] font-bold">Follow</span>
+            <span className="ml-[4px] text-[18px]">Follow</span>
           </div>
         </div>
 
@@ -201,7 +207,7 @@ function FeedPostCareerAdvice() {
           3. It&rsquo;s okay to say &ldquo;I don&rsquo;t know, but here&rsquo;s how I&rsquo;d think through it.&rdquo; Intellectual honesty &gt; faking confidence.
         </p>
         <p className="mt-[10px] text-[16px] leading-[20px] text-[#666]">
-          <span className="font-bold text-[#222]">...</span> more
+          <span className="text-[#222]">...</span> more
         </p>
       </div>
 
@@ -288,7 +294,7 @@ function FeedPostImage() {
           </div>
           <div className="ml-[11px] flex shrink-0 items-start pt-[4px] text-[#0a66c2]">
             <Icon className="size-[19px]" name="plus" />
-            <span className="ml-[4px] text-[18px] font-bold">Follow</span>
+            <span className="ml-[4px] text-[18px]">Follow</span>
           </div>
         </div>
 
@@ -296,7 +302,7 @@ function FeedPostImage() {
           Our new office is open. The views are not bad either 🏙️
         </p>
         <p className="mt-[6px] text-[16px] leading-[20px] text-[#666]">
-          <span className="font-bold text-[#222]">...</span> more
+          <span className="text-[#222]">...</span> more
         </p>
       </div>
 
@@ -347,7 +353,7 @@ function FeedPostThought() {
           </div>
           <div className="ml-[11px] flex shrink-0 items-start pt-[4px] text-[#0a66c2]">
             <Icon className="size-[19px]" name="plus" />
-            <span className="ml-[4px] text-[18px] font-bold">Follow</span>
+            <span className="ml-[4px] text-[18px]">Follow</span>
           </div>
         </div>
 

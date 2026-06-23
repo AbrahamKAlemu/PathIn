@@ -8,18 +8,22 @@ type IconName =
   | "chevron-right"
   | "chevron-up"
   | "close"
+  | "comment"
   | "edit"
+  | "forward"
   | "globe"
   | "grid"
   | "home"
   | "image"
   | "info"
+  | "like"
   | "media"
   | "message"
   | "more"
   | "network"
   | "play"
   | "plus"
+  | "repost"
   | "search";
 
 type IconProps = {
@@ -171,6 +175,35 @@ export function Icon({ name, className = "size-6" }: IconProps) {
         <svg {...common} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.3">
           <path d="M13.7 5.2 18.8 10M4 20l1.1-5.3L16.7 3.1a2 2 0 0 1 2.8 0l1.4 1.4a2 2 0 0 1 0 2.8L9.3 18.9 4 20Z" />
           <path d="M13 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-8" />
+        </svg>
+      );
+    case "like":
+      return (
+        <svg {...common} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+          <path d="M14 9V5a3 3 0 0 0-3-3L7 14v7h11.3a2 2 0 0 0 2-1.7l1.4-9a2 2 0 0 0-2-2.3H14Z" />
+          <path d="M7 14H4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h3" />
+        </svg>
+      );
+    case "comment":
+      return (
+        <svg {...common} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      );
+    case "repost":
+      return (
+        <svg {...common} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+          <path d="M17 1l4 4-4 4" />
+          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <path d="M7 23l-4-4 4-4" />
+          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+        </svg>
+      );
+    case "forward":
+      return (
+        <svg {...common} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+          <line x1="22" y1="2" x2="11" y2="13" />
+          <polygon points="22 2 15 22 11 13 2 9 22 2" />
         </svg>
       );
   }

@@ -9,7 +9,7 @@ export function MessagingBar() {
         className="size-[28px] shrink-0"
         src="/linkedin/profile-small.png"
       />
-      <span className="ml-[10px] text-[18px] font-bold text-[#222]">
+      <span className="ml-[10px] text-[18px] text-[#222]">
         Messaging
       </span>
       <Icon className="ml-auto size-[17px] text-[#444]" name="more" />
