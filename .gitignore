@@ -1,0 +1,8 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+backend/.pytest_cache/
+backend/.venv/
+backend/**/__pycache__/
