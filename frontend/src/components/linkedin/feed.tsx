@@ -61,6 +61,20 @@ function SortBar() {
   );
 }
 
+const POST_ACTIONS = ["Like", "Comment", "Repost", "Send"] as const;
+
+function PostActionBar() {
+  return (
+    <div className="flex h-[48px] flex-wrap justify-around border-t border-[#dedede] text-center text-[14px] font-bold text-[#555]">
+      {POST_ACTIONS.map((label) => (
+        <div className="flex flex-1 items-center justify-center" key={label}>
+          {label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function FeedPost() {
   return (
     <article className="overflow-hidden rounded-[10px] border border-[#d4d4d4] bg-white text-[#191919]">
@@ -138,13 +152,218 @@ function FeedPost() {
         <span className="ml-auto">18 comments</span>
       </div>
 
-      <div className="grid h-[48px] grid-cols-4 border-t border-[#dedede] text-center text-[14px] font-bold text-[#555]">
-        {["Like", "Comment", "Repost", "Send"].map((label) => (
-          <div className="flex items-center justify-center" key={label}>
-            {label}
+      <PostActionBar />
+    </article>
+  );
+}
+
+function FeedPostCareerAdvice() {
+  return (
+    <article className="overflow-hidden rounded-[10px] border border-[#d4d4d4] bg-white text-[#191919]">
+      <div className="mx-[15px] pt-[14px] max-[620px]:mx-[12px]">
+        <div className="flex">
+          <Avatar
+            alt="Maya Johnson"
+            className="size-[60px] shrink-0 max-[620px]:size-[52px]"
+            src="/linkedin/fazal.png"
+          />
+          <div className="ml-[11px] min-w-0 flex-1 max-[620px]:ml-[9px]">
+            <div className="flex items-center">
+              <h2 className="truncate text-[19px] font-bold leading-[21px] tracking-[-0.02em] max-[620px]:text-[17px]">
+                Maya Johnson
+              </h2>
+              <span className="ml-[6px] text-[14px] text-[#666] max-[620px]:ml-[4px] max-[620px]:text-[13px]">
+                &middot; 2nd
+              </span>
+            </div>
+            <p className="truncate text-[14px] leading-[18px] text-[#666] max-[620px]:text-[13px]">
+              Senior SWE @ Google · ex-Meta · Stanford CS &apos;21
+            </p>
+            <div className="flex items-center text-[14px] leading-[18px] text-[#666] max-[620px]:text-[13px]">
+              <span>5h &middot;</span>
+              <Icon className="ml-[4px] size-[14px]" name="globe" />
+            </div>
           </div>
-        ))}
+          <div className="ml-[11px] flex shrink-0 items-start pt-[4px] text-[#0a66c2] max-[620px]:ml-[6px]">
+            <Icon className="size-[19px]" name="plus" />
+            <span className="ml-[4px] text-[18px] font-bold">Follow</span>
+          </div>
+        </div>
+
+        <p className="mt-[14px] text-[17px] leading-[24px] max-[620px]:text-[16px]">
+          3 things I wish someone told me before my first tech interview:
+        </p>
+        <p className="mt-[10px] text-[16px] leading-[22px] text-[#444] max-[620px]:text-[15px]">
+          1. Your résumé gets you the interview — your communication wins the offer. Practice explaining your projects out loud, not just on paper.
+          <br /><br />
+          2. Behavioral questions are not filler. &ldquo;Tell me about a conflict&rdquo; is the interviewer asking if they can work with you for years.
+          <br /><br />
+          3. It&rsquo;s okay to say &ldquo;I don&rsquo;t know, but here&rsquo;s how I&rsquo;d think through it.&rdquo; Intellectual honesty &gt; faking confidence.
+        </p>
+        <p className="mt-[10px] text-[16px] leading-[20px] text-[#666]">
+          <span className="font-bold text-[#222]">...</span> more
+        </p>
       </div>
+
+      <div className="mx-[18px] flex h-[36px] items-center text-[13px] text-[#666]">
+        <span>841 reactions</span>
+        <span className="ml-auto">94 comments</span>
+      </div>
+
+      <PostActionBar />
+    </article>
+  );
+}
+
+function FeedPostAnnouncement() {
+  return (
+    <article className="overflow-hidden rounded-[10px] border border-[#d4d4d4] bg-white text-[#191919]">
+      <div className="mx-[15px] pt-[14px] max-[620px]:mx-[12px]">
+        <div className="flex">
+          <Avatar
+            alt="Marcus Williams"
+            className="size-[60px] shrink-0 max-[620px]:size-[52px]"
+            src="/linkedin/arjun.png"
+          />
+          <div className="ml-[11px] min-w-0 flex-1 max-[620px]:ml-[9px]">
+            <div className="flex items-center">
+              <h2 className="truncate text-[19px] font-bold leading-[21px] tracking-[-0.02em] max-[620px]:text-[17px]">
+                Marcus Williams
+              </h2>
+              <span className="ml-[6px] text-[14px] text-[#666]">&middot; 1st</span>
+            </div>
+            <p className="truncate text-[14px] leading-[18px] text-[#666] max-[620px]:text-[13px]">
+              CS &apos;26 @ MIT · incoming SWE intern @ Stripe
+            </p>
+            <div className="flex items-center text-[14px] leading-[18px] text-[#666]">
+              <span>1d &middot;</span>
+              <Icon className="ml-[4px] size-[14px]" name="globe" />
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-[14px] text-[17px] leading-[24px] max-[620px]:text-[16px]">
+          Thrilled to share that I&rsquo;ll be joining{" "}
+          <strong className="text-[#0a66c2]">Stripe</strong> this summer as a Software Engineering Intern! 🎉
+          <br /><br />
+          Huge thanks to everyone who reviewed my résumé, mock-interviewed me, and encouraged me when things got tough. This one&rsquo;s for you.
+        </p>
+      </div>
+
+      <div className="mx-[18px] flex h-[36px] items-center text-[13px] text-[#666]">
+        <span>2.1k reactions</span>
+        <span className="ml-auto">207 comments</span>
+      </div>
+
+      <PostActionBar />
+    </article>
+  );
+}
+
+function FeedPostImage() {
+  return (
+    <article className="overflow-hidden rounded-[10px] border border-[#d4d4d4] bg-white text-[#191919]">
+      <div className="mx-[15px] pt-[14px] max-[620px]:mx-[12px]">
+        <div className="flex">
+          <Avatar
+            alt="Priya Patel"
+            className="size-[60px] shrink-0 max-[620px]:size-[52px]"
+            src="/linkedin/profile-small.png"
+          />
+          <div className="ml-[11px] min-w-0 flex-1 max-[620px]:ml-[9px]">
+            <div className="flex items-center">
+              <h2 className="truncate text-[19px] font-bold leading-[21px] tracking-[-0.02em] max-[620px]:text-[17px]">
+                Priya Patel
+              </h2>
+              <LinkedInBadge className="ml-[6px] size-[14px] shrink-0 text-[9px]" />
+              <span className="ml-[6px] text-[14px] text-[#666]">&middot; 2nd</span>
+            </div>
+            <p className="truncate text-[14px] leading-[18px] text-[#666] max-[620px]:text-[13px]">
+              PM @ Figma · Product-led growth · Berkeley MBA
+            </p>
+            <div className="flex items-center text-[14px] leading-[18px] text-[#666]">
+              <span>2d &middot;</span>
+              <Icon className="ml-[4px] size-[14px]" name="globe" />
+            </div>
+          </div>
+          <div className="ml-[11px] flex shrink-0 items-start pt-[4px] text-[#0a66c2]">
+            <Icon className="size-[19px]" name="plus" />
+            <span className="ml-[4px] text-[18px] font-bold">Follow</span>
+          </div>
+        </div>
+
+        <p className="mt-[14px] text-[17px] leading-[21px] max-[620px]:text-[16px]">
+          Our new office is open. The views are not bad either 🏙️
+        </p>
+        <p className="mt-[6px] text-[16px] leading-[20px] text-[#666]">
+          <span className="font-bold text-[#222]">...</span> more
+        </p>
+      </div>
+
+      <div className="mx-[18px] mt-[12px]">
+        <Image
+          alt="Office building with city view"
+          className="h-auto w-full"
+          height={349}
+          src="/linkedin/post-building.png"
+          width={1026}
+        />
+      </div>
+
+      <div className="mx-[18px] flex h-[36px] items-center text-[13px] text-[#666]">
+        <span>563 reactions</span>
+        <span className="ml-auto">41 comments</span>
+      </div>
+
+      <PostActionBar />
+    </article>
+  );
+}
+
+function FeedPostThought() {
+  return (
+    <article className="overflow-hidden rounded-[10px] border border-[#d4d4d4] bg-white text-[#191919]">
+      <div className="mx-[15px] pt-[14px] max-[620px]:mx-[12px]">
+        <div className="flex">
+          <Avatar
+            alt="James Rodriguez"
+            className="size-[60px] shrink-0 max-[620px]:size-[52px]"
+            src="/linkedin/fazal.png"
+          />
+          <div className="ml-[11px] min-w-0 flex-1 max-[620px]:ml-[9px]">
+            <div className="flex items-center">
+              <h2 className="truncate text-[19px] font-bold leading-[21px] tracking-[-0.02em] max-[620px]:text-[17px]">
+                James Rodriguez
+              </h2>
+              <span className="ml-[6px] text-[14px] text-[#666]">&middot; 3rd+</span>
+            </div>
+            <p className="truncate text-[14px] leading-[18px] text-[#666] max-[620px]:text-[13px]">
+              Co-founder @ Novu (YC W23) · prev Robinhood
+            </p>
+            <div className="flex items-center text-[14px] leading-[18px] text-[#666]">
+              <span>3d &middot;</span>
+              <Icon className="ml-[4px] size-[14px]" name="globe" />
+            </div>
+          </div>
+          <div className="ml-[11px] flex shrink-0 items-start pt-[4px] text-[#0a66c2]">
+            <Icon className="size-[19px]" name="plus" />
+            <span className="ml-[4px] text-[18px] font-bold">Follow</span>
+          </div>
+        </div>
+
+        <p className="mt-[14px] text-[17px] leading-[24px] max-[620px]:text-[16px]">
+          Hot take: the best thing about building a startup in your 20s is not the equity. It&rsquo;s the speed at which you learn what you&rsquo;re actually bad at.
+          <br /><br />
+          Nothing humbles you faster than shipping to real users.
+        </p>
+      </div>
+
+      <div className="mx-[18px] flex h-[36px] items-center text-[13px] text-[#666]">
+        <span>1.4k reactions</span>
+        <span className="ml-auto">138 comments</span>
+      </div>
+
+      <PostActionBar />
     </article>
   );
 }
@@ -154,7 +373,17 @@ export function Feed() {
     <section className="feed-column min-w-0">
       <PostComposer />
       <SortBar />
-      <FeedPost />
+      <div className="flex flex-col gap-[8px]">
+        <FeedPost />
+        <FeedPostCareerAdvice />
+        <FeedPostAnnouncement />
+        <FeedPostImage />
+        <FeedPostThought />
+      </div>
+      <p className="my-[32px] text-center text-[14px] text-[#888]">
+        You&rsquo;re all caught up ✓
+      </p>
     </section>
   );
 }
+
