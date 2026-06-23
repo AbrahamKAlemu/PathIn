@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 import { Avatar } from "./avatar";
 import { LinkedInBadge } from "./icons";
@@ -66,6 +67,31 @@ export function ProfileSidebar() {
             features
           </span>
         </div>
+      </section>
+      <section className="mt-[9px] min-h-[188px] overflow-hidden rounded-[10px] border border-[#d4d4d4] bg-white">
+        <div className="border-b border-[#e8e8e8] bg-gradient-to-br from-[#e7f3ff] to-white px-[18px] py-[17px]">
+          <div className="flex items-center gap-[10px]">
+            <span className="grid size-[38px] place-items-center rounded-[8px] bg-[#0a66c2] text-[15px] font-bold text-white">
+              in
+            </span>
+            <div>
+              <p className="text-[17px] font-bold leading-[20px]">Path[IN]</p>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#0a66c2]">
+                Career explorer
+              </p>
+            </div>
+          </div>
+          <p className="mt-[12px] text-[14px] leading-[19px] text-[#444]">
+            Turn your profile into possible career routes and practical next
+            steps.
+          </p>
+        </div>
+        <Link
+          className="flex h-[49px] items-center justify-center text-[14px] font-bold text-[#0a66c2] hover:bg-[#f3f2ef]"
+          href="/career-tree"
+        >
+          Explore your paths
+        </Link>
       </section>
     </aside>
   );

@@ -5,6 +5,7 @@ description = "Flask API for PathIn"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "certifi>=2025.4",
     "flask>=3.1,<4",
     "flask-cors>=6,<7",
     "python-dotenv>=1.1,<2",
