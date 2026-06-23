@@ -95,12 +95,13 @@ body {
     width: 150px;
   }
 
+  .linkedin-nav > a,
   .linkedin-nav > div {
     display: none;
   }
 
-  .linkedin-nav > div:first-child,
-  .linkedin-nav > div:nth-child(4),
+  .linkedin-nav > a:nth-child(1),
+  .linkedin-nav > a:nth-child(3),
   .linkedin-nav > div:nth-child(6) {
     display: flex;
   }
@@ -129,16 +130,25 @@ body {
 
   .linkedin-nav {
     margin-left: 8px;
-    width: 104px;
+    width: 88px;
   }
 
-  .linkedin-nav > div:nth-child(4),
+  .linkedin-nav > a,
+  .linkedin-nav > div {
+    display: none;
+  }
+
+  .linkedin-nav > a:nth-child(1),
+  .linkedin-nav > a:nth-child(3) {
+    display: flex;
+  }
+
   .linkedin-nav > div:nth-child(6) {
     display: none;
   }
 
   .linkedin-nav {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .linkedin-grid {

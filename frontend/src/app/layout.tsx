@@ -9,8 +9,12 @@ const sourceSans = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: "LinkedIn",
-  description: "A static LinkedIn home-feed recreation.",
+  title: {
+    default: "LinkedIn",
+    template: "%s",
+  },
+  description:
+    "A LinkedIn-style prototype featuring Path[IN], an interactive career-path explorer.",
 };
 
 export default function RootLayout({
