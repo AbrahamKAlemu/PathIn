@@ -67,7 +67,7 @@ function PuzzleRow({
 
 export function NewsSidebar() {
   return (
-    <aside className="news-column sticky top-16 h-[calc(100vh-64px)] overflow-y-auto rounded-[10px] border border-[#d4d4d4] bg-white px-[20px] pb-[20px] pt-[13px] text-[#191919]">
+    <aside className="news-column self-start sticky top-16 h-[calc(100vh-64px)] overflow-y-auto rounded-[10px] border border-[#d4d4d4] bg-white px-[20px] pb-[20px] pt-[13px] text-[#191919]">
       <div className="flex items-center justify-between">
         <h2 className="text-[25px] font-bold leading-[30px] tracking-[-0.025em]">
           LinkedIn News

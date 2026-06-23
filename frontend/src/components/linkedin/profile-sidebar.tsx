@@ -5,7 +5,7 @@ import { LinkedInBadge } from "./icons";
 
 export function ProfileSidebar() {
   return (
-    <aside className="profile-column sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
+    <aside className="profile-column self-start sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
       <section className="relative h-[302px] overflow-hidden rounded-[10px] border border-[#d4d4d4] bg-white text-[#191919]">
         <div className="h-[70px] border-t-[3px] border-[#f5c879] bg-gradient-to-br from-[#171a1c] to-black">
           <p className="pr-[11px] pt-[10px] text-right text-[18px] font-bold text-white">

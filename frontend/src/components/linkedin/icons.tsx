@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 type IconName =
   | "article"
   | "bell"
@@ -176,14 +178,13 @@ export function Icon({ name, className = "size-6" }: IconProps) {
 
 export function LinkedInLogo({ className = "" }: { className?: string }) {
   return (
-    <div
-      aria-label="LinkedIn"
-      className={`flex items-center justify-center rounded-[3px] bg-[#0a66c2] font-sans text-white ${className}`}
-    >
-      <span className="translate-y-[1px] text-[0.96em] font-bold tracking-[-0.1em]">
-        in
-      </span>
-    </div>
+    <Image
+      src="/pathin-logo.png"
+      alt="PathIn"
+      className={className}
+      width={34}
+      height={34}
+    />
   );
 }
 
