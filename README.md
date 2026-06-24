@@ -8,9 +8,14 @@ Live feature:
 
 ## Path[IN] prototype
 
-The `/career-tree` page is a LinkedIn-integrated, visualization-first career
+The `/career-tree` page is a LinkedIn-integrated, resume-driven career
 explorer. It includes:
 
+- Blank onboarding before any recommendation or map is shown
+- Secure PDF, DOCX, TXT, and LinkedIn-export parsing
+- Reviewable profile fields with provenance, confidence, and category controls
+- Optional interests, goals, work styles, constraints, and training context
+- Flask-generated, explainable destination ranking with no frontend fallback
 - Explore and Build My Path modes
 - A visible career-goal layer with a selected destination and alternate goals
 - A Focus view with one dominant node and two connected previews above/below
@@ -20,6 +25,7 @@ explorer. It includes:
 - Skill, course, project, role, and destination details
 - Editable profile inputs with per-category controls
 - Pin, dismiss, alternative, regenerate, save, reopen, and feedback actions
+- SQLite persistence only for maps the user explicitly saves
 - Responsive desktop and mobile layouts
 - PIT-derived aggregate evidence with a 20-profile privacy threshold
 
@@ -49,9 +55,9 @@ npm run dev
 
 The frontend runs at [http://localhost:3000](http://localhost:3000).
 
-To point server-side map generation at a deployed Flask API, copy
-`frontend/.env.example` to `frontend/.env.local` and set `PATHIN_API_URL`.
-`NEXT_PUBLIC_API_URL` is retained for future browser-side API actions.
+To point browser-side generation at a Flask API, copy
+`frontend/.env.example` to `frontend/.env.local` and set
+`NEXT_PUBLIC_API_URL`.
 
 ## Backend
 
@@ -70,6 +76,6 @@ To allow additional frontend origins, copy `backend/.env.example` to
 ## Checks
 
 ```bash
-cd frontend && npm run lint && npm run build
+cd frontend && npm test && npm run lint && npm run build
 cd backend && uv run pytest
 ```

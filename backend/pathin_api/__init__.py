@@ -2,14 +2,19 @@ import os
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from .career_service import ApiError, CareerService
+from .resume_parser import MAX_UPLOAD_BYTES
 
 
 def _frontend_origins() -> list[str]:
     configured_origins = os.getenv(
         "FRONTEND_ORIGINS",
-        "http://localhost:3000",
+        (
+            "http://localhost:3000,http://127.0.0.1:3000,"
+            "https://pit26codepin.vercel.app"
+        ),
     )
     return [
         origin.strip()
@@ -20,6 +25,7 @@ def _frontend_origins() -> list[str]:
 
 def create_app(career_service: CareerService | None = None) -> Flask:
     app = Flask(__name__)
+    app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES + 64 * 1024
     service = career_service or CareerService()
     CORS(
         app,
@@ -49,22 +55,23 @@ def create_app(career_service: CareerService | None = None) -> Flask:
         return {
             "service": "pathin-api",
             "status": "ok",
-            "versions": {
-                "api": "v1",
-                "taxonomy": "pathin-taxonomy-0.1",
-                "model": "pathin-rules-0.1",
-                "prompt": "prd-1.0",
-            },
-            "privacyThreshold": 20,
+            "versions": service.versions(),
+            "privacyThreshold": service.versions()["privacyThreshold"],
         }
+
+    @app.post("/api/v1/resumes/parse")
+    def parse_resume():
+        source = str(request.form.get("source", "resume"))
+        return jsonify(
+            service.parse_resume(
+                request.files.get("file"),
+                source=source,
+            )
+        )
 
     @app.post("/api/v1/profiles/normalize")
     def normalize_profile():
         return jsonify(service.normalize_profile(_json_payload()))
-
-    @app.get("/api/v1/maps/demo")
-    def demo_map():
-        return jsonify(service.demo_map())
 
     @app.post("/api/v1/maps/explore")
     def explore_map():
@@ -96,6 +103,15 @@ def create_app(career_service: CareerService | None = None) -> Flask:
 
     @app.errorhandler(ApiError)
     def handle_api_error(error: ApiError):
+        return jsonify(error.to_dict()), error.status_code
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def handle_oversized_upload(_error: RequestEntityTooLarge):
+        error = ApiError(
+            "FILE_TOO_LARGE",
+            "The selected file is larger than the 5 MB limit.",
+            details={"maxBytes": MAX_UPLOAD_BYTES},
+        )
         return jsonify(error.to_dict()), error.status_code
 
     return app
