@@ -42,7 +42,7 @@ export function Header({
     <header className="sticky top-0 z-50 h-[58px] border-b border-[#dedede] bg-white">
       <div className="linkedin-header-inner flex h-full items-center">
         <Link aria-label="LinkedIn home" href="/">
-          <LinkedInLogo className="size-[34px] shrink-0 -translate-y-[3px] text-[34px]" />
+          <LinkedInLogo className="w-10 h-auto object-contain shrink-0 -translate-y-[3px]" />
         </Link>
 
         <div className="linkedin-search ml-[10px] flex h-[34px] w-[280px] shrink-0 -translate-y-[3px] items-center rounded-full border border-[#a6a6a6] px-[18px] text-[#555]">

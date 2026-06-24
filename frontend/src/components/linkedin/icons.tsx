@@ -215,8 +215,8 @@ export function LinkedInLogo({ className = "" }: { className?: string }) {
       src="/pathin-logo.png"
       alt="PathIn"
       className={className}
-      width={34}
-      height={34}
+      width={48}
+      height={48}
     />
   );
 }
