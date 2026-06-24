@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import {
   type FormEvent,
   type ReactNode,
@@ -167,7 +166,11 @@ export function ProfilePage() {
           <div className={styles.profileMain}>
             <ProfileHero onOpenDialog={setDialog} profile={profile} />
 
-            <SuggestedCard />
+            <SuggestedCard
+              onAction={() =>
+                showToast("Profile enhancement is available as a scaffold.")
+              }
+            />
 
             <AnalyticsCard profile={profile} />
 
@@ -398,7 +401,7 @@ function ProfileHero({
   );
 }
 
-function SuggestedCard() {
+function SuggestedCard({ onAction }: { onAction: () => void }) {
   return (
     <section className={`${styles.card} ${styles.sectionCard}`}>
       <SectionHeading
@@ -415,9 +418,13 @@ function SuggestedCard() {
             Stand out for almost 2x as many opportunities with the help of AI
             and much more.
           </p>
-          <Link className={styles.darkOutlineLink} href="/career-tree">
+          <button
+            className={styles.darkOutlineLink}
+            onClick={onAction}
+            type="button"
+          >
             Enhance with AI
-          </Link>
+          </button>
         </div>
       </div>
     </section>
@@ -1187,17 +1194,6 @@ function ProfileDialog({
 
         {dialog === "resources" ? (
           <div className={styles.dialogContent}>
-            <Link className={styles.pathinResource} href="/career-tree">
-              <span>in</span>
-              <div>
-                <strong>Explore Path[IN]</strong>
-                <small>
-                  Generate personalized career paths from your enabled profile
-                  evidence and resume.
-                </small>
-              </div>
-              <Icon name="chevron-right" />
-            </Link>
             <DialogMenu
               items={[
                 "Volunteer interests",

@@ -11,15 +11,19 @@ const navigation = [
   { icon: "network" as const, label: "My Network" },
   {
     icon: "briefcase" as const,
-    label: "Jobs and Path[IN]",
-    href: "/career-tree",
+    label: "Jobs",
     id: "jobs" as const,
   },
   { icon: "message" as const, label: "Messaging" },
   { icon: "bell" as const, label: "Notifications", id: "notifications" as const },
 ];
 
-type HeaderActive = "home" | "jobs" | "profile" | "notifications";
+type HeaderActive =
+  | "home"
+  | "jobs"
+  | "profile"
+  | "notifications"
+  | null;
 
 export function Header({
   active = "home",

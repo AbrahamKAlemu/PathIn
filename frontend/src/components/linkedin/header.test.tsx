@@ -21,4 +21,18 @@ describe("Header", () => {
     expect(screen.getByText("You have 0 notifications.")).toBeInTheDocument();
     expect(notifications).toHaveAttribute("aria-expanded", "true");
   });
+
+  it("keeps Jobs separate from the Path[IN] Career Tree", () => {
+    render(<Header />);
+
+    expect(document.querySelector('a[href="/career-tree"]')).toBeNull();
+
+    const jobs = screen.getByRole("button", { name: "Jobs" });
+    fireEvent.click(jobs);
+
+    expect(
+      screen.getByText("Jobs is available as an interactive prototype scaffold."),
+    ).toBeInTheDocument();
+    expect(jobs).toHaveAttribute("aria-expanded", "true");
+  });
 });
