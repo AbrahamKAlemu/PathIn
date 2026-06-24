@@ -39,7 +39,7 @@ export function Header({
   }
 
   return (
-    <header className="sticky top-0 z-50 h-[58px] border-b border-[#dedede] bg-white">
+    <header className="sticky top-0 z-50 h-[66px] border-b border-[#dedede] bg-white">
       <div className="linkedin-header-inner flex h-full items-center">
         <Link aria-label="LinkedIn home" href="/">
           <LinkedInLogo className="size-[34px] shrink-0 -translate-y-[3px] text-[34px]" />
@@ -57,18 +57,27 @@ export function Header({
             const isActive = item.id === active;
             const content = (
               <>
-                <Icon className="size-[23px]" name={item.icon} />
-                {item.id === "notifications" && notificationCount > 0 ? (
-                  <span className="absolute left-[45px] top-[7px] min-w-[33px] rounded-full bg-[#d3112a] px-[5px] py-px text-center text-[14px] font-bold leading-[18px] text-white">
-                    {notificationCount}
-                  </span>
-                ) : null}
+                <div className="relative">
+                  <Icon className="size-[23px]" name={item.icon} />
+                  {item.id === "notifications" && notificationCount > 0 ? (
+                    <span className="absolute -right-[10px] -top-[7px] min-w-[18px] rounded-full bg-[#d3112a] px-[4px] py-px text-center text-[12px] font-bold leading-[16px] text-white">
+                      {notificationCount}
+                    </span>
+                  ) : null}
+                </div>
+                <span
+                  className={`mt-[2px] max-w-[72px] truncate text-center text-[12px] leading-none ${
+                    isActive ? "font-semibold text-[#181818]" : "text-[#666]"
+                  }`}
+                >
+                  {item.label}
+                </span>
                 {isActive ? (
                   <span className="absolute bottom-0 h-[2px] w-full bg-[#191919]" />
                 ) : null}
               </>
             );
-            const className = `relative flex h-full items-center justify-center pb-[6px] ${
+            const className = `relative flex h-full flex-col items-center justify-center pb-[10px] ${
               isActive ? "text-[#181818]" : "text-[#666]"
             }`;
 
@@ -97,16 +106,26 @@ export function Header({
 
           <Link
             aria-label="Me"
-            className={`relative flex h-full items-center justify-center border-r border-[#dedede] pb-[6px] ${
+            className={`relative flex h-full flex-col items-center justify-center gap-[2px] border-r border-[#dedede] pb-[10px] ${
               active === "profile" ? "text-[#181818]" : "text-[#666]"
             }`}
             href="/in/winstoniskandar"
           >
             <Avatar
               alt="Winston Iskandar"
-              className="size-[30px]"
+              className="size-[24px]"
               src="/linkedin/profile-small.png"
             />
+            <span
+              className={`flex items-center gap-[2px] text-[12px] leading-none ${
+                active === "profile" ? "font-semibold text-[#181818]" : "text-[#666]"
+              }`}
+            >
+              Me
+              <svg className="size-[10px]" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 10.94L2.47 5.41l1.06-1.06L8 8.82l4.47-4.47 1.06 1.06z" />
+              </svg>
+            </span>
             {active === "profile" ? (
               <span className="absolute bottom-0 h-[2px] w-full bg-[#191919]" />
             ) : null}
@@ -115,21 +134,28 @@ export function Header({
           <button
             aria-expanded={openPanel === "For Business"}
             aria-label="For Business"
-            className="flex h-full items-center justify-center border-0 bg-transparent pb-[6px] text-[#666]"
+            className="flex h-full flex-col items-center justify-center gap-[2px] border-0 bg-transparent pb-[10px] text-[#666]"
             onClick={() => togglePanel("For Business")}
             type="button"
           >
             <Icon className="size-[24px]" name="grid" />
+            <span className="flex items-center gap-[1px] text-[12px] leading-none">
+              For Business
+              <svg className="size-[10px]" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 10.94L2.47 5.41l1.06-1.06L8 8.82l4.47-4.47 1.06 1.06z" />
+              </svg>
+            </span>
           </button>
 
           <button
             aria-expanded={openPanel === "Learning"}
             aria-label="Learning"
-            className="flex h-full items-center justify-center border-0 bg-transparent pb-[6px] text-[#666]"
+            className="flex h-full flex-col items-center justify-center gap-[2px] border-0 bg-transparent pb-[10px] text-[#666]"
             onClick={() => togglePanel("Learning")}
             type="button"
           >
             <Icon className="h-[23px] w-[28px]" name="media" />
+            <span className="text-[12px] leading-none">Learning</span>
           </button>
         </nav>
       </div>
@@ -159,3 +185,4 @@ export function Header({
     </header>
   );
 }
+
