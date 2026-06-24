@@ -13,6 +13,12 @@ from werkzeug.datastructures import FileStorage
 
 from .errors import ApiError
 from .taxonomy import CONCEPT_ALIASES, OCCUPATIONAL_TAXONOMY, normalize_title
+from .text_cleanup import (
+    clean_extracted_text,
+    clean_profile_text,
+    extraction_quality,
+    is_probably_compacted_text,
+)
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 MAX_EXTRACTED_CHARACTERS = 250_000
@@ -282,7 +288,22 @@ class ResumeParser:
                         "maxPages": MAX_PDF_PAGES,
                     },
                 )
-            return "\n".join(page.extract_text() or "" for page in reader.pages)
+            plain_pages: list[str] = []
+            layout_pages: list[str] = []
+            for page in reader.pages:
+                plain_pages.append(page.extract_text() or "")
+                try:
+                    layout_pages.append(
+                        page.extract_text(extraction_mode="layout") or ""
+                    )
+                except (TypeError, ValueError):
+                    layout_pages.append("")
+            candidates = [
+                "\n".join(pages)
+                for pages in (plain_pages, layout_pages)
+                if any(page.strip() for page in pages)
+            ]
+            return max(candidates, key=extraction_quality, default="")
         if file_format == "docx":
             document = Document(io.BytesIO(data))
             paragraphs = [paragraph.text for paragraph in document.paragraphs]
@@ -301,12 +322,10 @@ class ResumeParser:
 
     @staticmethod
     def _clean_text(text: str) -> str:
-        cleaned_lines = []
-        for raw_line in text.replace("\r", "\n").splitlines():
-            line = re.sub(r"[\t ]+", " ", raw_line).strip()
-            if line:
-                cleaned_lines.append(line)
-        return "\n".join(cleaned_lines)[:MAX_EXTRACTED_CHARACTERS]
+        return clean_extracted_text(
+            text,
+            max_characters=MAX_EXTRACTED_CHARACTERS,
+        )
 
     def _extract_fields(
         self, text: str, *, source: str
@@ -498,8 +517,12 @@ class ResumeParser:
         evidence: str | None = None,
         original_source: str | None = None,
     ) -> None:
-        cleaned = re.sub(r"\s+", " ", value).strip(" •-\t")
-        if not cleaned or len(cleaned) > 500:
+        cleaned = clean_profile_text(value).strip(" •-\t")
+        if (
+            not cleaned
+            or len(cleaned) > 500
+            or is_probably_compacted_text(cleaned)
+        ):
             return
         normalized = self._normalize(cleaned)
         if not normalized or any(item["normalized"] == normalized for item in target):

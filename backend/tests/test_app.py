@@ -19,7 +19,12 @@ from pathin_api.profile_store import (
     InMemoryCurrentProfileStore,
     SQLiteCurrentProfileStore,
 )
+from pathin_api.recommendation_engine import RecommendationEngine
 from pathin_api.resume_parser import MAX_UPLOAD_BYTES
+from pathin_api.text_cleanup import (
+    clean_profile_text,
+    is_probably_compacted_text,
+)
 
 
 RESUME_TEXT = """Alex Example
@@ -397,6 +402,60 @@ def test_pdf_docx_and_txt_extract_profile_facts_with_provenance(
     assert "text" not in payload
 
 
+def test_character_spaced_resume_text_is_repaired_before_parsing(
+    client: FlaskClient,
+) -> None:
+    spaced_resume = """
+E D U C A T I O N
+B S  C o m p u t e r  S c i e n c e
+
+E X P E R I E N C E
+S o f t w a r e  E n g i n e e r  I n t e r n  |  E x a m p l e  C o  |  J a n 2 0 2 6 - P r e s e n t
+B u i l t  P y t h o n  A P I s  a n d  R e a c t  i n t e r f a c e s  f o r  s t u d e n t s
+
+S K I L L S
+P y t h o n ,  J a v a S c r i p t ,  R e a c t
+"""
+    response = _upload(
+        client,
+        data=spaced_resume.encode(),
+        filename="spaced-resume.txt",
+        mimetype="text/plain",
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["fields"]["roles"][0]["value"] == (
+        "Software Engineer Intern | Example Co | Jan 2026 - Present"
+    )
+    assert payload["fields"]["responsibilities"][0]["value"] == (
+        "Built Python APIs and React interfaces for students"
+    )
+    assert [item["value"] for item in payload["fields"]["skills"][:3]] == [
+        "Python",
+        "JavaScript",
+        "React",
+    ]
+
+
+def test_profile_text_cleanup_handles_screenshot_failure_modes() -> None:
+    assert clean_profile_text(
+        "CollegeContactMentor|Jan2026-Present:"
+    ) == "College Contact Mentor | Jan 2026 - Present:"
+    assert clean_profile_text(
+        "N e w  S t u d e n t  R e p r e s e n t a t i v e"
+    ) == "New Student Representative"
+    assert not is_probably_compacted_text("JavaScript")
+    assert is_probably_compacted_text(
+        "Advisingstudentsthroughtailoredacademicpersonalcareer"
+        "guidancetoenhanceretentionandachievepostsecondarygoals"
+    )
+    assert RecommendationEngine._subject_from_evidence(
+        "AI literacy applications and user studies",
+        "fallback",
+    ) == "AI literacy applications and user studies"
+
+
 def test_linkedin_export_preserves_linkedin_provenance(
     client: FlaskClient,
 ) -> None:
@@ -418,6 +477,35 @@ def test_linkedin_export_preserves_linkedin_provenance(
     )
     assert inferred["source"] == "inferred"
     assert inferred["originalSource"] == "linkedin"
+
+
+def test_frontend_profile_keeps_roles_separate_from_responsibilities(
+    client: FlaskClient,
+) -> None:
+    payload = _explore(
+        client,
+        {
+            "education": ["Rice University"],
+            "roles": [
+                "CollegeContactMentor|Jan2026-Present:",
+                "NewStudentRepresentative",
+            ],
+            "responsibilities": [
+                "Advised students through tailored academic and career guidance"
+            ],
+            "skills": ["Communication", "Program Management"],
+            "interests": ["Education"],
+        },
+    )
+
+    assert payload["profile"]["roles"] == [
+        "College Contact Mentor | Jan 2026 - Present:",
+        "New Student Representative",
+    ]
+    assert payload["profile"]["experience"] == payload["profile"]["roles"]
+    assert payload["profile"]["responsibilities"] == [
+        "Advised students through tailored academic and career guidance"
+    ]
 
 
 @pytest.mark.parametrize(
