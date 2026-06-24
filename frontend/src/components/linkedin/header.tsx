@@ -18,19 +18,6 @@ const navigation = [
   { icon: "bell" as const, label: "Notifications", id: "notifications" as const },
 ];
 
-const panelDescriptions: Record<string, string> = {
-  "For Business":
-    "Shown only to preserve the host navigation. PathIn has no business-account workflow and sends no organization data.",
-  Jobs:
-    "Shown only as host context. PathIn does not scrape live jobs or imply access to LinkedIn job listings.",
-  Learning:
-    "PathIn creates live LinkedIn Learning search links from visible skill gaps; it does not claim enrollment or completion.",
-  Messaging:
-    "Messaging is outside PathIn. No private conversations are read, generated, or sent.",
-  "My Network":
-    "Network navigation is outside PathIn. Connection graphs and social suggestions are excluded from recommendation scoring.",
-};
-
 type HeaderActive =
   | "home"
   | "jobs"
@@ -58,16 +45,12 @@ export function Header({
           <LinkedInLogo className="w-10 h-auto object-contain shrink-0 -translate-y-[3px]" />
         </Link>
 
-        <Link
-          aria-label="Open PathIn career explorer"
-          className="linkedin-search ml-[10px] flex h-[34px] w-[280px] shrink-0 -translate-y-[3px] items-center rounded-full border border-[#a6a6a6] px-[18px] text-[#555] hover:bg-[#f3f2ef]"
-          href="/career-tree"
-        >
+        <div className="linkedin-search ml-[10px] flex h-[34px] w-[280px] shrink-0 -translate-y-[3px] items-center rounded-full border border-[#a6a6a6] px-[18px] text-[#555]">
           <Icon className="size-[16px] shrink-0 text-[#111]" name="search" />
           <span className="ml-[15px] truncate text-[13px] leading-none">
-            Explore career paths
+            I&apos;m looking for...
           </span>
-        </Link>
+        </div>
 
         <nav aria-label="Primary" className="linkedin-nav ml-auto grid h-full w-[667px] grid-cols-8">
           {navigation.map((item) => {
@@ -185,7 +168,7 @@ export function Header({
               <p className="mt-[5px] text-[13px] leading-[18px] text-[#666]">
                 {openPanel === "Notifications"
                   ? `You have ${notificationCount} notifications.`
-                  : panelDescriptions[openPanel]}
+                  : `${openPanel} is available as an interactive prototype scaffold.`}
               </p>
             </div>
             <button
