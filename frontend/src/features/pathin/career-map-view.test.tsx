@@ -129,4 +129,101 @@ describe("CareerMapView navigation", () => {
       }),
     ).toBeInTheDocument();
   });
+
+  it("animates vertical travel without allowing repeated clicks to skip steps", async () => {
+    renderCareerMap();
+
+    const navigator = screen.getByRole("region", {
+      name: "Focused career bubble navigator",
+    });
+    const upButton = screen.getByRole("button", {
+      name: /Move focus up to Machine Learning Fundamentals/,
+    });
+
+    fireEvent.click(upButton);
+
+    expect(navigator).toHaveAttribute("aria-busy", "true");
+    expect(navigator).toHaveAttribute("data-transition-direction", "next");
+    expect(navigator).toHaveAttribute("data-transition-phase", "exit");
+    expect(upButton).toBeDisabled();
+
+    fireEvent.click(upButton);
+
+    await waitFor(() =>
+      expect(navigator).toHaveAttribute("data-transition-phase", "enter"),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Machine Learning Fundamentals, focused node/,
+      }),
+    ).toBeInTheDocument();
+
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Move focus down to Your current standing/,
+      }),
+    );
+
+    expect(navigator).toHaveAttribute(
+      "data-transition-direction",
+      "previous",
+    );
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Your current standing, focused node/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("switches horizontally between generated routes at the same depth", async () => {
+    renderCareerMap();
+
+    const navigator = screen.getByRole("region", {
+      name: "Focused career bubble navigator",
+    });
+    expect(screen.getByText(/Route 1 of 3\./)).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Switch right to Discovery-First route at Your current standing/,
+      }),
+    );
+
+    expect(screen.getByText(/Route 2 of 3\./)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /Your current standing, focused node/,
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Move focus up to Project Management Basics/,
+      }),
+    );
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Switch left to Project-first route at Machine Learning Fundamentals/,
+      }),
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: /Machine Learning Fundamentals, focused node/,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Route 1 of 3\./)).toBeInTheDocument();
+  });
 });

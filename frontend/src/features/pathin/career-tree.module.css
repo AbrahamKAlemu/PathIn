@@ -2269,6 +2269,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  isolation: isolate;
   justify-content: center;
   margin: 0 auto;
   min-height: 930px;
@@ -2285,10 +2286,151 @@
   content: "";
   height: calc(100% - 54px);
   left: 50%;
+  pointer-events: none;
   position: absolute;
   top: 27px;
   transform: translateX(-50%);
   width: 2px;
+  z-index: 0;
+}
+
+.focusNavigator::after {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(10, 102, 194, 0.5) 20%,
+    #ffffff 48%,
+    rgba(10, 102, 194, 0.92) 54%,
+    rgba(10, 102, 194, 0.34) 78%,
+    transparent
+  );
+  border-radius: 999px;
+  box-shadow:
+    0 0 12px rgba(10, 102, 194, 0.65),
+    0 0 30px rgba(10, 102, 194, 0.24);
+  content: "";
+  height: 132px;
+  left: 50%;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, 0) scaleY(0.4);
+  transform-origin: center;
+  width: 6px;
+  z-index: 1;
+}
+
+.focusNavigator[data-transitioning="true"][data-transition-direction="next"]::after {
+  animation: pathinRoutePulseUp 570ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.focusNavigator[data-transitioning="true"][data-transition-direction="previous"]::after {
+  animation: pathinRoutePulseDown 570ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.focusNavigator[data-transitioning="true"] .focusPreviewStack,
+.focusNavigator[data-transitioning="true"] .focusCenterRow {
+  pointer-events: none;
+  will-change: filter, opacity, transform;
+}
+
+.focusNavigator[data-transition-phase="exit"] .focusPreviewStack,
+.focusNavigator[data-transition-phase="exit"] .focusCenterRow {
+  animation-duration: 130ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.55, 0, 0.85, 0.45);
+}
+
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="next"]
+  .focusPreviewStack,
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="next"]
+  .focusCenterRow {
+  animation-name: pathinFocusExitNext;
+}
+
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="previous"]
+  .focusPreviewStack,
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="previous"]
+  .focusCenterRow {
+  animation-name: pathinFocusExitPrevious;
+}
+
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="next"]
+  .focusCenterRow,
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="previous"]
+  .focusCenterRow {
+  animation-delay: 15ms;
+}
+
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="next"]
+  .focusPreviewStack[data-direction="history"],
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="previous"]
+  .focusPreviewStack[data-direction="future"] {
+  animation-delay: 30ms;
+}
+
+.focusNavigator[data-transition-phase="enter"] .focusPreviewStack,
+.focusNavigator[data-transition-phase="enter"] .focusCenterRow {
+  animation-duration: 400ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.16, 1.18, 0.32, 1);
+}
+
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="next"]
+  .focusPreviewStack,
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="next"]
+  .focusCenterRow {
+  animation-name: pathinFocusEnterNext;
+}
+
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="previous"]
+  .focusPreviewStack,
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="previous"]
+  .focusCenterRow {
+  animation-name: pathinFocusEnterPrevious;
+}
+
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="next"]
+  .focusPreviewStack[data-direction="future"],
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="previous"]
+  .focusPreviewStack[data-direction="history"] {
+  animation-delay: 24ms;
+}
+
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="next"]
+  .focusPreviewStack[data-direction="history"],
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="previous"]
+  .focusPreviewStack[data-direction="future"] {
+  animation-delay: 44ms;
+}
+
+.focusNavigator[data-transition-phase="enter"] .focusNodeTopline,
+.focusNavigator[data-transition-phase="enter"] .focusNode > strong,
+.focusNavigator[data-transition-phase="enter"] .focusNode > small,
+.focusNavigator[data-transition-phase="enter"] .focusNode > p,
+.focusNavigator[data-transition-phase="enter"] .focusNodeAction {
+  animation: pathinFocusTextIn 250ms ease-out both;
+}
+
+.focusNavigator[data-transition-phase="enter"] .focusNodeTopline {
+  animation-delay: 90ms;
+}
+
+.focusNavigator[data-transition-phase="enter"] .focusNode > strong {
+  animation-delay: 120ms;
+}
+
+.focusNavigator[data-transition-phase="enter"] .focusNode > small {
+  animation-delay: 145ms;
+}
+
+.focusNavigator[data-transition-phase="enter"] .focusNode > p {
+  animation-delay: 170ms;
+}
+
+.focusNavigator[data-transition-phase="enter"] .focusNodeAction {
+  animation-delay: 200ms;
 }
 
 .focusPreviewStack {
@@ -2483,9 +2625,32 @@
   cursor: not-allowed;
 }
 
+.focusMoveButton[data-active="true"],
+.focusMoveButton[data-active="true"]:disabled {
+  animation: pathinArrowButtonPress 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  background: var(--blue-dark);
+  box-shadow:
+    0 5px 16px rgba(10, 102, 194, 0.38),
+    0 0 0 7px rgba(10, 102, 194, 0.1);
+  cursor: progress;
+  opacity: 1;
+}
+
+.focusMoveButton[data-active="true"]::after {
+  animation: pathinBubbleRing 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .focusMoveButton svg {
   height: 19px;
   width: 19px;
+}
+
+.focusMoveButton[data-active="true"][data-direction="next"] svg {
+  animation: pathinArrowLaunchUp 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.focusMoveButton[data-active="true"][data-direction="previous"] svg {
+  animation: pathinArrowLaunchDown 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .focusMoveButton[data-direction="next"]:hover:not(:disabled) svg,
@@ -2512,30 +2677,102 @@
 .focusCenterRow {
   align-items: center;
   display: grid;
-  gap: 24px;
-  grid-template-columns: 116px 360px 116px;
+  gap: 16px;
+  grid-template-columns: 150px 360px 150px;
   justify-content: center;
   position: relative;
   width: 100%;
   z-index: 2;
 }
 
-.lateralScaffold {
+.horizontalRoute {
   align-items: center;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px dashed #aab4bd;
-  border-radius: 999px;
-  color: #77838e;
-  display: flex;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #a8c7e7;
+  border-radius: 14px;
+  box-shadow: 0 5px 16px rgba(10, 102, 194, 0.1);
+  color: var(--blue-dark);
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 18px minmax(0, 1fr);
   justify-content: center;
-  min-height: 38px;
-  opacity: 0.52;
+  min-height: 94px;
+  padding: 10px;
+  text-align: right;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
   width: 100%;
 }
 
-.lateralScaffold svg {
-  height: 15px;
-  width: 15px;
+.horizontalRoute[data-direction="right"] {
+  grid-template-columns: minmax(0, 1fr) 18px;
+  text-align: left;
+}
+
+.horizontalRoute:hover:not(:disabled),
+.horizontalRoute:focus-visible:not(:disabled) {
+  border-color: var(--blue);
+  box-shadow: 0 9px 22px rgba(10, 102, 194, 0.18);
+  outline: 3px solid rgba(10, 102, 194, 0.14);
+  transform: translateY(-2px);
+}
+
+.horizontalRoute:disabled {
+  background: rgba(255, 255, 255, 0.64);
+  border-style: dashed;
+  box-shadow: none;
+  color: #7f8b95;
+  cursor: not-allowed;
+  opacity: 0.64;
+}
+
+.horizontalRoute > svg {
+  align-self: center;
+  height: 18px;
+  width: 18px;
+}
+
+.horizontalRouteCopy {
+  min-width: 0;
+}
+
+.horizontalRouteCopy > span,
+.horizontalRouteCopy > strong,
+.horizontalRouteCopy > small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.horizontalRouteCopy > span {
+  color: #5d7184;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.horizontalRouteCopy > strong {
+  color: var(--ink);
+  display: -webkit-box;
+  font-size: 11px;
+  line-height: 1.2;
+  margin-top: 4px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.horizontalRouteCopy > small {
+  color: #667582;
+  font-size: 8px;
+  line-height: 1.25;
+  margin-top: 4px;
+  white-space: nowrap;
 }
 
 .focusNode {
@@ -3807,10 +4044,34 @@
   opacity: 0.65;
 }
 
+.previousNext button[data-active="true"],
+.previousNext button[data-active="true"]:disabled {
+  background: #eef6ff;
+  border-color: #9bc5ec;
+  box-shadow: 0 5px 16px rgba(10, 102, 194, 0.16);
+  color: var(--blue-dark);
+  cursor: progress;
+  opacity: 1;
+  transform: scale(0.985);
+}
+
+.previousNext button[data-active="true"]::before {
+  opacity: 1;
+  transform: scale(1.18);
+}
+
 .previousNext svg {
   height: 17px;
   transition: transform 180ms ease;
   width: 17px;
+}
+
+.previousNext button[data-active="true"][data-direction="previous"] svg {
+  animation: pathinArrowLaunchDown 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.previousNext button[data-active="true"][data-direction="next"] svg {
+  animation: pathinArrowLaunchUp 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .previousNext button[data-direction="previous"]:hover:not(:disabled) svg,
@@ -5117,6 +5378,190 @@
   white-space: nowrap;
 }
 
+@keyframes pathinRoutePulseUp {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 320px) scaleY(0.35);
+  }
+  16% {
+    opacity: 0.9;
+  }
+  72% {
+    opacity: 0.78;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -400px) scaleY(1);
+  }
+}
+
+@keyframes pathinRoutePulseDown {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -400px) scaleY(0.35);
+  }
+  16% {
+    opacity: 0.9;
+  }
+  72% {
+    opacity: 0.78;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 320px) scaleY(1);
+  }
+}
+
+@keyframes pathinFocusExitNext {
+  0% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    filter: blur(2px);
+    opacity: 0;
+    transform: translateY(32px) scale(0.965);
+  }
+}
+
+@keyframes pathinFocusExitPrevious {
+  0% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    filter: blur(2px);
+    opacity: 0;
+    transform: translateY(-32px) scale(0.965);
+  }
+}
+
+@keyframes pathinFocusEnterNext {
+  0% {
+    filter: blur(3px);
+    opacity: 0;
+    transform: translateY(-42px) scale(0.94);
+  }
+  62% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateY(5px) scale(1.012);
+  }
+  82% {
+    transform: translateY(-2px) scale(0.998);
+  }
+  100% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pathinFocusEnterPrevious {
+  0% {
+    filter: blur(3px);
+    opacity: 0;
+    transform: translateY(42px) scale(0.94);
+  }
+  62% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateY(-5px) scale(1.012);
+  }
+  82% {
+    transform: translateY(2px) scale(0.998);
+  }
+  100% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pathinFocusTextIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pathinFocusFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes pathinFocusFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pathinArrowButtonPress {
+  0% {
+    transform: scale(1);
+  }
+  34% {
+    transform: scale(0.86);
+  }
+  72% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes pathinArrowLaunchUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  42% {
+    opacity: 0.22;
+    transform: translateY(-9px) scale(1.12);
+  }
+  43% {
+    opacity: 0;
+    transform: translateY(7px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pathinArrowLaunchDown {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  42% {
+    opacity: 0.22;
+    transform: translateY(9px) scale(1.12);
+  }
+  43% {
+    opacity: 0;
+    transform: translateY(-7px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes pathinArrowUp {
   0%,
   100% {
@@ -5210,8 +5655,8 @@
 
 @media (max-width: 1100px) {
   .focusCenterRow {
-    gap: 18px;
-    grid-template-columns: 104px 350px 104px;
+    gap: 12px;
+    grid-template-columns: 120px 350px 120px;
   }
 }
 
@@ -5324,7 +5769,16 @@
 
   .focusCenterRow {
     gap: 12px;
-    grid-template-columns: 76px 330px 76px;
+    grid-template-columns: 92px 330px 92px;
+  }
+
+  .horizontalRoute {
+    min-height: 78px;
+    padding: 8px;
+  }
+
+  .horizontalRouteCopy > small {
+    display: none;
   }
 
   .webViewport {
@@ -5697,10 +6151,16 @@
     grid-template-columns: 38px minmax(0, 300px) 38px;
   }
 
-  .lateralScaffold {
+  .horizontalRoute {
     border-radius: 50%;
+    display: flex;
     min-height: 36px;
+    padding: 0;
     width: 36px;
+  }
+
+  .horizontalRouteCopy {
+    display: none;
   }
 
   .focusNode {
@@ -5820,9 +6280,31 @@
   .generationScreen li[data-state="current"] > span,
   .detailHeaderCopy,
   .detailContentMotion,
+  .focusNavigator::after,
+  .focusMoveButton,
   .previousNext button svg,
   .focusMoveButton svg,
   .focusMoveButton::after {
+    animation: none !important;
+  }
+
+  .focusNavigator[data-transition-phase="exit"] .focusPreviewStack,
+  .focusNavigator[data-transition-phase="exit"] .focusCenterRow {
+    animation: pathinFocusFadeOut 70ms ease both !important;
+    filter: none !important;
+  }
+
+  .focusNavigator[data-transition-phase="enter"] .focusPreviewStack,
+  .focusNavigator[data-transition-phase="enter"] .focusCenterRow {
+    animation: pathinFocusFadeIn 120ms ease both !important;
+    filter: none !important;
+  }
+
+  .focusNavigator[data-transition-phase="enter"] .focusNodeTopline,
+  .focusNavigator[data-transition-phase="enter"] .focusNode > strong,
+  .focusNavigator[data-transition-phase="enter"] .focusNode > small,
+  .focusNavigator[data-transition-phase="enter"] .focusNode > p,
+  .focusNavigator[data-transition-phase="enter"] .focusNodeAction {
     animation: none !important;
   }
 

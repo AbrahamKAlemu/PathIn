@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -31,6 +32,10 @@ import styles from "./career-tree.module.css";
 type Direction = "previous" | "next";
 type DetailMotion = Direction | "select";
 type CareerView = "focus" | "web";
+type FocusTransition = {
+  direction: Direction;
+  phase: "exit" | "enter";
+};
 
 type WebPlacement = {
   key: string;
@@ -57,6 +62,11 @@ type WebLayout = {
 
 type CareerGoalOption = {
   destination: CareerNode;
+  path: CareerPath;
+};
+
+type HorizontalRouteOption = {
+  node: CareerNode;
   path: CareerPath;
 };
 
@@ -115,6 +125,10 @@ const WEB_FUTURE_ROW_GAP = 164;
 const WEB_HISTORY_ROW_GAP = 142;
 const WEB_X_PADDING = 150;
 const WEB_Y_PADDING = 110;
+const FOCUS_EXIT_DURATION_MS = 160;
+const FOCUS_ENTER_DURATION_MS = 460;
+const REDUCED_FOCUS_EXIT_DURATION_MS = 70;
+const REDUCED_FOCUS_ENTER_DURATION_MS = 130;
 
 const detailSections: Array<{ id: DetailSection; label: string }> = [
   { id: "overview", label: "Overview" },
@@ -140,6 +154,14 @@ function uniqueDisplayValues(values: string[]) {
     }
     return result;
   }, []);
+}
+
+function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 }
 
 function mapEvidenceSourceLabel(initialMap: CareerMapData) {
@@ -954,6 +976,8 @@ export function CareerMapView({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailMotion, setDetailMotion] =
     useState<DetailMotion>("select");
+  const [focusTransition, setFocusTransition] =
+    useState<FocusTransition | null>(null);
   const [webZoom, setWebZoom] = useState(0.9);
   const [pinnedNodeIds, setPinnedNodeIds] = useState<string[]>(
     initialMap.pinnedNodeIds ?? [],
@@ -974,6 +998,9 @@ export function CareerMapView({
 
   const feedbackCloseRef = useRef<HTMLButtonElement>(null);
   const focusedNodeRef = useRef<HTMLButtonElement>(null);
+  const focusTransitionLockRef = useRef(false);
+  const focusTransitionSequenceRef = useRef(0);
+  const focusTransitionTimerRef = useRef<number | null>(null);
   const webViewportRef = useRef<HTMLDivElement>(null);
   const webDragState = useRef<{
     pointerId: number;
@@ -982,6 +1009,16 @@ export function CareerMapView({
     scrollLeft: number;
     scrollTop: number;
   } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      focusTransitionSequenceRef.current += 1;
+      focusTransitionLockRef.current = false;
+      if (focusTransitionTimerRef.current !== null) {
+        window.clearTimeout(focusTransitionTimerRef.current);
+      }
+    };
+  }, []);
 
   const activePathIds = useMemo(() => {
     if (mode === "explore") {
@@ -1083,6 +1120,43 @@ export function CareerMapView({
     [focusedPath],
   );
   const focusIndex = focusSequence.indexOf(selectedNode.id);
+  const focusedPathIndex = focusedPath
+    ? activePaths.findIndex((path) => path.id === focusedPath.id)
+    : -1;
+  const horizontalDepth =
+    selectedNode.id === "current"
+      ? 0
+      : focusedPath?.nodeIds.indexOf(selectedNode.id) ?? -1;
+  const horizontalNodeForPath = (path: CareerPath) => {
+    if (PROFILE_NODE_ID_SET.has(selectedNode.id)) {
+      return selectedNode;
+    }
+    const targetIndex = Math.max(
+      0,
+      Math.min(
+        horizontalDepth >= 0 ? horizontalDepth : 0,
+        path.nodeIds.length - 1,
+      ),
+    );
+    return (
+      nodeById.get(path.nodeIds[targetIndex]) ??
+      nodeById.get("current")!
+    );
+  };
+  const previousHorizontalRoute: HorizontalRouteOption | null =
+    focusedPathIndex > 0
+      ? {
+          node: horizontalNodeForPath(activePaths[focusedPathIndex - 1]),
+          path: activePaths[focusedPathIndex - 1],
+        }
+      : null;
+  const nextHorizontalRoute: HorizontalRouteOption | null =
+    focusedPathIndex >= 0 && focusedPathIndex < activePaths.length - 1
+      ? {
+          node: horizontalNodeForPath(activePaths[focusedPathIndex + 1]),
+          path: activePaths[focusedPathIndex + 1],
+        }
+      : null;
   const previousFocusNode =
     focusIndex > 0
       ? nodeById.get(focusSequence[focusIndex - 1]) ?? null
@@ -1141,6 +1215,17 @@ export function CareerMapView({
     () => calculateWebLayout(activePaths),
     [activePaths],
   );
+  const isFocusTransitioning = focusTransition !== null;
+
+  function cancelFocusTransition() {
+    focusTransitionSequenceRef.current += 1;
+    focusTransitionLockRef.current = false;
+    if (focusTransitionTimerRef.current !== null) {
+      window.clearTimeout(focusTransitionTimerRef.current);
+      focusTransitionTimerRef.current = null;
+    }
+    setFocusTransition(null);
+  }
 
   function selectNode(
     nodeId: string,
@@ -1170,6 +1255,7 @@ export function CareerMapView({
   }
 
   function selectGoal(goal: CareerGoalOption) {
+    cancelFocusTransition();
     setDestinationId(goal.destination.id);
     if (mode === "explore" && !explorePathIds.includes(goal.path.id)) {
       setExplorePathIds((current) => {
@@ -1198,6 +1284,10 @@ export function CareerMapView({
   }
 
   function navigate(direction: Direction, openDetails = false) {
+    if (focusTransitionLockRef.current) {
+      return;
+    }
+
     const target = direction === "next" ? nextFocusNode : previousFocusNode;
     if (!target) {
       setStatusMessage(
@@ -1207,12 +1297,66 @@ export function CareerMapView({
       );
       return;
     }
-    selectNode(target.id, openDetails, focusedPath?.id, direction);
-    if (!openDetails) {
-      window.requestAnimationFrame(() => {
-        focusedNodeRef.current?.focus({ preventScroll: true });
-      });
-    }
+
+    const transitionSequence = focusTransitionSequenceRef.current + 1;
+    const reduceMotion = prefersReducedMotion();
+    const exitDuration = reduceMotion
+      ? REDUCED_FOCUS_EXIT_DURATION_MS
+      : FOCUS_EXIT_DURATION_MS;
+    const enterDuration = reduceMotion
+      ? REDUCED_FOCUS_ENTER_DURATION_MS
+      : FOCUS_ENTER_DURATION_MS;
+
+    focusTransitionSequenceRef.current = transitionSequence;
+    focusTransitionLockRef.current = true;
+    setDetailMotion(direction);
+    setFocusTransition({ direction, phase: "exit" });
+    setStatusMessage(
+      `Moving ${direction === "next" ? "up" : "down"} to ${target.label}.`,
+    );
+
+    focusTransitionTimerRef.current = window.setTimeout(() => {
+      if (focusTransitionSequenceRef.current !== transitionSequence) {
+        return;
+      }
+
+      selectNode(target.id, openDetails, focusedPath?.id, direction);
+      setFocusTransition({ direction, phase: "enter" });
+
+      if (!openDetails) {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            focusedNodeRef.current?.focus({ preventScroll: true });
+          });
+        });
+      }
+
+      focusTransitionTimerRef.current = window.setTimeout(() => {
+        if (focusTransitionSequenceRef.current !== transitionSequence) {
+          return;
+        }
+        focusTransitionLockRef.current = false;
+        focusTransitionTimerRef.current = null;
+        setFocusTransition(null);
+      }, enterDuration);
+    }, exitDuration);
+  }
+
+  function switchHorizontalRoute(
+    option: HorizontalRouteOption,
+    direction: "left" | "right",
+  ) {
+    cancelFocusTransition();
+    setFocusedPathId(option.path.id);
+    setDestinationId(option.path.destinationId);
+    setSelectedNodeId(option.node.id);
+    setDetailMotion("select");
+    setStatusMessage(
+      `Moved ${direction} to ${option.path.label}. ${option.node.label} is focused at the comparable route stage.`,
+    );
+    window.requestAnimationFrame(() => {
+      focusedNodeRef.current?.focus({ preventScroll: true });
+    });
   }
 
   function handleNodeKeyDown(
@@ -1229,10 +1373,23 @@ export function CareerMapView({
       const direction =
         event.key === "ArrowUp" ? "next" : "previous";
       navigate(direction);
+      return;
+    }
+
+    if (event.key === "ArrowLeft" && previousHorizontalRoute) {
+      event.preventDefault();
+      switchHorizontalRoute(previousHorizontalRoute, "left");
+      return;
+    }
+
+    if (event.key === "ArrowRight" && nextHorizontalRoute) {
+      event.preventDefault();
+      switchHorizontalRoute(nextHorizontalRoute, "right");
     }
   }
 
   function focusPreview(node: CareerNode) {
+    cancelFocusTransition();
     selectNode(node.id, false, focusedPath?.id);
     window.requestAnimationFrame(() => {
       focusedNodeRef.current?.focus({ preventScroll: true });
@@ -1240,6 +1397,7 @@ export function CareerMapView({
   }
 
   function returnToCurrent() {
+    cancelFocusTransition();
     selectNode("current", false, focusedPath?.id);
     setStatusMessage("Returned to your current standing.");
     window.requestAnimationFrame(() => {
@@ -1266,6 +1424,7 @@ export function CareerMapView({
   }
 
   function showWebView() {
+    cancelFocusTransition();
     setViewMode("web");
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
@@ -1667,6 +1826,7 @@ export function CareerMapView({
                   aria-selected={mode === "explore"}
                   className={styles.modeTab}
                   onClick={() => {
+                    cancelFocusTransition();
                     setMode("explore");
                     setFocusedPathId(explorePathIds[0] ?? "");
                     setSelectedNodeId("current");
@@ -1685,6 +1845,7 @@ export function CareerMapView({
                   aria-selected={mode === "build"}
                   className={styles.modeTab}
                   onClick={() => {
+                    cancelFocusTransition();
                     setMode("build");
                     setFocusedPathId(
                       initialMap.buildPathIdsByDestination[destinationId]?.[0] ??
@@ -1718,7 +1879,10 @@ export function CareerMapView({
                 <div className={styles.viewControls} aria-label="Career map view">
                   <button
                     aria-pressed={viewMode === "focus"}
-                    onClick={() => setViewMode("focus")}
+                    onClick={() => {
+                      cancelFocusTransition();
+                      setViewMode("focus");
+                    }}
                     type="button"
                   >
                     <MiniIcon name="current" />
@@ -1745,12 +1909,12 @@ export function CareerMapView({
                 </p>
                 <h2>
                   {viewMode === "focus"
-                    ? "Move through one vertical career path"
+                    ? "Move through steps and compare routes"
                     : "Follow every route from top to bottom"}
                 </h2>
                 <p>
                   {viewMode === "focus"
-                    ? "The two smaller nodes above and below preview the connected route around the focused node."
+                    ? "Use up and down for connected steps. Use the route cards on the left and right to compare another path at the same stage."
                     : "Profile evidence starts above your current standing, then each possible route continues downward through practical steps to a destination."}
                 </p>
               </div>
@@ -1761,6 +1925,7 @@ export function CareerMapView({
                   <span className={styles.selectWrap}>
                     <select
                       onChange={(event) => {
+                        cancelFocusTransition();
                         const nextDestinationId = event.target.value;
                         setDestinationId(nextDestinationId);
                         setFocusedPathId(
@@ -1787,10 +1952,12 @@ export function CareerMapView({
                 </label>
               ) : (
                 <div className={styles.scenarioStatus}>
-                  <span>Scenario branch</span>
+                  <span>Horizontal routes</span>
                   <strong>{focusedPath?.shortLabel ?? "Career route"}</strong>
                   <small>
-                    Side branch controls are reserved scaffolding.
+                    Route {Math.max(1, focusedPathIndex + 1)} of{" "}
+                    {activePaths.length}. Use left and right to compare
+                    alternatives at the same stage.
                   </small>
                 </div>
               )}
@@ -1799,9 +1966,26 @@ export function CareerMapView({
             {viewMode === "focus" ? (
               <section
                 aria-label="Focused career bubble navigator"
+                aria-busy={isFocusTransitioning}
                 className={styles.focusStage}
+                data-transition-direction={
+                  focusTransition?.direction ?? "none"
+                }
+                data-transition-phase={focusTransition?.phase ?? "idle"}
+                data-transitioning={
+                  isFocusTransitioning ? "true" : "false"
+                }
               >
-                <div className={styles.focusNavigator}>
+                <div
+                  className={styles.focusNavigator}
+                  data-transition-direction={
+                    focusTransition?.direction ?? "none"
+                  }
+                  data-transition-phase={focusTransition?.phase ?? "idle"}
+                  data-transitioning={
+                    isFocusTransitioning ? "true" : "false"
+                  }
+                >
                   {activeGoal ? (
                     <>
                       <CareerGoals
@@ -1841,7 +2025,13 @@ export function CareerMapView({
                       <button
                         aria-label={`Move focus up to ${nextFocusNode.label}`}
                         className={styles.focusMoveButton}
+                        data-active={
+                          focusTransition?.direction === "next"
+                            ? "true"
+                            : "false"
+                        }
                         data-direction="next"
+                        disabled={isFocusTransitioning}
                         onClick={() => navigate("next")}
                         type="button"
                       >
@@ -1852,12 +2042,14 @@ export function CareerMapView({
                   ) : null}
 
                   <div className={styles.focusCenterRow}>
-                    <span
-                      aria-hidden="true"
-                      className={styles.lateralScaffold}
-                    >
-                      <MiniIcon name="arrow-left" />
-                    </span>
+                    <HorizontalRouteControl
+                      activeRouteIndex={Math.max(0, focusedPathIndex)}
+                      direction="left"
+                      disabled={isFocusTransitioning}
+                      onSelect={switchHorizontalRoute}
+                      option={previousHorizontalRoute}
+                      routeCount={activePaths.length}
+                    />
 
                     <button
                       aria-label={`${selectedNode.label}, focused node. Open details.`}
@@ -1889,12 +2081,14 @@ export function CareerMapView({
                       </span>
                     </button>
 
-                    <span
-                      aria-hidden="true"
-                      className={styles.lateralScaffold}
-                    >
-                      <MiniIcon name="arrow-right" />
-                    </span>
+                    <HorizontalRouteControl
+                      activeRouteIndex={Math.max(0, focusedPathIndex)}
+                      direction="right"
+                      disabled={isFocusTransitioning}
+                      onSelect={switchHorizontalRoute}
+                      option={nextHorizontalRoute}
+                      routeCount={activePaths.length}
+                    />
                   </div>
 
                   {previousFocusNode ? (
@@ -1905,7 +2099,13 @@ export function CareerMapView({
                       <button
                         aria-label={`Move focus down to ${previousFocusNode.label}`}
                         className={styles.focusMoveButton}
+                        data-active={
+                          focusTransition?.direction === "previous"
+                            ? "true"
+                            : "false"
+                        }
                         data-direction="previous"
+                        disabled={isFocusTransitioning}
                         onClick={() => navigate("previous")}
                         type="button"
                       >
@@ -2095,7 +2295,7 @@ export function CareerMapView({
               <span>
                 <MiniIcon name="info" />
                 {viewMode === "focus"
-                  ? "Click a compact preview or use the arrows to move the focused node one step."
+                  ? "Up and down move one step. Left and right switch the focused route without losing your stage."
                   : "Drag or scroll the web, zoom as needed, and click any connected bubble."}
               </span>
               <span>
@@ -2121,13 +2321,13 @@ export function CareerMapView({
               <p className={styles.railEyebrow}>How to read this</p>
               <h2>
                 {viewMode === "focus"
-                  ? "Focus one node without losing the map"
+                  ? "Navigate both axes without losing your place"
                   : "See every active route together"}
               </h2>
             </div>
             <p>
               {viewMode === "focus"
-                ? "Two compact previews show what comes next above the focused node and what came before below it. Click a preview or use the vertical arrows to recenter the map."
+                ? "Compact previews show what comes next above and what came before below. The side route cards move horizontally to a comparable step on another Flask-generated path."
                 : "Profile evidence flows downward into your current standing, then each possible future continues through practical steps to a destination. Drag, scroll, zoom, and select any bubble to inspect the full route."}
             </p>
             <Link href="/" className={styles.backToFeed}>
@@ -2170,7 +2370,12 @@ export function CareerMapView({
                   : "No earlier step"
               }
               data-direction="previous"
-              disabled={!previousFocusNode}
+              data-active={
+                focusTransition?.direction === "previous"
+                  ? "true"
+                  : "false"
+              }
+              disabled={!previousFocusNode || isFocusTransitioning}
               onClick={() => navigate("previous", true)}
               type="button"
             >
@@ -2189,7 +2394,12 @@ export function CareerMapView({
                   : "No later step"
               }
               data-direction="next"
-              disabled={!nextFocusNode}
+              data-active={
+                focusTransition?.direction === "next"
+                  ? "true"
+                  : "false"
+              }
+              disabled={!nextFocusNode || isFocusTransitioning}
               onClick={() => navigate("next", true)}
               type="button"
             >
@@ -2417,6 +2627,57 @@ function CareerGoals({
         </small>
       </button>
     </section>
+  );
+}
+
+function HorizontalRouteControl({
+  activeRouteIndex,
+  direction,
+  disabled,
+  onSelect,
+  option,
+  routeCount,
+}: {
+  activeRouteIndex: number;
+  direction: "left" | "right";
+  disabled: boolean;
+  onSelect: (
+    option: HorizontalRouteOption,
+    direction: "left" | "right",
+  ) => void;
+  option: HorizontalRouteOption | null;
+  routeCount: number;
+}) {
+  const isLeft = direction === "left";
+  const boundaryLabel =
+    routeCount <= 1
+      ? "Only route"
+      : isLeft
+        ? "First route"
+        : "Last route";
+  const accessibleLabel = option
+    ? `Switch ${direction} to ${option.path.shortLabel} route at ${option.node.label}`
+    : `${boundaryLabel}; no ${isLeft ? "previous" : "next"} horizontal route`;
+
+  return (
+    <button
+      aria-label={accessibleLabel}
+      className={styles.horizontalRoute}
+      data-direction={direction}
+      disabled={!option || disabled}
+      onClick={() => (option ? onSelect(option, direction) : undefined)}
+      type="button"
+    >
+      {isLeft ? <MiniIcon name="arrow-left" /> : null}
+      <span className={styles.horizontalRouteCopy}>
+        <span>{option ? `${isLeft ? "Previous" : "Next"} route` : boundaryLabel}</span>
+        <strong>{option?.path.shortLabel ?? `Route ${activeRouteIndex + 1}`}</strong>
+        <small>
+          {option?.node.label ?? `${activeRouteIndex + 1} of ${routeCount}`}
+        </small>
+      </span>
+      {!isLeft ? <MiniIcon name="arrow-right" /> : null}
+    </button>
   );
 }
 
