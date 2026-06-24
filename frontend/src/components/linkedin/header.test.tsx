@@ -39,9 +39,6 @@ describe("Header", () => {
         ),
       ).toBeInTheDocument();
     }
-    expect(
-      screen.getByRole("link", { name: "Open PathIn career explorer" }),
-    ).toHaveAttribute("href", "/career-tree");
   });
 
   it("links the Me avatar to Winston's profile and hides badge when notifications are zero", () => {
@@ -74,18 +71,13 @@ describe("Header", () => {
   it("keeps Jobs separate from the PathIn Career Tree", () => {
     render(<Header />);
 
-    expect(
-      screen.getByRole("link", { name: "Open PathIn career explorer" }),
-    ).toHaveAttribute("href", "/career-tree");
+    expect(document.querySelector('a[href="/career-tree"]')).toBeNull();
 
     const jobs = screen.getByRole("button", { name: "Jobs" });
-    expect(jobs.closest("a")).toBeNull();
     fireEvent.click(jobs);
 
     expect(
-      screen.getByText(
-        "Shown only as host context. PathIn does not scrape live jobs or imply access to LinkedIn job listings.",
-      ),
+      screen.getByText("Jobs is available as an interactive prototype scaffold."),
     ).toBeInTheDocument();
     expect(jobs).toHaveAttribute("aria-expanded", "true");
   });

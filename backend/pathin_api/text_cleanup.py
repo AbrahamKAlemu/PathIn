@@ -5,10 +5,12 @@ import unicodedata
 
 
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_INVISIBLE_CHARACTERS = re.compile(r"[\u00ad\u200b-\u200d\u2060\ufeff]")
 _MULTI_SPACE_BOUNDARY = re.compile(r"[ \t]{2,}")
 _TOKEN = re.compile(r"[A-Za-z0-9]+|[^\w\s]", re.UNICODE)
 _CAMEL_ACRONYM_BOUNDARY = re.compile(r"([A-Z]+)([A-Z][a-z])")
 _CAMEL_WORD_BOUNDARY = re.compile(r"([a-z0-9])([A-Z])")
+_SPLIT_YEAR = re.compile(r"\b[12](?:\s*\d){3}\b")
 _MONTH_YEAR = re.compile(
     r"\b("
     r"Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|"
@@ -56,9 +58,17 @@ def _split_compacted_camel_token(match: re.Match[str]) -> str:
     return _CAMEL_WORD_BOUNDARY.sub(r"\1 \2", token)
 
 
+def _collapse_split_year(match: re.Match[str]) -> str:
+    value = match.group(0)
+    digits = re.sub(r"\s+", "", value)
+    year = int(digits)
+    return digits if len(digits) == 4 and 1900 <= year <= 2099 else value
+
+
 def clean_profile_text(value: str) -> str:
     text = unicodedata.normalize("NFKC", str(value))
     text = _CONTROL_CHARACTERS.sub(" ", text)
+    text = _INVISIBLE_CHARACTERS.sub("", text)
     text = (
         text.replace("\u00a0", " ")
         .replace("\u2007", " ")
@@ -77,6 +87,7 @@ def clean_profile_text(value: str) -> str:
 
     text = re.sub(r"\s*\|\s*", " | ", text)
     text = _CAMEL_TOKEN.sub(_split_compacted_camel_token, text)
+    text = _SPLIT_YEAR.sub(_collapse_split_year, text)
     text = _MONTH_YEAR.sub(r"\1 \2", text)
     text = _DATE_RANGE.sub(r"\1 - \2", text)
     text = re.sub(r"\s+([,.;:!?])", r"\1", text)
@@ -90,7 +101,8 @@ def clean_extracted_text(value: str, *, max_characters: int) -> str:
         line = clean_profile_text(raw_line)
         if line:
             cleaned_lines.append(line)
-    return "\n".join(cleaned_lines)[:max_characters]
+    cleaned = "\n".join(cleaned_lines)
+    return _SPLIT_YEAR.sub(_collapse_split_year, cleaned)[:max_characters]
 
 
 def is_probably_compacted_text(value: str) -> bool:

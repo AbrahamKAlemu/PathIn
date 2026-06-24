@@ -23,6 +23,7 @@ from pathin_api.recommendation_engine import RecommendationEngine
 from pathin_api.resume_parser import MAX_UPLOAD_BYTES
 from pathin_api.taxonomy import ROLE_BY_ID
 from pathin_api.text_cleanup import (
+    clean_extracted_text,
     clean_profile_text,
     is_probably_compacted_text,
 )
@@ -660,6 +661,16 @@ def test_profile_text_cleanup_handles_screenshot_failure_modes() -> None:
     assert clean_profile_text(
         "N e w  S t u d e n t  R e p r e s e n t a t i v e"
     ) == "New Student Representative"
+    assert clean_profile_text(
+        "Incoming Summer Analyst June 202 6 - August 20 26"
+    ) == "Incoming Summer Analyst June 2026 - August 2026"
+    assert clean_profile_text(
+        "Expected graduation: 2 0 2 7"
+    ) == "Expected graduation: 2027"
+    assert clean_extracted_text(
+        "Incoming\u200b Analyst\u00a0June 202\n6",
+        max_characters=100,
+    ) == "Incoming Analyst June 2026"
     assert not is_probably_compacted_text("JavaScript")
     assert is_probably_compacted_text(
         "Advisingstudentsthroughtailoredacademicpersonalcareer"
