@@ -757,6 +757,8 @@ export function CareerMapView({
           .filter((skill, index, skills) => skills.indexOf(skill) === index)
           .slice(0, 3)
           .join(" · ") || selectedNode.stage
+      : selectedNode.stepDetails
+        ? `${selectedNode.stepDetails.gapAddressed} · ${selectedNode.stepDetails.effort}`
       : selectedNode.summary;
   const focusedPath = useMemo(
     () =>

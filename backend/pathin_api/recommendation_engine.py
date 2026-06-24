@@ -328,7 +328,7 @@ ROLE_SPECIALIZATION_RULES: dict[
 
 ROLE_ARTIFACTS: dict[str, tuple[str, str]] = {
     "software-engineer": (
-        "Productionize {subject}",
+        "Make {subject} production-ready",
         "A deployed feature, automated tests, and a short architecture note",
     ),
     "quality-assurance-analyst": (
@@ -2409,10 +2409,10 @@ class RecommendationEngine:
             "id": course_id,
             "type": "course",
             "label": course["name"],
-            "eyebrow": f"Close the {gap} gap",
+            "eyebrow": "Learning step",
             "summary": (
-                f"Use the relevant parts of {course['name']} to prepare for "
-                f"{project_label.lower()}."
+                f"{gap} · {course['length']['value']} "
+                f"{course['length']['unit']}"
             ),
             "stage": "Learning step",
             "workSetting": f"{course['level']} · {course['length']['value']} {course['length']['unit']}",
@@ -2457,11 +2457,8 @@ class RecommendationEngine:
             "id": project_id,
             "type": "experience",
             "label": project_label,
-            "eyebrow": f"Personalized {recommendation['specialization']} proof",
-            "summary": (
-                f"Extend '{seed['value']}' into evidence that demonstrates "
-                f"{gap} and {recommendation['responsibilities'][0].lower()}."
-            ),
+            "eyebrow": "Portfolio project",
+            "summary": f"{gap} · {completion_evidence}",
             "stage": "Evidence-building step",
             "workSetting": "Independent or team project",
             "whyItFits": [
@@ -2511,11 +2508,8 @@ class RecommendationEngine:
             "id": skill_id,
             "type": "skill",
             "label": gap,
-            "eyebrow": f"Gap before {recommendation['specialization']}",
-            "summary": (
-                f"Develop enough {gap} to perform and explain the part of "
-                f"{project_label.lower()} that currently lacks evidence."
-            ),
+            "eyebrow": "Skill practice",
+            "summary": f"{gap} · 1-3 weeks of focused practice",
             "stage": "Capability-building step",
             "workSetting": "Practice in current work, volunteering, or a project",
             "whyItFits": [
@@ -2552,11 +2546,8 @@ class RecommendationEngine:
             "id": bridge_id,
             "type": "entry_role" if bridge["level"] <= 2 else "role",
             "label": bridge["title"],
-            "eyebrow": f"Bridge toward {recommendation['specialization']}",
-            "summary": (
-                f"Use overlapping work in {bridge['title']} to build evidence "
-                f"toward {recommendation['personalizedTitle']}, especially {gap}."
-            ),
+            "eyebrow": "Adjacent role",
+            "summary": f"{gap} · workplace experience",
             "stage": "Experience-first step",
             "workSetting": ", ".join(bridge["workStyles"][:2]),
             "whyItFits": [
@@ -2620,11 +2611,8 @@ class RecommendationEngine:
             "id": positioning_id,
             "type": "experience",
             "label": f"Position {subject} as {recommendation['specialization']} proof",
-            "eyebrow": "Ready-now evidence packaging",
-            "summary": (
-                f"Translate '{seed['value']}' into a concise case showing the "
-                f"responsibilities of {recommendation['canonicalRole']}."
-            ),
+            "eyebrow": "Application prep",
+            "summary": f"{gap} · portfolio, resume, and interview proof",
             "stage": "Application preparation",
             "workSetting": "Portfolio, resume, and interview narrative",
             "whyItFits": [

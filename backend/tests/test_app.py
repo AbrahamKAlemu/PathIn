@@ -890,6 +890,12 @@ def test_generated_routes_are_dynamic_and_address_identified_gaps(
                 ].lower()
                 if node_by_id[node_id]["type"] == "experience":
                     assert "|" not in node_by_id[node_id]["label"]
+                if node_id.startswith("project-"):
+                    summary = node_by_id[node_id]["summary"]
+                    assert summary.startswith(details["gapAddressed"])
+                    assert "extend '" not in summary.lower()
+                    assert "evidence that demonstrates" not in summary.lower()
+                    assert "|" not in summary
 
 
 def test_sparse_historical_transitions_remain_suppressed(
