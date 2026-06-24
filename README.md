@@ -6,7 +6,7 @@ API.
 Live feature:
 [pit26codepin.vercel.app/career-tree](https://pit26codepin.vercel.app/career-tree)
 
-## Path[IN] prototype
+## Path[In] prototype
 
 The `/career-tree` page is a LinkedIn-integrated, resume-driven career
 explorer. It includes:
