@@ -23,6 +23,7 @@ from pathin_api.recommendation_engine import RecommendationEngine
 from pathin_api.resume_parser import MAX_UPLOAD_BYTES
 from pathin_api.taxonomy import ROLE_BY_ID
 from pathin_api.text_cleanup import (
+    clean_extracted_text,
     clean_profile_text,
     is_probably_compacted_text,
 )
@@ -660,6 +661,16 @@ def test_profile_text_cleanup_handles_screenshot_failure_modes() -> None:
     assert clean_profile_text(
         "N e w  S t u d e n t  R e p r e s e n t a t i v e"
     ) == "New Student Representative"
+    assert clean_profile_text(
+        "Incoming Summer Analyst June 202 6 - August 20 26"
+    ) == "Incoming Summer Analyst June 2026 - August 2026"
+    assert clean_profile_text(
+        "Expected graduation: 2 0 2 7"
+    ) == "Expected graduation: 2027"
+    assert clean_extracted_text(
+        "Incoming\u200b Analyst\u00a0June 202\n6",
+        max_characters=100,
+    ) == "Incoming Analyst June 2026"
     assert not is_probably_compacted_text("JavaScript")
     assert is_probably_compacted_text(
         "Advisingstudentsthroughtailoredacademicpersonalcareer"
@@ -1174,6 +1185,82 @@ def test_interdisciplinary_copy_uses_grounded_profile_language(
     assert all(
         " for healthcare" not in label.lower()
         for label in route_step_labels
+    )
+
+
+def test_unrelated_project_is_not_repurposed_for_a_role_route(
+    client: FlaskClient,
+) -> None:
+    payload = client.post(
+        "/api/v1/maps/build",
+        json={
+            "profile": {
+                "education": ["Mathematics and Computer Science"],
+                "roles": ["FTTP at Jane Street"],
+                "responsibilities": [
+                    "Studied financial markets and trading systems"
+                ],
+                "projects": [
+                    "Published an ACM CHI paper on AI literacy apps"
+                ],
+                "skills": ["Python", "Communication", "Research"],
+                "industries": ["Finance"],
+                "interests": ["Markets", "Technology"],
+            },
+            "destinationId": "dest-financial-analyst",
+        },
+    ).get_json()
+
+    route_steps = [
+        node
+        for node in payload["nodes"]
+        if node["type"] not in {"current", "destination"}
+    ]
+    serialized_steps = str(route_steps).lower()
+    assert "acm chi" not in serialized_steps
+    assert any(
+        "small business scenario in financial services" in node["label"]
+        for node in route_steps
+    )
+
+
+def test_generated_copy_avoids_truncation_and_skill_name_collisions(
+    client: FlaskClient,
+) -> None:
+    profile = {
+        "education": ["Mathematics and Computer Science"],
+        "roles": ["Student researcher", "Cross-functional project lead"],
+        "responsibilities": [
+            "Built models and explained findings to reviewers",
+        ],
+        "projects": [
+            (
+                "Built an interactive music web application and presented "
+                "it in a live performance for a community audience"
+            ),
+            "Machine learning model",
+        ],
+        "skills": ["Python", "Statistics", "Machine Learning"],
+        "interests": ["Data", "Technology"],
+    }
+    payload = client.post(
+        "/api/v1/maps/build",
+        json={
+            "profile": profile,
+            "destinationId": "dest-data-scientist",
+        },
+    ).get_json()
+
+    assert '..." and "Machine learning model"' in payload["profileSummary"]
+    assert "...;" not in payload["profileSummary"]
+
+    generated_text = str(payload)
+    assert "Data Analysis analysis" not in generated_text
+    assert any(
+        "work sample applying data analysis" in str(
+            node.get("stepDetails", {}).get("completionEvidence", "")
+        ).lower()
+        for node in payload["nodes"]
     )
 
 

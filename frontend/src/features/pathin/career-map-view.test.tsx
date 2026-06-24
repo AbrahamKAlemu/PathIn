@@ -140,6 +140,36 @@ describe("CareerMapView navigation", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("repairs split years and separates experience dates from role titles", () => {
+    const baseMap = createCareerMap();
+    const malformedRole =
+      "Incoming Summer Analyst June 202 6 - August 20 26";
+    const initialMap: CareerMapData = {
+      ...baseMap,
+      profile: {
+        ...baseMap.profile,
+        roles: [malformedRole, "Software Engineering Intern May 2 0 2 5"],
+        experience: [malformedRole],
+      },
+    };
+
+    renderCareerMap({ initialMap });
+
+    const navigator = screen.getByRole("region", {
+      name: "Focused career bubble navigator",
+    });
+    expect(
+      within(navigator).getByText("Incoming Summer Analyst"),
+    ).toBeInTheDocument();
+    expect(
+      within(navigator).getByText("June 2026 - August 2026"),
+    ).toBeInTheDocument();
+    expect(navigator).not.toHaveTextContent(/202\s+6|20\s+26|2\s+0\s+2\s+5/);
+    expect(navigator).not.toHaveTextContent(
+      /PathIn keeps this entry factual/,
+    );
+  });
+
   it("does not render placeholder blocks when the focused route ends", async () => {
     const { container } = renderCareerMap({
       initialMap: createDirectDestinationMap(),
@@ -182,15 +212,35 @@ describe("CareerMapView navigation", () => {
     ).toBeInTheDocument();
   });
 
-  it("labels generated connections without claiming unsupported evidence types", () => {
+  it("explains the rendered map vocabulary and closes the legend accessibly", () => {
     renderCareerMap();
 
     const legendButton = screen.getByRole("button", { name: "Legend" });
+    expect(legendButton).toHaveAttribute("aria-expanded", "false");
+    expect(legendButton).toHaveAttribute(
+      "aria-controls",
+      "pathin-map-legend",
+    );
+
     fireEvent.click(legendButton);
 
-    const legend = screen.getByRole("dialog", { name: "Map legend" });
+    const legend = screen.getByRole("region", { name: "Map legend" });
+    expect(legendButton).toHaveAttribute("aria-expanded", "true");
+    expect(within(legend).getByText("Node colors")).toBeInTheDocument();
     expect(
-      within(legend).getByText("Generated path connection"),
+      within(legend).getByText(
+        "Arrows show a suggested progression between steps.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(legend).getByText(
+        "Branches compare careers in Explore and routes in Build.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(legend).getByText(
+        "Open a step, then use Path and Evidence for rationale and confidence.",
+      ),
     ).toBeInTheDocument();
     expect(
       within(legend).queryByText("Observed career transition"),
@@ -201,7 +251,13 @@ describe("CareerMapView navigation", () => {
 
     fireEvent.keyDown(legendButton, { key: "Escape" });
     expect(
-      screen.queryByRole("dialog", { name: "Map legend" }),
+      screen.queryByRole("region", { name: "Map legend" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(legendButton);
+    fireEvent.mouseDown(document.body);
+    expect(
+      screen.queryByRole("region", { name: "Map legend" }),
     ).not.toBeInTheDocument();
   });
 

@@ -1375,6 +1375,26 @@ class RecommendationEngine:
             )
         ]
 
+    def _project_matches_role(
+        self,
+        project_value: str,
+        role_id: str,
+        target_domain: str | None = None,
+    ) -> bool:
+        role = ROLE_BY_ID.get(role_id)
+        if role and any(
+            self._evidence_value_matches(project_value, candidate_value)
+            for candidate_value in [*role["skills"], *role["projects"]]
+        ):
+            return True
+        return bool(
+            target_domain
+            and any(
+                contains_alias(project_value, keyword)
+                for keyword in DOMAIN_SIGNALS.get(target_domain, ())
+            )
+        )
+
     def recommend(
         self,
         profile: dict[str, Any],
@@ -1713,7 +1733,7 @@ class RecommendationEngine:
                 "taxonomyVersion": TAXONOMY_VERSION,
                 "modelVersion": MODEL_VERSION,
                 "algorithmVersion": ALGORITHM_VERSION,
-                "promptVersion": "evidence-grounded-career-paths-2.3",
+                "promptVersion": "evidence-grounded-career-paths-2.4",
                 "requestFingerprint": fingerprint,
                 "generatedAt": generated_at,
             },
@@ -2534,6 +2554,11 @@ class RecommendationEngine:
         for category in profile["enabledSignals"]:
             for item in profile["fieldEvidence"].get(category, []):
                 value = item["value"]
+                if category == "projects" and not self._project_matches_role(
+                    value,
+                    candidate["id"],
+                ):
+                    continue
                 if any(
                     self._evidence_value_matches(value, candidate_value)
                     for candidate_value in candidate_values
@@ -3003,15 +3028,24 @@ class RecommendationEngine:
             )
             for value in profile["projects"][:2]
         ]
-        project_copy = "; ".join(
-            value for value in project_values if value
+        quoted_projects = [
+            f'"{value}"'
+            for value in project_values
+            if value
+        ]
+        project_copy = (
+            f"{quoted_projects[0]} and {quoted_projects[1]}"
+            if len(quoted_projects) > 1
+            else quoted_projects[0]
+            if quoted_projects
+            else ""
         )
         summary = (
             f"Your {evidence_subject} shows {role_copy}. "
             "Demonstrated strengths include "
             f"{skill_copy}."
             + (
-                f" Applied proof includes {project_copy}."
+                f" Supplied project evidence includes {project_copy}."
                 if project_copy
                 else ""
             )
@@ -3603,28 +3637,38 @@ class RecommendationEngine:
             },
         ]
 
-    @staticmethod
     def _profile_seed(
+        self,
         profile: dict[str, Any],
         recommendation: dict[str, Any],
     ) -> dict[str, Any]:
-        project_signal = next(
-            (
+        project_candidates = [
+            *[
                 item
                 for item in recommendation.get(
-                    "personalizationEvidence", []
+                    "personalizationEvidence",
+                    [],
                 )
                 if item.get("category") == "projects"
-            ),
-            None,
-        )
-        if project_signal:
-            return copy.deepcopy(project_signal)
-        if profile["fieldEvidence"].get("projects"):
-            item = profile["fieldEvidence"]["projects"][0]
+            ],
+            *profile["fieldEvidence"].get("projects", []),
+        ]
+        seen_projects: set[str] = set()
+        for item in project_candidates:
+            project_value = str(item["value"])
+            if (
+                project_value in seen_projects
+                or not self._project_matches_role(
+                    project_value,
+                    recommendation["id"],
+                    recommendation.get("targetIndustryOrDomain"),
+                )
+            ):
+                continue
+            seen_projects.add(project_value)
             return {
                 "category": "projects",
-                "value": item["value"],
+                "value": project_value,
                 "source": item["source"],
                 "confidence": item["confidence"],
                 "explicit": item["explicit"],
@@ -3785,6 +3829,7 @@ class RecommendationEngine:
                 "revision notes, and one named reviewer’s feedback"
             )
         elif role_id in {"data-scientist", "data-analyst"}:
+            gap_phrase = gap if gap.isupper() else gap.lower()
             responsibilities = [
                 f"Frame one decision question about {subject} that requires {gap}.",
                 (
@@ -3797,8 +3842,9 @@ class RecommendationEngine:
                 ),
             ]
             completion = (
-                f"A reproducible {gap} analysis of {subject}, validation notes, "
-                "a decision-focused readout, and reviewer feedback"
+                f"A reproducible work sample applying {gap_phrase} to "
+                f"{subject}, with validation notes, a decision-focused "
+                "readout, and reviewer feedback"
             )
         elif role_id in {
             "product-manager",

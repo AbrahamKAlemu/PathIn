@@ -414,9 +414,10 @@ shared terms; one generic word such as "analysis" is not enough.
 If role-specific evidence is sparse, the copy says that evidence is limited.
 It does not describe an invented strength.
 
-Project steps are tied to an actual supplied project when one exists.
-Otherwise the engine uses a neutral role-specific artifact rather than
-inventing a personal project.
+Project steps reuse a supplied project only when it matches target-role skills,
+maintained role-project patterns, or the target domain. Otherwise the engine
+uses a neutral role-specific artifact rather than repurposing an unrelated
+project or inventing a personal one.
 
 LinkedIn Learning cards are live search URLs built from visible skill gaps.
 PathIn does not claim that a specific course is current, enrolled, completed,
@@ -493,6 +494,9 @@ private messages are excluded from ranking.
 - Web shows all active paths, supports pan, zoom, centering, and direct node
   selection.
 - Keyboard arrow navigation mirrors the visible controls.
+- Legend explains the node color vocabulary, arrow direction, and branch
+  meaning. It directs users to the Path and Evidence tabs for rationale and
+  confidence instead of implying that line styles encode certainty.
 
 ### Detail drawer
 
@@ -870,8 +874,8 @@ profile values, and sparse evidence uses explicit uncertainty language.
 
 Current automated baseline:
 
-- 54 backend tests passing
-- 44 frontend tests passing
+- 56 backend tests passing
+- 47 frontend tests passing
 - Frontend lint passing
 - Production Next.js build passing
 - npm audit: zero known vulnerabilities
@@ -896,8 +900,9 @@ Browser workflows verified:
 
 Load and structural stress:
 
-- 52 concurrent generations
-- 53 targeted and cross-domain maps containing 103,179 text fields
+- 52 concurrent generations with 52 distinct request fingerprints and map IDs
+- 53 targeted and cross-domain maps containing 131,679 generated string values
+- 973 nodes, 1,118 edges, and 396 paths checked in that corpus
 - All 26 taxonomy roles targeted
 - Every exact target ranked first
 - Zero structural, grounding, malformed-copy, or placeholder-string errors in
@@ -907,8 +912,8 @@ Load and structural stress:
 - Scores and score components validated from 0 to 100
 - Unsupported update, invalid destination, and missing-map errors validated
 
-The current 12-worker in-process API stress run had a 3.26-second median,
-4.01-second p95, and 4.49-second maximum generation time. Single-user
+The current 12-worker in-process API stress run had a 3.63-second median,
+4.32-second p95, and 5.00-second maximum generation time. Single-user
 generation is faster, and the frontend no longer adds artificial wait time
 after the API response.
 
