@@ -1201,10 +1201,17 @@ class RecommendationEngine:
         diversified = self._diversify(candidate_pool, target_count)
         if len(diversified) < min(2, len(scored)):
             diversified = self._diversify(scored, target_count)
-        if not diversified:
+        if len(diversified) < 2:
             raise ApiError(
-                "NO_DESTINATIONS",
-                "The profile did not produce any defensible career matches.",
+                "INSUFFICIENT_DESTINATION_VARIETY",
+                (
+                    "PathIn needs at least two distinct career options. "
+                    "Adjust the profile exclusions or add more career evidence."
+                ),
+                details={
+                    "minimumCareerOptions": 2,
+                    "eligibleCareerOptions": len(diversified),
+                },
             )
 
         selected_families = {item["family"] for item in diversified}

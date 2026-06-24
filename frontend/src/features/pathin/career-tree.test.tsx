@@ -613,6 +613,18 @@ describe("CareerTree evidence-first onboarding", () => {
         name: "Compare career directions one step at a time",
       }, { timeout: 4_000 }),
     ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Build My Path" }));
+    expect(
+      screen.getByRole("region", { name: "Build path editor" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Explore" }));
+    expect(
+      screen.queryByRole("region", { name: "Build path editor" }),
+    ).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
     fireEvent.click(screen.getByRole("button", { name: "Save path" }));
 
     expect(

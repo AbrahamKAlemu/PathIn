@@ -21,6 +21,7 @@ from pathin_api.profile_store import (
 )
 from pathin_api.recommendation_engine import RecommendationEngine
 from pathin_api.resume_parser import MAX_UPLOAD_BYTES
+from pathin_api.taxonomy import ROLE_BY_ID
 from pathin_api.text_cleanup import (
     clean_profile_text,
     is_probably_compacted_text,
@@ -904,6 +905,15 @@ def test_five_contrasting_resumes_receive_materially_different_rankings(
         name: _explore(client, profile)
         for name, profile in CONTRASTING_PROFILES.items()
     }
+    assert all(
+        len(payload["destinationIds"]) >= 2
+        for payload in payloads.values()
+    )
+    assert all(
+        len(payload["buildPathIdsByDestination"][destination_id]) >= 2
+        for payload in payloads.values()
+        for destination_id in payload["destinationIds"]
+    )
     top_roles = {
         name: payload["rankedDestinations"][0]["canonicalRole"]
         for name, payload in payloads.items()
@@ -980,6 +990,42 @@ def test_explicit_role_exclusions_are_respected(client: FlaskClient) -> None:
         for item in payload["rankedDestinations"]
     )
     assert "dest-software-engineer" not in payload["destinationIds"]
+
+
+def test_explore_never_returns_only_one_career_option(
+    client: FlaskClient,
+) -> None:
+    response = client.post(
+        "/api/v1/maps/explore",
+        json={
+            "profile": {
+                **CONTRASTING_PROFILES["software"],
+                "constraints": {
+                    "excludedRoles": [
+                        role_id
+                        for role_id in ROLE_BY_ID
+                        if role_id != "software-engineer"
+                    ],
+                    "excludedIndustries": [],
+                },
+            },
+            "resultCount": 4,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == {
+        "code": "INSUFFICIENT_DESTINATION_VARIETY",
+        "message": (
+            "PathIn needs at least two distinct career options. Adjust the "
+            "profile exclusions or add more career evidence."
+        ),
+        "retryable": False,
+        "details": {
+            "minimumCareerOptions": 2,
+            "eligibleCareerOptions": 1,
+        },
+    }
 
 
 def test_empty_profile_does_not_receive_fake_personalization(

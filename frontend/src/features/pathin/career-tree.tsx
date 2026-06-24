@@ -18,7 +18,6 @@ import type { CurrentProfile } from "@/features/profile/types";
 import { CareerMapView } from "./career-map-view";
 import styles from "./career-tree.module.css";
 import {
-  buildCareerMap,
   generateCareerMap,
   parseProfileFile,
   PathInApiError,
@@ -475,62 +474,6 @@ export function CareerTree() {
     }
   }
 
-  async function buildToward(destinationId: string) {
-    if (!lastSubmission) {
-      return;
-    }
-
-    setGenerationError("");
-    setLoadingStage(3);
-    setPhase("generating");
-    const startedAt = Date.now();
-
-    try {
-      const generated = await buildCareerMap(lastSubmission, destinationId);
-      const remaining = Math.max(0, 2600 - (Date.now() - startedAt));
-      if (remaining) {
-        await new Promise((resolve) => window.setTimeout(resolve, remaining));
-      }
-      setCareerMap(generated);
-      setPhase("map");
-    } catch (error) {
-      setGenerationError(
-        error instanceof Error
-          ? error.message
-          : "PathIn could not build this destination.",
-      );
-      setPhase("map");
-    }
-  }
-
-  async function exploreCareerOptions() {
-    if (!lastSubmission) {
-      return;
-    }
-
-    setGenerationError("");
-    setLoadingStage(2);
-    setPhase("generating");
-    const startedAt = Date.now();
-
-    try {
-      const generated = await generateCareerMap(lastSubmission);
-      const remaining = Math.max(0, 2200 - (Date.now() - startedAt));
-      if (remaining) {
-        await new Promise((resolve) => window.setTimeout(resolve, remaining));
-      }
-      setCareerMap(generated);
-      setPhase("map");
-    } catch (error) {
-      setGenerationError(
-        error instanceof Error
-          ? error.message
-          : "PathIn could not refresh career suggestions.",
-      );
-      setPhase("map");
-    }
-  }
-
   async function saveMap(
     pinnedNodeIds: string[],
     dismissedNodeIds: string[],
@@ -672,8 +615,6 @@ export function CareerTree() {
         generationError={generationError}
         initialMap={careerMap}
         key={`${careerMap.id}-${careerMap.generation.generatedAt ?? ""}`}
-        onBuildToward={buildToward}
-        onExplore={exploreCareerOptions}
         onRegenerate={regenerate}
         onReopenSaved={reopenSavedMap}
         onSave={saveMap}

@@ -112,8 +112,6 @@ type BuildSuggestion = {
 type CareerMapViewProps = {
   initialMap: CareerMapData;
   generationError?: string;
-  onBuildToward?: (destinationId: string) => Promise<void>;
-  onExplore?: () => Promise<void>;
   onRegenerate: (
     action: RegenerationAction,
     options?: {
