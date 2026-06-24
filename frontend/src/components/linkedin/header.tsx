@@ -69,7 +69,10 @@ export function Header({
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="linkedin-nav ml-auto grid h-full w-[667px]" style={{ gridTemplateColumns: "repeat(6, minmax(0, 1fr)) 20px repeat(2, minmax(0, 1fr))" }}>
+        <nav
+          aria-label="Primary"
+          className="linkedin-nav ml-auto grid h-full w-[667px]"
+        >
           {navigation.map((item) => {
             const isActive = item.id === active;
             const content = (
@@ -148,14 +151,17 @@ export function Header({
             ) : null}
           </Link>
 
-          <div aria-hidden="true" className="flex items-center justify-center">
+          <div
+            aria-hidden="true"
+            className="linkedin-nav-divider flex items-center justify-center"
+          >
             <div className="h-8 w-px bg-[#dedede]" />
           </div>
 
           <button
             aria-expanded={openPanel === "For Business"}
             aria-label="For Business"
-            className="flex h-full flex-col items-center justify-center gap-[2px] border-0 bg-transparent pb-[10px] text-[#666]"
+            className="linkedin-nav-business flex h-full flex-col items-center justify-center gap-[2px] border-0 bg-transparent pb-[10px] text-[#666]"
             onClick={() => togglePanel("For Business")}
             type="button"
           >
@@ -171,7 +177,7 @@ export function Header({
           <button
             aria-expanded={openPanel === "Learning"}
             aria-label="Learning"
-            className="flex h-full flex-col items-center justify-center gap-[2px] border-0 bg-transparent pb-[10px] text-[#666]"
+            className="linkedin-nav-learning flex h-full flex-col items-center justify-center gap-[2px] border-0 bg-transparent pb-[10px] text-[#666]"
             onClick={() => togglePanel("Learning")}
             type="button"
           >

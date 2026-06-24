@@ -6,8 +6,22 @@ import { Header } from "./header";
 describe("Header", () => {
   it("keeps the full LinkedIn-style labeled navigation at the corrected height", () => {
     const { container } = render(<Header />);
+    const navigation = screen.getByRole("navigation", {
+      name: "Primary",
+    });
 
     expect(container.querySelector("header")).toHaveClass("h-[66px]");
+    expect(navigation).toHaveClass("linkedin-nav");
+    expect(navigation).not.toHaveAttribute("style");
+    expect(
+      container.querySelector(".linkedin-nav-divider"),
+    ).toHaveAttribute("aria-hidden", "true");
+    expect(
+      screen.getByRole("button", { name: "For Business" }),
+    ).toHaveClass("linkedin-nav-business");
+    expect(screen.getByRole("button", { name: "Learning" })).toHaveClass(
+      "linkedin-nav-learning",
+    );
     for (const label of [
       "Home",
       "My Network",

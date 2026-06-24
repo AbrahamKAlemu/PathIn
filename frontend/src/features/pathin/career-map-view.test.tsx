@@ -182,6 +182,29 @@ describe("CareerMapView navigation", () => {
     ).toBeInTheDocument();
   });
 
+  it("labels generated connections without claiming unsupported evidence types", () => {
+    renderCareerMap();
+
+    const legendButton = screen.getByRole("button", { name: "Legend" });
+    fireEvent.click(legendButton);
+
+    const legend = screen.getByRole("dialog", { name: "Map legend" });
+    expect(
+      within(legend).getByText("Generated path connection"),
+    ).toBeInTheDocument();
+    expect(
+      within(legend).queryByText("Observed career transition"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(legend).queryByText("Limited historical evidence"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.keyDown(legendButton, { key: "Escape" });
+    expect(
+      screen.queryByRole("dialog", { name: "Map legend" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("lays out the complete Web view from profile evidence to destinations", async () => {
     renderCareerMap();
 

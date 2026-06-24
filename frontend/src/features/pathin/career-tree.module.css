@@ -4046,29 +4046,13 @@
   font-size: 12px;
 }
 
-.edgeSolid,
-.edgeDashed,
-.edgeDotted {
+.legendConnectionLine {
+  border-top-color: #8193a3;
+  border-top-style: solid;
   border-top-width: 2px;
   display: block;
   flex-shrink: 0;
   width: 22px;
-}
-
-.edgeSolid {
-  border-top-color: #555555;
-  border-top-style: solid;
-}
-
-.edgeDashed {
-  border-top-color: #555555;
-  border-top-style: dashed;
-}
-
-.edgeDotted {
-  border-top-color: #999999;
-  border-top-style: dotted;
-  border-top-width: 2.5px;
 }
 
 .legendDisclaimer {

@@ -625,16 +625,8 @@ function MapLegend({ onClose }: { onClose: () => void }) {
         <p className={styles.legendHeading}>Connections</p>
         <ul className={styles.legendList}>
           <li className={styles.legendRow}>
-            <span aria-hidden className={styles.edgeSolid} />
-            <span>Observed career transition</span>
-          </li>
-          <li className={styles.legendRow}>
-            <span aria-hidden className={styles.edgeDashed} />
-            <span>Alternative route</span>
-          </li>
-          <li className={styles.legendRow}>
-            <span aria-hidden className={styles.edgeDotted} />
-            <span>Limited historical evidence</span>
+            <span aria-hidden className={styles.legendConnectionLine} />
+            <span>Generated path connection</span>
           </li>
         </ul>
       </section>
