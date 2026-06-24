@@ -27,7 +27,6 @@ import type {
   CareerNode,
   CareerPath,
   DetailSection,
-  DreamCareer,
 } from "./types";
 import styles from "./career-tree.module.css";
 
@@ -1298,9 +1297,6 @@ export function CareerMapView({
         goal.destination.id ===
         (focusedPath?.destinationId ?? destinationId),
     ) ?? goalOptions[0];
-  const alternativeGoals = goalOptions.filter(
-    (goal) => goal.destination.id !== activeGoal?.destination.id,
-  );
   const buildSuggestions = useMemo<BuildSuggestion[]>(() => {
     if (mode !== "build" || !focusedPath) {
       return [];
@@ -1676,35 +1672,6 @@ export function CareerMapView({
 
   function selectAndFocusNode(nodeId: string, pathId?: string) {
     selectNode(nodeId, true, pathId);
-    window.requestAnimationFrame(() => {
-      focusedNodeRef.current?.focus({ preventScroll: true });
-    });
-  }
-
-  function selectGoal(goal: CareerGoalOption) {
-    cancelFocusTransition();
-    setDestinationId(goal.destination.id);
-    if (mode === "explore" && !explorePathIds.includes(goal.path.id)) {
-      setExplorePathIds((current) => {
-        const matchingIndex = current.findIndex(
-          (pathId) =>
-            pathById.get(pathId)?.destinationId === goal.destination.id,
-        );
-        if (matchingIndex < 0) {
-          return [...current, goal.path.id];
-        }
-
-        const next = [...current];
-        next[matchingIndex] = goal.path.id;
-        return next;
-      });
-    }
-    setFocusedPathId(goal.path.id);
-    setSelectedNodeId(goal.destination.id);
-    setDetailsOpen(false);
-    setStatusMessage(
-      `${goal.destination.label} selected as the career goal. Showing ${goal.path.label.toLowerCase()}.`,
-    );
     window.requestAnimationFrame(() => {
       focusedNodeRef.current?.focus({ preventScroll: true });
     });
@@ -3212,17 +3179,10 @@ export function CareerMapView({
                     isFocusTransitioning ? "true" : "false"
                   }
                 >
-                  {activeGoal ? (
-                    <>
-                      <CareerGoals
-                        activeGoal={activeGoal}
-                        alternativeGoals={alternativeGoals}
-                        dreamCareer={initialMap.dreamCareer}
-                        onSelect={selectGoal}
-                      />
-                      <FocusPreviewConnector direction="future" />
-                    </>
-                  ) : null}
+                  <CareerDirectionsHeading
+                    sourceBlend={initialMap.dreamCareer?.sourceBlend}
+                  />
+                  <FocusPreviewConnector direction="future" />
 
                   {nextFocusNode ? (
                     <div
@@ -3939,34 +3899,11 @@ export function CareerMapView({
   );
 }
 
-function CareerGoals({
-  activeGoal,
-  alternativeGoals,
-  dreamCareer,
-  onSelect,
+function CareerDirectionsHeading({
+  sourceBlend,
 }: {
-  activeGoal: CareerGoalOption;
-  alternativeGoals: CareerGoalOption[];
-  dreamCareer?: DreamCareer;
-  onSelect: (goal: CareerGoalOption) => void;
+  sourceBlend?: string;
 }) {
-  const directionLabel = (goal: CareerGoalOption) => {
-    const recommendation = goal.destination.recommendation;
-    if (recommendation?.isDreamCareer) {
-      return recommendation.aspirationSource === "user_selected"
-        ? "User-selected North Star"
-        : "North Star";
-    }
-    if (recommendation?.careerPosition === "ready_now") {
-      return "Ready now";
-    }
-    if (recommendation?.careerPosition === "next_move") {
-      return "Credible next move";
-    }
-    return "Longer-term option";
-  };
-  const activeRecommendation = activeGoal.destination.recommendation;
-
   return (
     <section aria-label="Career directions" className={styles.careerGoals}>
       <div className={styles.careerGoalsHeading}>
@@ -3975,50 +3912,9 @@ function CareerGoals({
           Career directions
         </span>
         <small>
-          Grounded in {dreamCareer?.sourceBlend ?? "your enabled profile evidence"}
+          Grounded in {sourceBlend ?? "your enabled profile evidence"}
         </small>
       </div>
-
-      <div className={styles.careerGoalAlternatives}>
-        {alternativeGoals.map((goal) => (
-          <button
-            aria-label={`Switch to ${goal.destination.label} goal using ${goal.path.label}`}
-            className={styles.careerGoalAlternative}
-            key={goal.destination.id}
-            onClick={() => onSelect(goal)}
-            type="button"
-          >
-            <span>{directionLabel(goal)}</span>
-            <strong>{goal.destination.label}</strong>
-            {goal.destination.recommendation ? (
-              <small>
-                {goal.destination.recommendation.careerHorizon} ·{" "}
-                {goal.destination.recommendation.canonicalRole}
-              </small>
-            ) : null}
-          </button>
-        ))}
-      </div>
-
-      <button
-        aria-current="true"
-        aria-label={`Focus selected goal ${activeGoal.destination.label}`}
-        className={styles.careerGoalActive}
-        onClick={() => onSelect(activeGoal)}
-        type="button"
-      >
-        <span>
-          <MiniIcon name="sparkles" />
-          {directionLabel(activeGoal)}
-        </span>
-        <strong>{activeGoal.destination.label}</strong>
-        <small>
-          {activeRecommendation
-            ? `${activeRecommendation.careerHorizon} · ${activeRecommendation.canonicalRole} · `
-            : ""}
-          {activeRecommendation?.sourceBlend ?? activeGoal.path.shortLabel}
-        </small>
-      </button>
     </section>
   );
 }

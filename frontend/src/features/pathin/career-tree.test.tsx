@@ -583,8 +583,8 @@ describe("CareerTree evidence-first onboarding", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Senior Data Scientist/ }),
-    ).toBeInTheDocument();
+      screen.getByText("Current career suggestion").parentElement,
+    ).toHaveTextContent("Senior Data Scientist");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -672,9 +672,11 @@ describe("CareerTree evidence-first onboarding", () => {
     fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
     expect(
-      await screen.findByRole("button", {
-        name: /Product Operations Lead/,
-      }, { timeout: 4_000 }),
+      await screen.findByText(
+        "Product Operations Lead",
+        {},
+        { timeout: 4_000 },
+      ),
     ).toBeInTheDocument();
 
     expect(
@@ -685,9 +687,7 @@ describe("CareerTree evidence-first onboarding", () => {
     );
 
     expect(
-      await screen.findByRole("button", {
-        name: /Senior Data Scientist/,
-      }),
+      await screen.findByText("Senior Data Scientist"),
     ).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(

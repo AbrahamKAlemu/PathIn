@@ -63,6 +63,28 @@ function renderCareerMap({
   );
 }
 
+function createDirectDestinationMap(): CareerMapData {
+  const map = createCareerMap();
+  const pathId = map.explorePathIds[0];
+  const path = map.paths.find((candidate) => candidate.id === pathId);
+  if (!path) {
+    throw new Error("Expected the default career map to include an explore path.");
+  }
+
+  return {
+    ...map,
+    explorePathIds: [path.id],
+    paths: map.paths.map((candidate) =>
+      candidate.id === path.id
+        ? {
+            ...candidate,
+            nodeIds: ["current", candidate.destinationId],
+          }
+        : candidate,
+    ),
+  };
+}
+
 describe("CareerMapView navigation", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -73,8 +95,8 @@ describe("CareerMapView navigation", () => {
     HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
-  it("uses the approved PathIn logo and returns directly to current standing", () => {
-    renderCareerMap();
+  it("uses the approved PathIn logo and returns directly to current standing", async () => {
+    renderCareerMap({ initialMap: createDirectDestinationMap() });
 
     const logo = screen.getByRole("img", { name: "PathIn" });
     expect(logo).toBeInTheDocument();
@@ -90,11 +112,11 @@ describe("CareerMapView navigation", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: /Focus selected goal Senior Data Scientist/,
+        name: /Focus Senior Data Scientist, next step/,
       }),
     );
 
-    const returnButton = screen.getByRole("button", {
+    const returnButton = await screen.findByRole("button", {
       name: "Return focus to current standing",
     });
     expect(returnButton).toBeInTheDocument();
@@ -118,15 +140,20 @@ describe("CareerMapView navigation", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not render placeholder blocks when the focused route ends", () => {
-    const { container } = renderCareerMap();
+  it("does not render placeholder blocks when the focused route ends", async () => {
+    const { container } = renderCareerMap({
+      initialMap: createDirectDestinationMap(),
+    });
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: /Focus selected goal Senior Data Scientist/,
+        name: /Focus Senior Data Scientist, next step/,
       }),
     );
 
+    await screen.findByRole("button", {
+      name: /Senior Data Scientist, focused node/,
+    });
     expect(screen.queryByText("End of current route")).not.toBeInTheDocument();
     expect(screen.queryByText("No second later step")).not.toBeInTheDocument();
     expect(screen.queryByText("No connected node")).not.toBeInTheDocument();
@@ -134,6 +161,25 @@ describe("CareerMapView navigation", () => {
     expect(
       screen.queryByRole("button", { name: /Move focus up to/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses the side controls instead of repeating career destination bubbles", () => {
+    renderCareerMap();
+
+    expect(
+      screen.getByRole("region", { name: "Career directions" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Focus selected goal/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Switch to .* goal using/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /Switch right to .* career at/,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("lays out the complete Web view from profile evidence to destinations", async () => {
