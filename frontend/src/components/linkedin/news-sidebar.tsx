@@ -1,108 +1,53 @@
+import Link from "next/link";
+
 import { Icon } from "./icons";
 
-const newsItems = [
-  {
-    lines: ["Oracle cut 21K jobs over the", "past year amid AI revamp"],
-    meta: "3h ago  \u00b7  22,533 readers",
-  },
-  {
-    lines: ["Meta unveils new smart glasses,", "including Kylie collab"],
-    meta: "3h ago  \u00b7  7,612 readers",
-  },
-  {
-    lines: ["Tech selloff pressures Nasdaq,", "S&P 500 as AI rally stalls"],
-    meta: "36m ago  \u00b7  5,701 readers",
-  },
-  {
-    lines: ["Walmart to buy Vibe.co in", "further bet on connected TV"],
-    meta: "3h ago  \u00b7  3,262 readers",
-  },
+const checks = [
+  "Resume upload is optional",
+  "Every score exposes its components",
+  "Sparse transitions hide exact counts",
+  "Saved maps retain a browser snapshot",
 ];
-
-function WendIcon() {
-  return (
-    <div className="grid size-[40px] shrink-0 grid-cols-2 grid-rows-2 overflow-hidden rounded-[4px] border-2 border-[#222] bg-[#efb813] text-center text-[13px] font-bold leading-[18px]">
-      <span>W</span>
-      <span className="bg-[#fff5ce]">E</span>
-      <span className="bg-[#fff5ce]">D</span>
-      <span>N</span>
-    </div>
-  );
-}
-
-function PatchesIcon() {
-  return (
-    <div className="relative size-[40px] shrink-0 overflow-hidden rounded-[4px] border-2 border-[#222] bg-[#f7d451]">
-      <span className="absolute left-px top-px flex h-[18px] w-[14px] -rotate-3 items-center justify-center rounded-[3px] bg-[#3499e5] text-[9px] font-bold text-white">
-        3
-      </span>
-      <span className="absolute right-px top-px flex h-[21px] w-[17px] rotate-12 items-center justify-center rounded-[3px] bg-[#f04a45] text-[9px] font-bold text-white">
-        4
-      </span>
-      <span className="absolute bottom-px left-[12px] h-[13px] w-[16px] rounded-[2px] border border-[#d49700] bg-[#f9c916]" />
-    </div>
-  );
-}
-
-function PuzzleRow({
-  icon,
-  name,
-}: {
-  icon: React.ReactNode;
-  name: string;
-}) {
-  return (
-    <div className="mt-[17px] flex items-center">
-      {icon}
-      <div className="ml-[11px] min-w-0">
-        <p className="truncate text-[17px] leading-[19px]">{name}</p>
-        <p className="truncate text-[14px] leading-[18px] text-[#666]">
-          18 connections played
-        </p>
-      </div>
-      <Icon className="ml-auto size-[18px] shrink-0" name="chevron-right" />
-    </div>
-  );
-}
 
 export function NewsSidebar() {
   return (
-    <aside className="news-column self-start sticky top-16 overflow-y-auto rounded-[10px] border border-[#d4d4d4] bg-white px-[16px] pb-[16px] pt-[13px] text-[#191919]">
+    <aside className="news-column self-start sticky top-16 overflow-y-auto rounded-[10px] border border-[#d4d4d4] bg-white px-[17px] pb-[18px] pt-[15px] text-[#191919]">
       <div className="flex items-center justify-between">
-        <h2 className="text-[25px] font-bold leading-[30px] tracking-[-0.025em]">
-          LinkedIn News
+        <h2 className="text-[21px] font-bold leading-[26px] tracking-[-0.02em]">
+          PathIn quick check
         </h2>
         <Icon className="size-[17px] text-[#444]" name="info" />
       </div>
 
-      <div className="mt-[11px]">
-        {newsItems.map((item, index) => (
-          <article className={index === 0 ? "" : "mt-[11px]"} key={item.lines[0]}>
-            <h3 className="text-[14px] font-bold leading-[18px] tracking-[-0.02em]">
-              {item.lines.map((line) => (
-                <span className="block" key={line}>
-                  {line}
-                </span>
-              ))}
-            </h3>
-            <p className="mt-[2px] text-[12px] leading-[16px] text-[#666]">
-              {item.meta}
-            </p>
-          </article>
+      <p className="mt-[8px] text-[13px] leading-[19px] text-[#666]">
+        These checks summarize the product guarantees most relevant to the
+        career explorer.
+      </p>
+
+      <ul className="mt-[15px] grid gap-[11px]">
+        {checks.map((check) => (
+          <li className="flex gap-[9px] text-[13px] leading-[18px]" key={check}>
+            <span className="mt-[5px] size-[7px] shrink-0 rounded-full bg-[#057642]" />
+            <span>{check}</span>
+          </li>
         ))}
-      </div>
+      </ul>
 
-      <div className="mt-[20px] flex items-center text-[14px] text-[#444]">
-        <span>Show all news</span>
-        <span className="ml-[8px] text-[16px] leading-none">&rarr;</span>
-      </div>
-
-      <div className="mt-[16px] rounded-[8px] border border-[#d4d4d4] px-[14px] pb-[14px] pt-[12px]">
-        <h3 className="text-[15px] text-[#666]">
-          Today&apos;s puzzles
-        </h3>
-        <PuzzleRow icon={<WendIcon />} name="Wend #15" />
-        <PuzzleRow icon={<PatchesIcon />} name="Patches #..." />
+      <div className="mt-[18px] grid gap-[8px] border-t border-[#e5e5e5] pt-[15px]">
+        <Link
+          className="flex items-center justify-between rounded-[7px] px-[8px] py-[8px] text-[13px] font-bold text-[#0a66c2] hover:bg-[#edf3f8]"
+          href="/career-tree"
+        >
+          Stress-test the map
+          <Icon className="size-[15px]" name="chevron-right" />
+        </Link>
+        <Link
+          className="flex items-center justify-between rounded-[7px] px-[8px] py-[8px] text-[13px] font-bold text-[#0a66c2] hover:bg-[#edf3f8]"
+          href="/in/winstoniskandar"
+        >
+          Inspect data controls
+          <Icon className="size-[15px]" name="chevron-right" />
+        </Link>
       </div>
     </aside>
   );
