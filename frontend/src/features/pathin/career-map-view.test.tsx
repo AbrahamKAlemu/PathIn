@@ -85,6 +85,21 @@ function createDirectDestinationMap(): CareerMapData {
   };
 }
 
+function createMalformedExperienceMap(): CareerMapData {
+  const baseMap = createCareerMap();
+  const malformedRole =
+    "Incoming Summer Analyst June 202 6 - August 20 26";
+
+  return {
+    ...baseMap,
+    profile: {
+      ...baseMap.profile,
+      roles: [malformedRole, "Software Engineering Intern May 2 0 2 5"],
+      experience: [malformedRole],
+    },
+  };
+}
+
 describe("CareerMapView navigation", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -140,20 +155,8 @@ describe("CareerMapView navigation", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("repairs split years and separates experience dates from role titles", () => {
-    const baseMap = createCareerMap();
-    const malformedRole =
-      "Incoming Summer Analyst June 202 6 - August 20 26";
-    const initialMap: CareerMapData = {
-      ...baseMap,
-      profile: {
-        ...baseMap.profile,
-        roles: [malformedRole, "Software Engineering Intern May 2 0 2 5"],
-        experience: [malformedRole],
-      },
-    };
-
-    renderCareerMap({ initialMap });
+  it("repairs split years and keeps dates visible on experience cards", async () => {
+    renderCareerMap({ initialMap: createMalformedExperienceMap() });
 
     const navigator = screen.getByRole("region", {
       name: "Focused career bubble navigator",
@@ -168,6 +171,44 @@ describe("CareerMapView navigation", () => {
     expect(navigator).not.toHaveTextContent(
       /PathIn keeps this entry factual/,
     );
+
+    fireEvent.click(
+      within(navigator).getByRole("button", {
+        name: /Focus Incoming Summer Analyst, June 2026 - August 2026/,
+      }),
+    );
+
+    const focusedExperience = await screen.findByRole("button", {
+      name: /Incoming Summer Analyst, focused node/,
+    });
+    expect(
+      within(focusedExperience).getByText("June 2026 - August 2026"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(focusedExperience);
+    const detailPanel = screen.getByRole("complementary", {
+      name: "Selected career step details",
+    });
+    expect(
+      within(detailPanel).getAllByText("June 2026 - August 2026").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("shows experience dates in the complete Web view", () => {
+    renderCareerMap({ initialMap: createMalformedExperienceMap() });
+
+    fireEvent.click(screen.getByRole("button", { name: "Web" }));
+
+    const web = screen.getByRole("region", {
+      name: "Complete connected career path web",
+    });
+    const experienceNode = within(web).getByRole("button", {
+      name: /Incoming Summer Analyst, Current experience, June 2026 - August 2026/,
+    });
+
+    expect(
+      within(experienceNode).getByText("June 2026 - August 2026"),
+    ).toBeInTheDocument();
   });
 
   it("does not render placeholder blocks when the focused route ends", async () => {

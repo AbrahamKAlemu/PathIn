@@ -2578,6 +2578,15 @@
   color: var(--blue-dark);
 }
 
+.buildStepSelect .experienceDate {
+  color: #765514;
+  display: block;
+  font-size: 8px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  margin-top: 3px;
+}
+
 .buildStepActions {
   display: grid;
   gap: 3px;
@@ -3239,6 +3248,18 @@
   display: none;
 }
 
+.focusPreview[data-distance="2"][data-kind="experience"] {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 72px;
+  max-height: 72px;
+  min-height: 72px;
+}
+
+.focusPreview[data-distance="2"][data-kind="experience"] > small {
+  display: block;
+  font-size: 8px;
+}
+
 .focusPreview[data-empty="true"] {
   background: rgba(248, 250, 252, 0.78);
   border-style: dashed;
@@ -3682,6 +3703,13 @@
   white-space: nowrap;
 }
 
+.focusNode > small[data-experience-date="true"] {
+  color: #765514;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+}
+
 .focusNode[data-kind="current"] > small,
 .focusNode[data-kind="current"] > p {
   color: rgba(255, 255, 255, 0.78);
@@ -3994,6 +4022,18 @@
   display: block;
   font-size: 7px;
   margin-top: 3px;
+}
+
+.webNode .experienceDate {
+  color: #765514;
+  display: block;
+  font-size: 7px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: 2px;
+  white-space: nowrap;
 }
 
 .webNode[data-kind="current"] small {
@@ -5075,6 +5115,15 @@
   overflow: hidden;
 }
 
+.previousNext .experienceDate {
+  color: #765514;
+  display: block;
+  font-size: 9px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
 .branchChooser {
   background: #eef6ff;
   border-bottom: 1px solid #c9def3;
@@ -6016,6 +6065,16 @@
 
 .connectionGroup strong {
   font-size: 11px;
+  margin-top: 2px;
+}
+
+.connectionGroup .experienceDate {
+  color: #765514;
+  display: block;
+  font-size: 9px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
   margin-top: 2px;
 }
 

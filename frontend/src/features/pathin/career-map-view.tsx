@@ -293,6 +293,20 @@ function structuredExperience(value: string) {
   };
 }
 
+function experienceDateLabel(node: CareerNode) {
+  if (node.type !== "experience") {
+    return "";
+  }
+
+  const stage = formatMapText(node.stage);
+  const dateMatch = stage.match(EXPERIENCE_DATE_SUFFIX);
+  if (!dateMatch || dateMatch.index !== 0 || dateMatch[0].length !== stage.length) {
+    return "";
+  }
+
+  return formatMapText(dateMatch[0]).replace(/\s*[-–—]\s*/g, " - ");
+}
+
 function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
   const educationValues = uniqueDisplayValues(initialMap.profile.education);
   const roleValues = profileRoleValues(initialMap);
@@ -1349,6 +1363,7 @@ export function CareerMapView({
   const isProfileExperienceNode =
     PROFILE_NODE_ID_SET.has(selectedNode.id) &&
     selectedNode.type === "experience";
+  const selectedExperienceDates = experienceDateLabel(selectedNode);
   const focusNodeSummary =
     isProfileExperienceNode
       ? ""
@@ -1605,9 +1620,15 @@ export function CareerMapView({
     focusIndex >= 0 && focusIndex < focusSequence.length - 1
       ? nodeById.get(focusSequence[focusIndex + 1]) ?? null
       : null;
+  const previousFocusDates = previousFocusNode
+    ? experienceDateLabel(previousFocusNode)
+    : "";
+  const nextFocusDates = nextFocusNode
+    ? experienceDateLabel(nextFocusNode)
+    : "";
   const positionLabel =
-    isProfileExperienceNode
-      ? selectedNode.stage
+    selectedExperienceDates
+      ? selectedExperienceDates
       : PROFILE_NODE_ID_SET.has(selectedNode.id)
         ? "Profile foundation"
       : selectedNode.id === "current"
@@ -3174,6 +3195,7 @@ export function CareerMapView({
                       const isStart = nodeId === "current";
                       const isGoal = nodeId === focusedPath.destinationId;
                       const isLocked = isStart || isGoal;
+                      const experienceDates = experienceDateLabel(node);
                       const isDraggedRouteNode =
                         draggedBuildItem?.kind === "route" &&
                         draggedBuildItem.nodeId === nodeId;
@@ -3272,6 +3294,11 @@ export function CareerMapView({
                                     : `Step ${index}`}
                               </small>
                               <strong>{node.label}</strong>
+                              {experienceDates ? (
+                                <time className={styles.experienceDate}>
+                                  {experienceDates}
+                                </time>
+                              ) : null}
                             </button>
                             {nodeId !== "current" ? (
                               <div className={styles.buildStepActions}>
@@ -3546,7 +3573,13 @@ export function CareerMapView({
                         ) : null}
                       </span>
                       <strong>{selectedNode.label}</strong>
-                      <small>{positionLabel}</small>
+                      <small
+                        data-experience-date={
+                          selectedExperienceDates ? "true" : undefined
+                        }
+                      >
+                        {positionLabel}
+                      </small>
                       {focusNodeSummary ? <p>{focusNodeSummary}</p> : null}
                       <span className={styles.focusNodeAction}>
                         Open focused details
@@ -3759,9 +3792,10 @@ export function CareerMapView({
                         if (!node) {
                           return null;
                         }
+                        const experienceDates = experienceDateLabel(node);
                         return (
                           <button
-                            aria-label={`${node.label}, ${node.eyebrow}. Open details.`}
+                            aria-label={`${node.label}, ${node.eyebrow}${experienceDates ? `, ${experienceDates}` : ""}. Open details.`}
                             className={styles.webNode}
                             data-kind={node.type}
                             data-selected={
@@ -3782,6 +3816,11 @@ export function CareerMapView({
                             </span>
                             <strong>{node.label}</strong>
                             <small>{node.eyebrow}</small>
+                            {experienceDates ? (
+                              <time className={styles.experienceDate}>
+                                {experienceDates}
+                              </time>
+                            ) : null}
                           </button>
                         );
                       })}
@@ -3886,6 +3925,11 @@ export function CareerMapView({
                 <strong>
                   {previousFocusNode?.label ?? "Earlier step"}
                 </strong>
+                {previousFocusDates ? (
+                  <time className={styles.experienceDate}>
+                    {previousFocusDates}
+                  </time>
+                ) : null}
               </span>
             </button>
             <button
@@ -3908,6 +3952,11 @@ export function CareerMapView({
               <span>
                 <small>Up</small>
                 <strong>{nextFocusNode?.label ?? "Later step"}</strong>
+                {nextFocusDates ? (
+                  <time className={styles.experienceDate}>
+                    {nextFocusDates}
+                  </time>
+                ) : null}
               </span>
               <MiniIcon name="arrow-up" />
             </button>
@@ -3974,6 +4023,7 @@ export function CareerMapView({
                 {generatedRouteOptions.map((option) => {
                   const isCurrentRoute =
                     option.path.id === focusedPath?.id;
+                  const experienceDates = experienceDateLabel(option.node);
                   return (
                     <button
                       aria-pressed={isCurrentRoute}
@@ -3992,6 +4042,7 @@ export function CareerMapView({
                         {option.path.estimatedEffort
                           ? ` · ${option.path.estimatedEffort}`
                           : ""}
+                        {experienceDates ? ` · ${experienceDates}` : ""}
                       </small>
                     </button>
                   );
@@ -4224,6 +4275,9 @@ function HorizontalRouteControl({
 }) {
   const isLeft = direction === "left";
   const noun = mode === "explore" ? "career" : "route";
+  const experienceDates = option
+    ? experienceDateLabel(option.node)
+    : "";
   const boundaryLabel =
     routeCount <= 1
       ? `Only ${noun}`
@@ -4232,8 +4286,8 @@ function HorizontalRouteControl({
         : `Last ${noun}`;
   const accessibleLabel = option
     ? mode === "explore"
-      ? `Switch ${direction} to ${option.destination.label} career at ${option.node.label}`
-      : `Switch ${direction} to ${option.path.shortLabel} route at ${option.node.label}`
+      ? `Switch ${direction} to ${option.destination.label} career at ${option.node.label}${experienceDates ? `, ${experienceDates}` : ""}`
+      : `Switch ${direction} to ${option.path.shortLabel} route at ${option.node.label}${experienceDates ? `, ${experienceDates}` : ""}`
     : `${boundaryLabel}; no ${isLeft ? "previous" : "next"} ${noun}`;
   const primaryLabel =
     mode === "explore"
@@ -4242,9 +4296,11 @@ function HorizontalRouteControl({
   const secondaryLabel =
     mode === "explore"
       ? option
-        ? `${option.path.shortLabel} · ${option.node.label}`
+        ? `${option.path.shortLabel} · ${option.node.label}${experienceDates ? ` · ${experienceDates}` : ""}`
         : `${activeRouteIndex + 1} of ${routeCount}`
-      : option?.node.label ?? `${activeRouteIndex + 1} of ${routeCount}`;
+      : option
+        ? `${option.node.label}${experienceDates ? ` · ${experienceDates}` : ""}`
+        : `${activeRouteIndex + 1} of ${routeCount}`;
 
   return (
     <button
@@ -4285,9 +4341,11 @@ function FocusPreview({
   onSelect: (node: CareerNode) => void;
   relation: string;
 }) {
+  const experienceDates = experienceDateLabel(node);
+
   return (
     <button
-      aria-label={`Focus ${node.label}, ${relation.toLowerCase()}`}
+      aria-label={`Focus ${node.label}${experienceDates ? `, ${experienceDates}` : ""}, ${relation.toLowerCase()}`}
       className={styles.focusPreview}
       data-distance={distance}
       data-kind={node.type}
@@ -4296,7 +4354,7 @@ function FocusPreview({
     >
       <span>{relation}</span>
       <strong>{node.label}</strong>
-      <small>{node.stage}</small>
+      <small>{experienceDates || node.stage}</small>
     </button>
   );
 }
@@ -4708,26 +4766,34 @@ function ConnectionGroup({
   return (
     <section className={styles.connectionGroup}>
       <h3>{label}</h3>
-      {items.map(({ node, edge }) => (
-        <button
-          key={node.id}
-          onClick={() => onSelectNode(node.id)}
-          type="button"
-        >
-          <span className={styles.connectionIcon}>
-            <MiniIcon name={nodeIcon(node)} />
-          </span>
-          <span>
-            <small>{node.eyebrow}</small>
-            <strong>{node.label}</strong>
-            <em>
-              {edge?.explanation ??
-                "Open this step to inspect the route connection."}
-            </em>
-          </span>
-          <MiniIcon name="arrow-right" />
-        </button>
-      ))}
+      {items.map(({ node, edge }) => {
+        const experienceDates = experienceDateLabel(node);
+        return (
+          <button
+            key={node.id}
+            onClick={() => onSelectNode(node.id)}
+            type="button"
+          >
+            <span className={styles.connectionIcon}>
+              <MiniIcon name={nodeIcon(node)} />
+            </span>
+            <span>
+              <small>{node.eyebrow}</small>
+              <strong>{node.label}</strong>
+              {experienceDates ? (
+                <time className={styles.experienceDate}>
+                  {experienceDates}
+                </time>
+              ) : null}
+              <em>
+                {edge?.explanation ??
+                  "Open this step to inspect the route connection."}
+              </em>
+            </span>
+            <MiniIcon name="arrow-right" />
+          </button>
+        );
+      })}
     </section>
   );
 }
