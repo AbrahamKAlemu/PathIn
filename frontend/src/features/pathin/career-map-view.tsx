@@ -753,32 +753,13 @@ function MiniIcon({
 
 function PathInLogo() {
   return (
-    <svg
-      aria-label="PathIn"
+    <Image
+      alt="PathIn"
       className={styles.pathinLogo}
-      role="img"
-      viewBox="0 0 48 48"
-    >
-      <rect fill="#0a66c2" height="48" rx="10" width="48" />
-      <circle cx="15.8" cy="19" fill="#ffffff" r="2.3" />
-      <rect fill="#ffffff" height="13" rx="1" width="4.6" x="13.5" y="23" />
-      <path
-        d="M22 23h4.4v1.8c1.3-1.6 3-2.4 5.2-2.4 4 0 6.4 2.7 6.4 7.5V36h-4.7v-5.7c0-2.5-.9-3.8-2.8-3.8-2.2 0-3.8 1.6-3.8 4.5v5H22V23Z"
-        fill="#ffffff"
-      />
-      <path
-        d="m34 5.8 1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2 1.2-3Z"
-        fill="#ffffff"
-      />
-      <path
-        d="m25.8 8.7.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7.7-1.7Z"
-        fill="#ffffff"
-      />
-      <path
-        d="m40.2 15.3.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8.8-1.9Z"
-        fill="#ffffff"
-      />
-    </svg>
+      height={48}
+      src="/pathin-logo.png"
+      width={48}
+    />
   );
 }
 

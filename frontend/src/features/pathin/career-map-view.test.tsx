@@ -36,7 +36,9 @@ describe("CareerMapView navigation", () => {
   it("uses the approved PathIn logo and returns directly to current standing", () => {
     renderCareerMap();
 
-    expect(screen.getByRole("img", { name: "PathIn" })).toBeInTheDocument();
+    const logo = screen.getByRole("img", { name: "PathIn" });
+    expect(logo).toBeInTheDocument();
+    expect(logo.getAttribute("src")).toContain("pathin-logo.png");
     expect(
       screen.queryByRole("button", {
         name: "Return focus to current standing",
