@@ -106,6 +106,18 @@ function cloneProfileFields(
   );
 }
 
+function hasEnabledProfileEvidence(profile: CurrentProfile | null) {
+  if (!profile?.pathinEvidence) {
+    return false;
+  }
+
+  return profileCategories.some(
+    (category) =>
+      profile.pathinEvidence.enabledCategories[category] &&
+      (profile.pathinEvidence.fields[category]?.length ?? 0) > 0,
+  );
+}
+
 export function CareerTree() {
   const [phase, setPhase] = useState<ExperiencePhase>("onboarding");
   const [careerMap, setCareerMap] = useState<CareerMapData | null>(null);
@@ -170,8 +182,13 @@ export function CareerTree() {
     return () => window.clearInterval(interval);
   }, [phase]);
 
+  const hasResumeEvidence = Boolean(resume && parsedResume);
+  const hasLinkedinEvidence = Boolean(
+    parsedLinkedin ||
+      (useConnectedProfile && hasEnabledProfileEvidence(connectedProfile)),
+  );
   const canGenerate =
-    Boolean(resume && parsedResume) &&
+    (hasResumeEvidence || hasLinkedinEvidence) &&
     !parsingResume &&
     !parsingLinkedin &&
     phase === "onboarding";
@@ -565,10 +582,8 @@ export function CareerTree() {
     return (
       <GenerationScreen
         currentStage={loadingStage}
-        hasLinkedin={Boolean(
-          parsedLinkedin ||
-            (connectedProfile?.pathinEvidence && useConnectedProfile),
-        )}
+        hasLinkedin={hasLinkedinEvidence}
+        hasResume={hasResumeEvidence}
         stages={loadingStages}
       />
     );
@@ -596,8 +611,8 @@ export function CareerTree() {
         <header className={styles.uploadIntro}>
           <h1>Build your career path</h1>
           <p>
-            Upload a resume for custom recommendations. Your authorized
-            profile can add verified context without replacing the resume.
+            Generate from your connected profile. Add a resume for stronger,
+            more personalized recommendations.
           </p>
         </header>
 
@@ -671,12 +686,17 @@ export function CareerTree() {
           ? "Reading the selected resume."
           : parsingLinkedin
             ? "Reading the selected LinkedIn profile export."
-          : parsedResume
-            ? parsedLinkedin ||
-              (connectedProfile?.pathinEvidence && useConnectedProfile)
+          : hasResumeEvidence
+            ? hasLinkedinEvidence
               ? "Resume and authorized profile evidence ready. Generate your career path."
               : "Resume ready. Generate your career path."
-            : uploadError || "Choose a resume to begin."}
+            : hasLinkedinEvidence
+              ? "Authorized profile evidence ready. Generate your career path."
+              : connectedProfileLoading
+                ? "Checking your connected profile."
+                : uploadError ||
+                  linkedinError ||
+                  "Use your connected profile or add a resume to begin."}
       </p>
     </form>
   );
@@ -782,7 +802,7 @@ function ResumeUpload({
 }) {
   return (
     <EvidenceUpload
-      emptyLabel="Upload your resume"
+      emptyLabel="Add your resume (optional)"
       error={error}
       file={file}
       inputLabel="Upload resume"
@@ -932,12 +952,20 @@ function EvidenceUpload({
 function GenerationScreen({
   currentStage,
   hasLinkedin,
+  hasResume,
   stages,
 }: {
   currentStage: number;
   hasLinkedin: boolean;
+  hasResume: boolean;
   stages: string[];
 }) {
+  const evidenceLabel = hasResume
+    ? hasLinkedin
+      ? "your resume and LinkedIn evidence"
+      : "your resume"
+    : "your LinkedIn profile";
+
   return (
     <section
       aria-labelledby="pathin-generation-title"
@@ -950,10 +978,7 @@ function GenerationScreen({
           <strong>in</strong>
         </div>
         <h1 id="pathin-generation-title">{stages[currentStage]}</h1>
-        <p role="status">
-          Creating recommendations from your resume
-          {hasLinkedin ? " and LinkedIn evidence" : " evidence"}
-        </p>
+        <p role="status">Creating recommendations from {evidenceLabel}</p>
         <div className={styles.careerLoadingDots} aria-hidden="true">
           {stages.map((stage, index) => (
             <span
