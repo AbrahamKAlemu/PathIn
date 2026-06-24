@@ -1,3 +1,7 @@
+Sarah Hourani, Winston Iskandar, Nataly Mendez, Chikanma Okoisor, Haaven Siye
+
+gogole slides: https://docs.google.com/presentation/d/1bWLnxGd_YKhPHbMmAiw2-TMXelkffCamWxHUSdrMW9s/edit?usp=sharing
+
 # PathIn
 
 PathIn is an explainable career exploration product built as a Next.js
