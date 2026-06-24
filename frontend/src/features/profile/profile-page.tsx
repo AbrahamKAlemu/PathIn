@@ -587,8 +587,8 @@ function ExperienceItem({
           {experience.startDate} - {experience.endDate} · {experience.duration}
         </small>
         {experience.location ? <small>{experience.location}</small> : null}
-        {experience.description.map((line) => (
-          <p className={styles.timelineDescription} key={line}>
+        {experience.description.map((line, index) => (
+          <p className={styles.timelineDescription} key={index}>
             {line}
           </p>
         ))}
@@ -1021,9 +1021,9 @@ function ProfileFooter() {
     <footer className={styles.profileFooter}>
       <nav aria-label="LinkedIn footer">
         {links.map((link) => (
-          <button key={link} type="button">
+          <span key={link} className={styles.footerLink}>
             {link}
-          </button>
+          </span>
         ))}
       </nav>
       <div className={styles.footerHelp}>

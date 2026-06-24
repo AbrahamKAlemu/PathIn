@@ -20,7 +20,6 @@ import styles from "./career-tree.module.css";
 import {
   buildCareerMap,
   generateCareerMap,
-  normalizeProfile,
   parseProfileFile,
   PathInApiError,
   regenerateCareerMap,
@@ -399,7 +398,6 @@ export function CareerTree() {
     const startedAt = Date.now();
 
     try {
-      await normalizeProfile(submission);
       const generated = await generateCareerMap(submission);
       const remaining = Math.max(0, 3200 - (Date.now() - startedAt));
       if (remaining) {

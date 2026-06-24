@@ -34,7 +34,7 @@ function splitCompactedCamelToken(token: string) {
     .replace(CAMEL_WORD_BOUNDARY, "$1 $2");
 }
 
-export function formatMapText(value: string) {
+export function formatMapText(value: string | null | undefined) {
   const normalized = String(value ?? "")
     .normalize("NFKC")
     .replace(CONTROL_CHARACTERS, " ")

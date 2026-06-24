@@ -763,8 +763,8 @@ function PathInLogo() {
   );
 }
 
-function formatCurrency(value: number) {
-  if (!value) {
+function formatCurrency(value: number | null | undefined) {
+  if (value == null || isNaN(value)) {
     return "Not available";
   }
 
@@ -1562,7 +1562,7 @@ export function CareerMapView({
     };
     window.localStorage.setItem(SAVED_STATE_KEY, JSON.stringify(state));
     setSaved(true);
-    setStatusMessage("Path saved through Flask and linked in this browser.");
+    setStatusMessage("Path saved and linked in this browser.");
   }
 
   async function reopenSavedMap() {
@@ -1607,7 +1607,7 @@ export function CareerMapView({
       return;
     }
     setStatusMessage(
-      `Requesting another Flask-generated route toward ${nodeById.get(currentPath.destinationId)?.label ?? "this destination"}.`,
+      `Requesting another route toward ${nodeById.get(currentPath.destinationId)?.label ?? "this destination"}.`,
     );
     await onRegenerate("alternative_route", {
       targetId: currentPath.destinationId,
@@ -1675,7 +1675,7 @@ export function CareerMapView({
               <span className={styles.betaBadge}>Beta</span>
             </div>
             <p>
-              Explore Flask-generated career routes from your enabled profile evidence.
+              Explore AI-generated career routes from your enabled profile evidence.
             </p>
           </div>
         </div>
@@ -2310,7 +2310,7 @@ export function CareerMapView({
             </div>
             <p>
               {viewMode === "focus"
-                ? "Compact previews show what comes next above and what came before below. The side route cards move horizontally to a comparable step on another Flask-generated path."
+                ? "Compact previews show what comes next above and what came before below. The side route cards move horizontally to a comparable step on another generated path."
                 : "Profile evidence flows downward into your current standing, then each possible future continues through practical steps to a destination. Drag, scroll, zoom, and select any bubble to inspect the full route."}
             </p>
             <Link href="/" className={styles.backToFeed}>
