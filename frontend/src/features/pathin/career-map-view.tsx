@@ -11,6 +11,12 @@ import {
 } from "react";
 
 import type { RegenerationAction } from "./pathin-api";
+import {
+  compactMapText,
+  formatMapText,
+  isUnreadableMapText,
+  safeMapText,
+} from "./display-text";
 import type {
   CareerEdge,
   CareerMapData,
@@ -126,26 +132,97 @@ const PROFILE_NODE_IDS = [
 
 const PROFILE_NODE_ID_SET = new Set<string>(PROFILE_NODE_IDS);
 
+function uniqueDisplayValues(values: string[]) {
+  return values.reduce<string[]>((result, value) => {
+    const formatted = safeMapText(value, "");
+    if (formatted && !result.includes(formatted)) {
+      result.push(formatted);
+    }
+    return result;
+  }, []);
+}
+
+function mapEvidenceSourceLabel(initialMap: CareerMapData) {
+  const sources = new Set([
+    ...(initialMap.profileFingerprint?.sourcesPresent ?? []),
+    ...Object.values(initialMap.exactSignalsUsed ?? {})
+      .flat()
+      .map((field) => field.source),
+  ]);
+  const hasResume = sources.has("resume");
+  const hasLinkedin = sources.has("linkedin");
+
+  if (hasResume && hasLinkedin) {
+    return "your resume and LinkedIn evidence";
+  }
+  if (hasResume) {
+    return "your resume evidence";
+  }
+  if (hasLinkedin) {
+    return "your LinkedIn profile evidence";
+  }
+  return "your enabled profile evidence";
+}
+
+function profileRoleValues(initialMap: CareerMapData) {
+  const roleSources = [
+    initialMap.profile.roles ?? [],
+    initialMap.profileSnapshot?.roles ?? [],
+    initialMap.exactSignalsUsed?.roles?.map((field) => field.value) ?? [],
+  ];
+
+  for (const source of roleSources) {
+    const roles = uniqueDisplayValues(source);
+    if (roles.length > 0) {
+      return roles;
+    }
+  }
+
+  return uniqueDisplayValues(initialMap.profile.experience).filter((value) => {
+    const wordCount = value.split(/\s+/).length;
+    return value.length <= 96 && wordCount <= 12 && !/[.!?]$/.test(value);
+  });
+}
+
+function conciseExperienceLabel(value: string) {
+  const formatted = safeMapText(value, "Imported experience");
+  const parts = formatted.split(/\s+·\s+/);
+  const trailingPart = parts.at(-1) ?? "";
+  const hasTrailingDate =
+    /\b(?:19|20)\d{2}\b|\bpresent\b/i.test(trailingPart);
+  const titleParts = hasTrailingDate ? parts.slice(0, -1) : parts;
+  return compactMapText(
+    titleParts.join(" · ") || formatted,
+    72,
+    "Imported experience",
+  );
+}
+
 function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
+  const educationValues = uniqueDisplayValues(initialMap.profile.education);
+  const roleValues = profileRoleValues(initialMap);
+  const skillValues = uniqueDisplayValues(initialMap.profile.skills);
+  const interestValues = uniqueDisplayValues(initialMap.profile.interests);
+  const goalValues = uniqueDisplayValues(initialMap.profile.goals ?? []);
   const education =
-    initialMap.profile.education.join(", ") || "No education information supplied";
+    educationValues.join(", ") || "No education information supplied";
   const currentExperience =
-    initialMap.profile.experience[0] || "No current experience supplied";
+    roleValues[0] || "No current experience supplied";
   const priorExperience =
-    initialMap.profile.experience[1] || "No earlier experience supplied";
+    roleValues[1] || "No earlier experience supplied";
   const skills =
-    initialMap.profile.skills.join(", ") || "No confirmed skills supplied";
+    skillValues.join(", ") || "No confirmed skills supplied";
   const interests =
-    initialMap.profile.interests.join(", ") || "No career interests supplied";
+    interestValues.join(", ") || "No career interests supplied";
   const goals =
-    initialMap.profile.goals?.join(", ") || "Explore evidence-supported options";
+    goalValues.join(", ") || "Explore evidence-supported options";
 
   return [
     {
       id: "profile-interests",
       type: "skill",
       label:
-        initialMap.profile.interests.slice(0, 2).join(" + ") ||
+        interestValues.slice(0, 2).join(" + ") ||
         "Career interests",
       eyebrow: "Direction signal",
       summary: `${interests}. Current goals: ${goals}.`,
@@ -158,8 +235,8 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
         "Use these interests to rank routes without treating them as fixed commitments.",
         "Return to profile inputs to revise or disable them.",
       ],
-      existingSkills: initialMap.profile.skills,
-      transferableSkills: initialMap.profile.interests.slice(0, 4),
+      existingSkills: skillValues,
+      transferableSkills: interestValues.slice(0, 4),
       skillsToBuild: ["Goal definition", "Role comparison"],
       preview:
         "This node records stated direction signals, not a prediction about the career the user must pursue.",
@@ -179,7 +256,7 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
       eyebrow: "Transferable strengths",
       summary: skills,
       stage: "Current skill signals",
-      workSetting: "Resume, LinkedIn, and manual evidence",
+      workSetting: "Enabled profile evidence",
       whyItFits: [
         "These enabled skills were compared with each role family's maintained skill signals.",
       ],
@@ -187,8 +264,8 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
         "Confirm which skills are backed by projects or work samples.",
         "Identify which strengths can reduce the cost of testing an adjacent path.",
       ],
-      existingSkills: initialMap.profile.skills,
-      transferableSkills: initialMap.profile.skills.slice(0, 5),
+      existingSkills: skillValues,
+      transferableSkills: skillValues.slice(0, 5),
       skillsToBuild: ["Evidence through projects", "Role-specific vocabulary"],
       preview:
         "These signals may transfer across role families when supported by responsibilities or projects.",
@@ -204,11 +281,11 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
     {
       id: "profile-education",
       type: "course",
-      label: initialMap.profile.education[0] || "Education",
+      label: educationValues[0] || "Education",
       eyebrow: "Education",
       summary: education,
       stage: "Education evidence",
-      workSetting: initialMap.profile.education[0] || "Not supplied",
+      workSetting: educationValues[0] || "Not supplied",
       whyItFits: [
         "Education contributes only when it overlaps a destination's maintained education signals.",
       ],
@@ -216,8 +293,8 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
         "Connect relevant coursework to concrete projects and role requirements.",
         "Keep education separate from claims of professional qualification.",
       ],
-      existingSkills: initialMap.profile.skills.slice(0, 4),
-      transferableSkills: initialMap.profile.education.slice(0, 3),
+      existingSkills: skillValues.slice(0, 4),
+      transferableSkills: educationValues.slice(0, 3),
       skillsToBuild: ["Applied evidence", "Domain context"],
       preview: education,
       challenges: [
@@ -232,7 +309,7 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
     {
       id: "profile-prior-experience",
       type: "experience",
-      label: priorExperience,
+      label: conciseExperienceLabel(priorExperience),
       eyebrow: "Prior experience",
       summary:
         `${priorExperience}. Path[IN] keeps this entry factual and does not infer unsupported responsibilities or seniority.`,
@@ -245,8 +322,8 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
         "Document the actual role and responsibilities.",
         "Connect specific outcomes to transferable skills.",
       ],
-      existingSkills: initialMap.profile.skills,
-      transferableSkills: initialMap.profile.skills.slice(0, 4),
+      existingSkills: skillValues,
+      transferableSkills: skillValues.slice(0, 4),
       skillsToBuild: ["Specific accomplishment evidence"],
       preview:
         "Path[IN] keeps this node factual until the user supplies more detail.",
@@ -262,7 +339,7 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
     {
       id: "profile-current-experience",
       type: "experience",
-      label: currentExperience,
+      label: conciseExperienceLabel(currentExperience),
       eyebrow: "Current experience",
       summary:
         `${currentExperience}. This is the nearest supplied experience beneath the combined current standing.`,
@@ -275,8 +352,8 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
         "Add the actual role, scope, dates, and measurable outcomes.",
         "Identify projects that could support data, product, design, or engineering routes.",
       ],
-      existingSkills: initialMap.profile.skills,
-      transferableSkills: initialMap.profile.skills.slice(0, 5),
+      existingSkills: skillValues,
+      transferableSkills: skillValues.slice(0, 5),
       skillsToBuild: ["Outcome documentation", "Role-specific evidence"],
       preview:
         "This node connects the user's nearest supplied experience to the generated routes above.",
@@ -292,8 +369,148 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
   ];
 }
 
+function sanitizeTextList(values: string[], maxLength = 180) {
+  return values.reduce<string[]>((result, value) => {
+    const formatted = formatMapText(value);
+    if (!formatted || isUnreadableMapText(formatted)) {
+      return result;
+    }
+    const compacted = compactMapText(formatted, maxLength, "");
+    if (compacted && !result.includes(compacted)) {
+      result.push(compacted);
+    }
+    return result;
+  }, []);
+}
+
+function nodeLabelFallback(node: CareerNode) {
+  switch (node.type) {
+    case "current":
+      return "Your current standing";
+    case "destination":
+      return "Career destination";
+    case "course":
+      return "Learning step";
+    case "skill":
+      return "Skill-building step";
+    case "experience":
+      return "Imported experience";
+    case "entry_role":
+    case "role":
+      return "Career step";
+  }
+}
+
+function sanitizeCareerNode(node: CareerNode): CareerNode {
+  const label = compactMapText(node.label, 120, nodeLabelFallback(node));
+  const summaryFallback =
+    "Open details to review the enabled evidence for this step.";
+  const stepDetails = node.stepDetails
+    ? {
+        ...node.stepDetails,
+        why: compactMapText(node.stepDetails.why, 220, summaryFallback),
+        support: compactMapText(
+          node.stepDetails.support,
+          220,
+          "No additional supporting detail was supplied.",
+        ),
+        skillsDeveloped: sanitizeTextList(
+          node.stepDetails.skillsDeveloped,
+          80,
+        ),
+        gapAddressed: compactMapText(
+          node.stepDetails.gapAddressed,
+          100,
+          "Role-specific evidence",
+        ),
+        effort: compactMapText(
+          node.stepDetails.effort,
+          80,
+          "Effort not estimated",
+        ),
+        completionEvidence: compactMapText(
+          node.stepDetails.completionEvidence,
+          180,
+          "A reviewable work sample or verified outcome",
+        ),
+        sourceBlend: node.stepDetails.sourceBlend
+          ? compactMapText(
+              node.stepDetails.sourceBlend,
+              100,
+              "Enabled profile evidence",
+            )
+          : undefined,
+        supportingEvidence: node.stepDetails.supportingEvidence
+          ?.map((evidence) => ({
+            ...evidence,
+            value: compactMapText(
+              evidence.value,
+              100,
+              "Imported profile evidence",
+            ),
+          }))
+          .filter(
+            (evidence) =>
+              evidence.value !== "Imported profile evidence",
+          ),
+      }
+    : undefined;
+
+  return {
+    ...node,
+    label,
+    eyebrow: compactMapText(node.eyebrow, 48, "Profile evidence"),
+    summary: compactMapText(node.summary, 260, summaryFallback),
+    stage: compactMapText(node.stage, 80, "Career step"),
+    workSetting: compactMapText(
+      node.workSetting,
+      120,
+      "Details not supplied",
+    ),
+    whyItFits: sanitizeTextList(node.whyItFits),
+    responsibilities: sanitizeTextList(node.responsibilities),
+    existingSkills: sanitizeTextList(node.existingSkills, 80),
+    transferableSkills: sanitizeTextList(node.transferableSkills, 80),
+    skillsToBuild: sanitizeTextList(node.skillsToBuild, 80),
+    preview: compactMapText(node.preview, 220, summaryFallback),
+    challenges: sanitizeTextList(node.challenges),
+    sourceRecord: node.sourceRecord
+      ? {
+          ...node.sourceRecord,
+          label: compactMapText(
+            node.sourceRecord.label,
+            100,
+            "Path[IN] evidence",
+          ),
+        }
+      : undefined,
+    stepDetails,
+  };
+}
+
+function sanitizeCareerPath(path: CareerPath): CareerPath {
+  return {
+    ...path,
+    label: compactMapText(path.label, 96, "Career route"),
+    shortLabel: compactMapText(path.shortLabel, 48, "Career route"),
+    description: compactMapText(
+      path.description,
+      180,
+      "A route based on enabled profile evidence.",
+    ),
+    strategy: compactMapText(
+      path.strategy,
+      100,
+      "Evidence-led route",
+    ),
+    estimatedEffort: path.estimatedEffort
+      ? compactMapText(path.estimatedEffort, 72, "Effort not estimated")
+      : undefined,
+  };
+}
+
 function conciseSignal(value: string) {
-  const normalized = value.trim();
+  const normalized = safeMapText(value, "Not provided");
   if (!normalized) {
     return "Not provided";
   }
@@ -637,6 +854,7 @@ export function CareerMapView({
   onStartOver,
   onSubmitFeedback,
 }: CareerMapViewProps) {
+  const evidenceSourceLabel = mapEvidenceSourceLabel(initialMap);
   const initialDestinationId =
     initialMap.dreamCareer?.destinationId ??
     initialMap.destinationIds[0];
@@ -650,7 +868,10 @@ export function CareerMapView({
   const nodeById = useMemo(
     () =>
       new Map(
-        [...initialMap.nodes, ...profileNodes].map((node) => [node.id, node]),
+        [...initialMap.nodes, ...profileNodes].map((node) => {
+          const sanitizedNode = sanitizeCareerNode(node);
+          return [sanitizedNode.id, sanitizedNode];
+        }),
       ),
     [initialMap.nodes, profileNodes],
   );
@@ -664,9 +885,13 @@ export function CareerMapView({
       ),
     [initialMap.edges],
   );
-  const pathById = useMemo(
-    () => new Map(initialMap.paths.map((path) => [path.id, path])),
+  const paths = useMemo(
+    () => initialMap.paths.map(sanitizeCareerPath),
     [initialMap.paths],
+  );
+  const pathById = useMemo(
+    () => new Map(paths.map((path) => [path.id, path])),
+    [paths],
   );
 
   const [mode, setMode] = useState<CareerMode>(
@@ -782,7 +1007,7 @@ export function CareerMapView({
         candidatePathIds
           .map((pathId) => pathById.get(pathId))
           .find((candidate) => candidate?.destinationId === goalId) ??
-        initialMap.paths.find(
+        paths.find(
           (candidate) => candidate.destinationId === goalId,
         );
 
@@ -794,10 +1019,10 @@ export function CareerMapView({
     initialMap.buildPathIdsByDestination,
     initialMap.destinationIds,
     initialMap.explorePathIds,
-    initialMap.paths,
     mode,
     nodeById,
     pathById,
+    paths,
   ]);
   const activeGoal =
     goalOptions.find(
@@ -1079,7 +1304,7 @@ export function CareerMapView({
     const restored = nodeById.get(lastDismissedNodeId);
     if (lastDismissedPathIds.length > 0) {
       setExplorePathIds((current) =>
-        initialMap.paths
+        paths
           .map((path) => path.id)
           .filter(
           (pathId) =>
@@ -1097,7 +1322,7 @@ export function CareerMapView({
 
   async function regenerate() {
     setStatusMessage(
-      "Regenerating this map with your resume evidence and pinned steps.",
+      `Regenerating this map with ${evidenceSourceLabel} and pinned steps.`,
     );
     await onRegenerate("regenerate", {
       pinnedNodeIds,

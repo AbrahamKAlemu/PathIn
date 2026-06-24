@@ -20,6 +20,11 @@ from .taxonomy import (
     semantic_concepts,
     slugify,
 )
+from .text_cleanup import (
+    clean_profile_text,
+    compact_profile_text,
+    is_probably_compacted_text,
+)
 
 PROFILE_CATEGORIES = (
     "education",
@@ -437,8 +442,12 @@ def _string_list(value: Any) -> list[str]:
     values = value if isinstance(value, list) else [value]
     result: list[str] = []
     for item in values:
-        text = str(item).strip()
-        if text and text not in result:
+        text = clean_profile_text(str(item))
+        if (
+            text
+            and not is_probably_compacted_text(text)
+            and text not in result
+        ):
             result.append(text)
     return result
 
@@ -467,10 +476,11 @@ def _entry(
     explicit: bool = True,
     enabled: bool = True,
 ) -> dict[str, Any]:
-    normalized = _normalized_text(value)
+    cleaned = clean_profile_text(value)
+    normalized = _normalized_text(cleaned)
     return {
         "id": hashlib.sha1(f"{source}:{normalized}".encode()).hexdigest()[:14],
-        "value": value.strip(),
+        "value": cleaned,
         "normalized": normalized,
         "source": source,
         "confidence": round(confidence, 2),
@@ -513,8 +523,10 @@ class ProfileNormalizer:
                 raw_items = [raw_items] if raw_items else []
             for raw_item in raw_items:
                 if isinstance(raw_item, dict):
-                    value = str(raw_item.get("value", "")).strip()
-                    if not value:
+                    value = clean_profile_text(
+                        str(raw_item.get("value", ""))
+                    )
+                    if not value or is_probably_compacted_text(value):
                         continue
                     item = {
                         **_entry(
@@ -536,8 +548,8 @@ class ProfileNormalizer:
                         },
                     }
                 else:
-                    value = str(raw_item).strip()
-                    if not value:
+                    value = clean_profile_text(str(raw_item))
+                    if not value or is_probably_compacted_text(value):
                         continue
                     item = _entry(value, source="manual")
                 candidates.append(item)
@@ -643,8 +655,10 @@ class ProfileNormalizer:
 
         normalized = {
             "id": str(profile.get("id", "profile")).strip() or "profile",
-            "name": str(profile.get("name", "")).strip(),
-            "headline": str(profile.get("headline", "")).strip(),
+            "name": clean_profile_text(str(profile.get("name", ""))),
+            "headline": clean_profile_text(
+                str(profile.get("headline", ""))
+            ),
             **values,
             "experience": list(dict.fromkeys([*roles, *responsibilities])),
             "locationPreferences": values["locations"],
@@ -2232,13 +2246,24 @@ class RecommendationEngine:
             else "Resume"
         )
         role_copy = (
-            profile["roles"][0]
+            compact_profile_text(
+                profile["roles"][0],
+                max_characters=72,
+                fallback="your uploaded experience",
+            )
             if profile["roles"]
             else "your uploaded experience"
         )
-        skill_copy = ", ".join(
-            item["value"]
+        skill_values = [
+            compact_profile_text(
+                item["value"],
+                max_characters=36,
+                fallback="",
+            )
             for item in fingerprint["strongestCapabilities"][:3]
+        ]
+        skill_copy = ", ".join(
+            value for value in skill_values if value
         ) or "the capabilities present in your upload"
         problem_copy = (
             fingerprint["problemThemes"][0]["label"]
@@ -2868,7 +2893,9 @@ class RecommendationEngine:
         if not subject:
             subject = fallback.strip()
         if subject:
-            subject = subject[0].lower() + subject[1:]
+            first_word = subject.split()[0]
+            if not any(character.isupper() for character in first_word[1:]):
+                subject = subject[0].lower() + subject[1:]
         return subject or "an existing work sample"
 
     def _select_course(
@@ -3061,7 +3088,9 @@ class RecommendationEngine:
                 else ""
             ),
             "education": profile["education"],
-            "experience": profile["experience"],
+            "roles": profile["roles"],
+            "responsibilities": profile["responsibilities"],
+            "experience": profile["roles"],
             "skills": profile["skills"],
             "interests": profile["interests"],
             "goals": profile["goals"],

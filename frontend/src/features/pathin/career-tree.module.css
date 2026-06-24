@@ -2264,11 +2264,16 @@
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid #aebdca;
   border-radius: 14px;
+  box-sizing: border-box;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   color: var(--ink);
   cursor: pointer;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 76px;
+  max-height: 76px;
   min-height: 76px;
+  overflow: hidden;
   padding: 10px 14px;
   position: relative;
   text-align: center;
@@ -2289,27 +2294,41 @@
 }
 
 .focusPreview > span {
+  align-self: start;
   color: #64717d;
   font-size: 8px;
   font-weight: 800;
   letter-spacing: 0.08em;
+  line-height: 1;
   text-transform: uppercase;
 }
 
 .focusPreview > strong {
-  align-self: end;
+  align-self: center;
+  display: -webkit-box;
   font-size: 13px;
   line-height: 1.2;
   margin-top: 3px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .focusPreview > small {
   color: var(--muted);
+  display: block;
   font-size: 9px;
   margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .focusPreview[data-distance="2"] {
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 64px;
+  max-height: 64px;
   min-height: 64px;
   opacity: 0.78;
   width: 184px;
@@ -2317,6 +2336,10 @@
 
 .focusPreview[data-distance="2"] > strong {
   font-size: 11px;
+}
+
+.focusPreview[data-distance="2"] > small {
+  display: none;
 }
 
 .focusPreview[data-empty="true"] {
@@ -2479,12 +2502,16 @@
   background: #ffffff;
   border: 3px solid var(--blue);
   border-radius: 24px;
+  box-sizing: border-box;
   box-shadow:
     0 18px 42px rgba(10, 102, 194, 0.18),
     0 4px 12px rgba(0, 0, 0, 0.08);
   color: var(--ink);
   cursor: pointer;
-  min-height: 218px;
+  height: 238px;
+  max-height: 238px;
+  min-height: 238px;
+  overflow: hidden;
   padding: 22px 24px 20px;
   position: relative;
   text-align: left;
@@ -2534,6 +2561,7 @@
   color: #56636f;
   display: flex;
   gap: 8px;
+  min-width: 0;
 }
 
 .focusNode[data-kind="current"] .focusNodeTopline {
@@ -2544,7 +2572,10 @@
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .focusNodeIcon {
@@ -2573,11 +2604,15 @@
 }
 
 .focusNode > strong {
-  display: block;
-  font-size: 25px;
+  display: -webkit-box;
+  font-size: 22px;
   letter-spacing: -0.025em;
   line-height: 1.1;
   margin-top: 15px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .focusNode > small {
@@ -2586,6 +2621,9 @@
   font-size: 11px;
   font-weight: 650;
   margin-top: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .focusNode[data-kind="current"] > small,
@@ -2595,9 +2633,14 @@
 
 .focusNode > p {
   color: #46535e;
+  display: -webkit-box;
   font-size: 12px;
   line-height: 1.45;
   margin: 12px 0 30px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .focusNodeAction {
@@ -2854,6 +2897,7 @@
   line-height: 1.12;
   margin-top: 5px;
   overflow: hidden;
+  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -5566,12 +5610,16 @@
   }
 
   .focusPreview {
+    height: 62px;
+    max-height: 62px;
     min-height: 62px;
     padding-block: 8px;
     width: 176px;
   }
 
   .focusPreview[data-distance="2"] {
+    height: 54px;
+    max-height: 54px;
     min-height: 54px;
     width: 150px;
   }
@@ -5602,13 +5650,15 @@
   }
 
   .focusNode {
-    min-height: 178px;
+    height: 198px;
+    max-height: 198px;
+    min-height: 198px;
     padding: 17px 17px 16px;
     width: 100%;
   }
 
   .focusNode > strong {
-    font-size: 22px;
+    font-size: 20px;
   }
 
   .focusNode > p {

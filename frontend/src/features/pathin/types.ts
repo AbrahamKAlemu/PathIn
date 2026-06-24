@@ -106,6 +106,8 @@ export type PathInProfile = {
   headline: string;
   location: string;
   education: string[];
+  roles?: string[];
+  responsibilities?: string[];
   experience: string[];
   skills: string[];
   interests: string[];
