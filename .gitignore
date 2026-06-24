@@ -7,3 +7,5 @@ backend/.pytest_cache/
 backend/.venv/
 backend/**/__pycache__/
 backend/instance/
+AGENTS.md
+CLAUDE.md
