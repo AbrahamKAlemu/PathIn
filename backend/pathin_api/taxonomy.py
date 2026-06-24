@@ -3,9 +3,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
-TAXONOMY_VERSION = "pathin-occupations-1.0"
-ALGORITHM_VERSION = "pathin-ranking-2.0"
-MODEL_VERSION = "evidence-grounded-personalization-2.0"
+TAXONOMY_VERSION = "pathin-occupations-1.1"
+ALGORITHM_VERSION = "pathin-ranking-2.1"
+MODEL_VERSION = "evidence-grounded-personalization-2.1"
 
 
 def role(
@@ -173,6 +173,187 @@ OCCUPATIONAL_TAXONOMY: list[dict[str, Any]] = [
         work_styles=["Analytical", "Structured", "Stakeholder facing"],
         adjacent=["data-scientist", "business-analyst", "operations-analyst"],
         description="Turns business data into clear findings, dashboards, and decision support.",
+    ),
+    role(
+        "robotics-engineer",
+        "Robotics Engineer",
+        "Robotics and Autonomous Systems",
+        level=2,
+        skills=[
+            "Robotics",
+            "CAD",
+            "Embedded Systems",
+            "Arduino",
+            "Mechanical Design",
+            "Electronics",
+            "Prototyping",
+            "Programming",
+        ],
+        responsibilities=[
+            "Design and prototype robotic subsystems",
+            "Integrate mechanical, electrical, and software components",
+            "Test hardware behavior and document design decisions",
+        ],
+        interests=["Robotics", "Hardware", "Engineering", "Problem solving"],
+        industries=["Engineering", "Manufacturing", "Technology", "Healthcare"],
+        education=[
+            "Computer Engineering",
+            "Mechanical Engineering",
+            "Electrical Engineering",
+            "Mechatronics",
+        ],
+        projects=["Robot prototype", "Autonomous system", "Hardware integration"],
+        work_styles=["Hands-on", "Iterative", "Cross-disciplinary"],
+        adjacent=[
+            "embedded-systems-engineer",
+            "mechanical-design-engineer",
+            "hardware-test-engineer",
+            "software-engineer",
+        ],
+        description="Builds and tests robotic systems by combining mechanical design, electronics, embedded control, and software.",
+    ),
+    role(
+        "embedded-systems-engineer",
+        "Embedded Systems Engineer",
+        "Embedded and Hardware Systems",
+        level=2,
+        skills=[
+            "Embedded Systems",
+            "Microcontrollers",
+            "C/C++",
+            "Arduino",
+            "Electronics",
+            "Debugging",
+            "Hardware Testing",
+            "Technical Documentation",
+        ],
+        responsibilities=[
+            "Develop firmware for hardware devices",
+            "Integrate sensors, actuators, and microcontrollers",
+            "Debug timing, communication, and hardware-software issues",
+        ],
+        interests=["Embedded systems", "Electronics", "Hardware", "Programming"],
+        industries=["Engineering", "Manufacturing", "Technology", "Healthcare"],
+        education=[
+            "Computer Engineering",
+            "Electrical Engineering",
+            "Computer Science",
+        ],
+        projects=["Arduino control system", "Sensor prototype", "Embedded device"],
+        work_styles=["Hands-on", "Analytical", "Detail oriented"],
+        adjacent=[
+            "robotics-engineer",
+            "hardware-test-engineer",
+            "software-engineer",
+        ],
+        description="Develops firmware and hardware interfaces for devices, robots, sensors, and other embedded products.",
+    ),
+    role(
+        "mechanical-design-engineer",
+        "Mechanical Design Engineer",
+        "Mechanical Design",
+        level=2,
+        skills=[
+            "CAD",
+            "Mechanical Design",
+            "Autodesk Inventor",
+            "Prototyping",
+            "Manufacturing",
+            "Technical Drawings",
+            "Design for Manufacturing",
+        ],
+        responsibilities=[
+            "Create and revise mechanical designs",
+            "Prototype components and evaluate fit and function",
+            "Prepare designs for manufacturing and assembly",
+        ],
+        interests=["Mechanical design", "Hardware", "Manufacturing", "Building"],
+        industries=["Engineering", "Manufacturing", "Technology", "Automotive"],
+        education=[
+            "Mechanical Engineering",
+            "Computer Engineering",
+            "Industrial Design",
+        ],
+        projects=["CAD assembly", "Chassis design", "Manufactured prototype"],
+        work_styles=["Hands-on", "Visual", "Iterative"],
+        adjacent=[
+            "robotics-engineer",
+            "manufacturing-engineer",
+            "hardware-test-engineer",
+        ],
+        description="Turns requirements into manufacturable mechanical components, assemblies, prototypes, and technical drawings.",
+    ),
+    role(
+        "manufacturing-engineer",
+        "Manufacturing Engineer",
+        "Manufacturing Engineering",
+        level=2,
+        skills=[
+            "Manufacturing",
+            "Process Improvement",
+            "CAD",
+            "Quality",
+            "Data Analysis",
+            "Documentation",
+            "Design for Manufacturing",
+        ],
+        responsibilities=[
+            "Design and improve production processes",
+            "Analyze quality, throughput, and manufacturing constraints",
+            "Coordinate design changes with production teams",
+        ],
+        interests=["Manufacturing", "Operations", "Engineering", "Efficiency"],
+        industries=["Manufacturing", "Engineering", "Automotive", "Technology"],
+        education=[
+            "Manufacturing Engineering",
+            "Mechanical Engineering",
+            "Industrial Engineering",
+            "Computer Engineering",
+        ],
+        projects=["Manufacturing plan", "Process improvement", "Quality study"],
+        work_styles=["Hands-on", "Structured", "Cross-functional"],
+        adjacent=[
+            "mechanical-design-engineer",
+            "hardware-test-engineer",
+            "operations-analyst",
+        ],
+        description="Improves how physical products are manufactured by connecting design, process, quality, and production data.",
+    ),
+    role(
+        "hardware-test-engineer",
+        "Hardware Test Engineer",
+        "Hardware Quality and Validation",
+        level=1,
+        skills=[
+            "Hardware Testing",
+            "Electronics",
+            "Debugging",
+            "Test Planning",
+            "Data Analysis",
+            "Documentation",
+            "Soldering",
+        ],
+        responsibilities=[
+            "Design repeatable hardware tests",
+            "Diagnose failures and document root causes",
+            "Communicate validation results to design teams",
+        ],
+        interests=["Hardware", "Testing", "Electronics", "Problem solving"],
+        industries=["Engineering", "Manufacturing", "Technology", "Healthcare"],
+        education=[
+            "Computer Engineering",
+            "Electrical Engineering",
+            "Mechanical Engineering",
+        ],
+        projects=["Hardware test fixture", "Validation plan", "Failure analysis"],
+        work_styles=["Hands-on", "Structured", "Detail oriented"],
+        adjacent=[
+            "robotics-engineer",
+            "embedded-systems-engineer",
+            "mechanical-design-engineer",
+            "quality-assurance-analyst",
+        ],
+        description="Builds test methods and evidence that physical systems work reliably and meet design requirements.",
     ),
     role(
         "financial-analyst",
@@ -536,6 +717,27 @@ TITLE_ALIASES = {
     "test engineer": "quality-assurance-analyst",
     "qa engineer": "quality-assurance-analyst",
     "security analyst": "cybersecurity-analyst",
+    "robotics engineer": "robotics-engineer",
+    "robotics member": "robotics-engineer",
+    "robotics 101 member": "robotics-engineer",
+    "robotics team member": "robotics-engineer",
+    "mechatronics engineer": "robotics-engineer",
+    "embedded engineer": "embedded-systems-engineer",
+    "firmware engineer": "embedded-systems-engineer",
+    "embedded systems engineer": "embedded-systems-engineer",
+    "mechanical design engineer": "mechanical-design-engineer",
+    "chassis engineer": "mechanical-design-engineer",
+    "mechanical engineer": "mechanical-design-engineer",
+    "cad engineer": "mechanical-design-engineer",
+    "manufacturing engineer": "manufacturing-engineer",
+    "process engineer": "manufacturing-engineer",
+    "hardware test engineer": "hardware-test-engineer",
+    "validation engineer": "hardware-test-engineer",
+    "test and validation engineer": "hardware-test-engineer",
+    "data analytics": "data-analyst",
+    "data and analytics": "data-analyst",
+    "data & analytics": "data-analyst",
+    "analytics intern": "data-analyst",
 }
 
 for item in OCCUPATIONAL_TAXONOMY:
@@ -579,12 +781,50 @@ CONCEPT_ALIASES: dict[str, list[str]] = {
     "documentation": ["documentation", "documented", "technical writing", "requirements document"],
     "research": ["research", "study", "experiment", "investigation"],
     "psychology": ["psychology", "behavioral", "human behavior"],
+    "robotics": ["robotics", "robot", "battlebots", "autonomous system"],
+    "cad": ["cad", "autodesk inventor", "autodesk fusion", "fusion 360"],
+    "mechanical design": [
+        "mechanical design",
+        "chassis",
+        "mechanical training",
+        "technical drawing",
+    ],
+    "embedded systems": [
+        "embedded systems",
+        "embedded system",
+        "arduino",
+        "microcontroller",
+        "firmware",
+    ],
+    "electronics": ["electronics", "soldering", "circuit", "sensor"],
+    "manufacturing": [
+        "manufacturing",
+        "makerspace",
+        "3d printing",
+        "3d printer",
+        "design for manufacturing",
+    ],
+    "hardware testing": [
+        "hardware testing",
+        "hardware test",
+        "validation plan",
+        "test fixture",
+        "failure analysis",
+    ],
 }
 
 
 def slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return slug or "item"
+
+
+def contains_alias(text: str, alias: str) -> bool:
+    normalized_text = re.sub(r"[^a-z0-9+#]+", " ", text.lower()).strip()
+    normalized_alias = re.sub(r"[^a-z0-9+#]+", " ", alias.lower()).strip()
+    if not normalized_text or not normalized_alias:
+        return False
+    return f" {normalized_alias} " in f" {normalized_text} "
 
 
 def normalize_title(value: str) -> str | None:
@@ -609,7 +849,7 @@ def semantic_concepts(values: list[str]) -> set[str]:
     combined = " ".join(values).lower()
     concepts: set[str] = set()
     for concept, aliases in CONCEPT_ALIASES.items():
-        if any(alias in combined for alias in aliases):
+        if any(contains_alias(combined, alias) for alias in aliases):
             concepts.add(concept)
     return concepts
 

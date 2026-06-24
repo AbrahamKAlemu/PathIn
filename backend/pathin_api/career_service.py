@@ -352,7 +352,7 @@ class CareerService:
             "taxonomy": TAXONOMY_VERSION,
             "model": MODEL_VERSION,
             "algorithm": ALGORITHM_VERSION,
-            "resumeParser": "pathin-resume-parser-1.1",
+            "resumeParser": "pathin-resume-parser-1.2",
             "profileSchema": "pathin-current-profile-1.0",
             "privacyThreshold": PRIVACY_THRESHOLD,
         }

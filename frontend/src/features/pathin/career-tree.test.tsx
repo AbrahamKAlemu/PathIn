@@ -5,6 +5,16 @@ import { createCareerMap } from "./career-map-data";
 import { CareerTree } from "./career-tree";
 import { SAVED_MAP_SNAPSHOT_KEY } from "./saved-map-storage";
 
+const tesseractMocks = vi.hoisted(() => ({
+  createWorker: vi.fn(),
+  recognize: vi.fn(),
+  terminate: vi.fn(),
+}));
+
+vi.mock("tesseract.js", () => ({
+  createWorker: tesseractMocks.createWorker,
+}));
+
 function jsonResponse(
   payload: unknown,
   {
@@ -150,6 +160,17 @@ describe("CareerTree evidence-first onboarding", () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.restoreAllMocks();
+    tesseractMocks.recognize.mockReset();
+    tesseractMocks.terminate.mockReset();
+    tesseractMocks.createWorker.mockReset();
+    tesseractMocks.createWorker.mockResolvedValue({
+      recognize: tesseractMocks.recognize,
+      terminate: tesseractMocks.terminate,
+    });
+    tesseractMocks.terminate.mockResolvedValue(undefined);
+    window.requestAnimationFrame = (callback) =>
+      window.setTimeout(() => callback(0), 0);
+    HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
   it("shows only onboarding controls before generation", async () => {
@@ -209,7 +230,7 @@ describe("CareerTree evidence-first onboarding", () => {
     });
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Choose a PDF, DOCX, or TXT resume.",
+      "Choose a PDF, DOCX, TXT, PNG, or JPEG resume.",
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/profiles/current");
@@ -290,6 +311,54 @@ describe("CareerTree evidence-first onboarding", () => {
     expect(screen.queryByText("Drag and drop here, or choose a file"))
       .not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs screenshot OCR locally and sends only extracted text for parsing", async () => {
+    tesseractMocks.recognize.mockResolvedValue({
+      data: {
+        text: [
+          "Jordan Example",
+          "Robotics Engineer",
+          "Built an Arduino robot and analyzed test data with Python.",
+        ].join("\n"),
+      },
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...parsedResumeResponse(),
+          identity: {
+            name: "Jordan Example",
+            location: "",
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<CareerTree />);
+    await screen.findByText("Winston Iskandar");
+
+    const file = new File(["image bytes"], "resume-screenshot.png", {
+      type: "image/png",
+    });
+    fireEvent.change(screen.getByLabelText("Upload resume"), {
+      target: { files: [file] },
+    });
+
+    expect(
+      await screen.findByText("resume-screenshot.png"),
+    ).toBeInTheDocument();
+    expect(tesseractMocks.recognize).toHaveBeenCalledWith(file);
+    expect(tesseractMocks.terminate).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const request = fetchMock.mock.calls[1][1] as RequestInit;
+    const body = request.body as FormData;
+    const submitted = body.get("file");
+    expect(submitted).toBeInstanceOf(File);
+    expect((submitted as File).name).toBe("resume-screenshot.txt");
+    expect((submitted as File).type).toBe("text/plain");
   });
 
   it("shows the concise loading state after generation starts", async () => {
@@ -485,8 +554,21 @@ describe("CareerTree evidence-first onboarding", () => {
       .toEqual(["resume"]);
   });
 
-  it("reopens the browser snapshot when backend saved-map storage is unavailable", async () => {
+  it("restores the browser snapshot after regeneration without relying on server storage", async () => {
     const map = createCareerMap();
+    const regeneratedMap = {
+      ...map,
+      id: "map-regenerated",
+      nodes: map.nodes.map((node) =>
+        node.id === map.destinationIds[0]
+          ? { ...node, label: "Product Operations Lead" }
+          : node,
+      ),
+      generation: {
+        ...map.generation,
+        generatedAt: "2026-06-24T09:30:00.000Z",
+      },
+    };
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
@@ -503,21 +585,13 @@ describe("CareerTree evidence-first onboarding", () => {
           { ok: false, status: 503 },
         ),
       )
-      .mockResolvedValueOnce(
-        jsonResponse(
-          {
-            error: {
-              code: "MAP_NOT_FOUND",
-              message: "The requested map was not found.",
-            },
-          },
-          { ok: false, status: 404 },
-        ),
-      );
+      .mockResolvedValueOnce(jsonResponse(regeneratedMap, { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(Date, "now")
       .mockImplementationOnce(() => 0)
-      .mockImplementation(() => 4_000);
+      .mockImplementationOnce(() => 4_000)
+      .mockImplementationOnce(() => 5_000)
+      .mockImplementation(() => 8_000);
     render(<CareerTree />);
 
     fireEvent.change(screen.getByLabelText("Upload resume"), {
@@ -542,24 +616,46 @@ describe("CareerTree evidence-first onboarding", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save path" }));
 
     expect(
-      await screen.findByText("This path is saved"),
+      await screen.findByText("Path saved"),
     ).toBeInTheDocument();
-    expect(
-      window.localStorage.getItem(SAVED_MAP_SNAPSHOT_KEY),
-    ).toContain(map.id);
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /Saved paths/ }),
+    const savedSnapshot = window.localStorage.getItem(
+      SAVED_MAP_SNAPSHOT_KEY,
     );
+    expect(savedSnapshot).toContain(map.id);
+
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+    expect(
+      await screen.findByRole("button", {
+        name: /Product Operations Lead/,
+      }, { timeout: 4_000 }),
+    ).toBeInTheDocument();
 
     expect(
-      screen.getByRole("heading", {
-        name: "Compare career directions one step at a time",
+      await screen.findByText("One saved path is ready to restore"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Restore saved path" }),
+    );
+
+    expect(
+      await screen.findByRole("button", {
+        name: /Senior Data Scientist/,
+      }),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(
+      await screen.findByRole("button", {
+        name: "Viewing saved path",
       }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("The requested map was not found."),
-    ).not.toBeInTheDocument();
-  });
+      screen.getByText(
+        /Opening this path did not create or overwrite a save/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(SAVED_MAP_SNAPSHOT_KEY),
+    ).toBe(savedSnapshot);
+  }, 10_000);
 });

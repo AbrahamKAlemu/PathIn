@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { Header } from "@/components/linkedin/header";
-import { MessagingBar } from "@/components/linkedin/messaging";
 import { CareerTree } from "@/features/pathin/career-tree";
 
 export const metadata: Metadata = {
@@ -15,7 +14,6 @@ export default function CareerTreePage() {
     <main className="min-h-screen bg-[#f3f2ef]">
       <Header active={null} />
       <CareerTree />
-      <MessagingBar />
     </main>
   );
 }

@@ -54,6 +54,42 @@ INTERESTS
 AI, product design
 """
 
+ENGINEERING_RESUME_TEXT = """Jordan Example
+Atlanta, GA | jordan@example.com
+
+EDUCATION
+Computer Engineering, State Institute, 2028
+
+PROFESSIONAL & TECHNICAL EXPERIENCE
+Robotics Club
+Robotics 101 Member January 2025 - Present
+● Working on a beginner-level robot to build technical skills.
+● Learning CAD with Autodesk Fusion and embedded systems with Arduino.
+
+BattleBots Team
+3-lb Chassis Engineer September 2025 - Present
+● Designing a chassis for a competitive robot.
+● Drafting prototypes with Autodesk Inventor and soldering electronics.
+● Developing CAD, manufacturing, and mechanical design skills.
+
+Restaurant365
+Data & Analytics Intern June 2024 - August 2024
+● Developed Python and SQL skills with Google Cloud and Excel.
+● Built a machine learning model to predict customer churn.
+
+SKILLS
+● Programming Languages: Python, Java, and SQL ● Collaboration and communication
+● CAD, Arduino, embedded systems, electronics, manufacturing, 3D printing
+
+LEADERSHIP & COMMUNITY SERVICE EXPERIENCE
+Bridge Program Cohort Representative October 2025 - Present
+● Elected to propose solutions with program directors.
+● Coordinated sponsor conversations and program development.
+
+AWARDS
+Future Engineer Scholarship 2025
+"""
+
 
 CONTRASTING_PROFILES: dict[str, dict[str, list[str]]] = {
     "software": {
@@ -426,8 +462,12 @@ P y t h o n ,  J a v a S c r i p t ,  R e a c t
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["fields"]["roles"][0]["value"] == (
-        "Software Engineer Intern | Example Co | Jan 2026 - Present"
+        "Software Engineer Intern | Example Co"
     )
+    assert [item["value"] for item in payload["fields"]["dates"]] == [
+        "Jan 2026",
+        "Present",
+    ]
     assert payload["fields"]["responsibilities"][0]["value"] == (
         "Built Python APIs and React interfaces for students"
     )
@@ -436,6 +476,99 @@ P y t h o n ,  J a v a S c r i p t ,  R e a c t
         "JavaScript",
         "React",
     ]
+
+
+def test_engineering_resume_sections_produce_specific_evidence_and_careers(
+    client: FlaskClient,
+) -> None:
+    parsed_response = _upload(
+        client,
+        data=ENGINEERING_RESUME_TEXT.encode(),
+        filename="engineering-resume.txt",
+        mimetype="text/plain",
+    )
+
+    assert parsed_response.status_code == 200
+    parsed = parsed_response.get_json()
+    assert parsed["identity"] == {
+        "name": "Jordan Example",
+        "location": "Atlanta, GA",
+    }
+    assert [item["value"] for item in parsed["fields"]["roles"]] == [
+        "Robotics 101 Member",
+        "3-lb Chassis Engineer",
+        "Data & Analytics Intern",
+        "Bridge Program Cohort Representative",
+    ]
+    responsibilities = {
+        item["value"] for item in parsed["fields"]["responsibilities"]
+    }
+    assert any("Autodesk Inventor" in value for value in responsibilities)
+    assert any("machine learning model" in value for value in responsibilities)
+    assert any("program directors" in value for value in responsibilities)
+    projects = {item["value"] for item in parsed["fields"]["projects"]}
+    assert any("competitive robot" in value for value in projects)
+    assert any("customer churn" in value for value in projects)
+    skills = {item["value"] for item in parsed["fields"]["skills"]}
+    assert {
+        "Python",
+        "Java",
+        "SQL",
+        "CAD",
+        "Autodesk Fusion 360",
+        "Autodesk Inventor",
+        "Arduino",
+        "Embedded Systems",
+        "Electronics",
+        "Soldering",
+        "Manufacturing",
+        "3D Printing",
+        "Machine Learning",
+    } <= skills
+    assert "Apis" not in skills
+
+    generated = _explore(
+        client,
+        {
+            "name": parsed["identity"]["name"],
+            "fields": parsed["fields"],
+        },
+        count=5,
+    )
+    canonical_roles = [
+        item["canonicalRole"]
+        for item in generated["rankedDestinations"]
+    ]
+    hardware_roles = {
+        "Robotics Engineer",
+        "Embedded Systems Engineer",
+        "Mechanical Design Engineer",
+        "Manufacturing Engineer",
+        "Hardware Test Engineer",
+    }
+    assert canonical_roles[0] in hardware_roles
+    assert len(hardware_roles & set(canonical_roles[:4])) >= 3
+    assert all(
+        "education" not in item["personalizedTitle"].lower()
+        for item in generated["rankedDestinations"]
+    )
+    assert "Robotics 101 Member" in generated["profileSummary"]
+    assert "CAD" in generated["profileSummary"]
+    skill_steps = [
+        node
+        for node in generated["nodes"]
+        if node["type"] == "skill" and node.get("stepDetails")
+    ]
+    assert skill_steps
+    assert all(
+        "focused practice" not in node["summary"].lower()
+        for node in skill_steps
+    )
+    assert all(
+        "review" in node["stepDetails"]["completionEvidence"].lower()
+        or "feedback" in node["stepDetails"]["completionEvidence"].lower()
+        for node in skill_steps
+    )
 
 
 def test_profile_text_cleanup_handles_screenshot_failure_modes() -> None:
@@ -895,7 +1028,9 @@ def test_unsupported_seniority_jump_receives_distance_penalty(
     assert "levels above" in junior["seniorityReason"]
 
 
-def test_results_are_diverse_and_explainable(client: FlaskClient) -> None:
+def test_results_prioritize_credible_matches_and_are_explainable(
+    client: FlaskClient,
+) -> None:
     payload = _explore(client, CONTRASTING_PROFILES["data"], count=5)
     recommendations = payload["rankedDestinations"]
 
@@ -903,8 +1038,13 @@ def test_results_are_diverse_and_explainable(client: FlaskClient) -> None:
     assert len({item["title"] for item in recommendations}) == len(
         recommendations
     )
-    assert len({item["family"] for item in recommendations}) == len(
-        recommendations
+    assert [
+        item["canonicalRole"]
+        for item in recommendations
+    ] == ["Data Scientist", "Data Analyst"]
+    assert all(
+        item["confidence"] != "exploratory"
+        for item in recommendations
     )
     enabled_values = {
         field["value"]
@@ -1014,6 +1154,112 @@ def test_generated_routes_are_dynamic_and_address_identified_gaps(
                     assert "extend '" not in summary.lower()
                     assert "evidence that demonstrates" not in summary.lower()
                     assert "|" not in summary
+
+
+def test_generated_route_copy_uses_real_artifacts_and_credible_learning(
+    client: FlaskClient,
+) -> None:
+    robotics_profile = {
+        "roles": ["BattleBots Team Captain"],
+        "responsibilities": [
+            "Designed an aluminum chassis in Fusion 360",
+            "Integrated Arduino sensors and soldered electronics",
+        ],
+        "projects": ["Built and tested a combat robot"],
+        "skills": [
+            "CAD",
+            "Arduino",
+            "Embedded Systems",
+            "Electronics",
+            "Soldering",
+        ],
+        "interests": ["Robotics", "Manufacturing"],
+    }
+    robotics = client.post(
+        "/api/v1/maps/build",
+        json={
+            "profile": robotics_profile,
+            "destinationId": "dest-robotics-engineer",
+        },
+    ).get_json()
+    robotics_nodes = {node["id"]: node for node in robotics["nodes"]}
+    robotics_route_nodes = [
+        robotics_nodes[node_id]
+        for path in robotics["paths"]
+        for node_id in path["nodeIds"][1:-1]
+    ]
+    assert any(
+        node["label"] == "Design, integrate, and test a combat robot"
+        for node in robotics_route_nodes
+    )
+    assert any(
+        node["label"] == "Guided Prototyping learning plan"
+        and node["sourceRecord"]["kind"] == "taxonomy"
+        for node in robotics_route_nodes
+    )
+    assert all(
+        "and tested a combat robot" not in node["label"].lower()
+        for node in robotics_route_nodes
+    )
+
+    hardware = client.post(
+        "/api/v1/maps/build",
+        json={
+            "profile": robotics_profile,
+            "destinationId": "dest-hardware-test-engineer",
+        },
+    ).get_json()
+    hardware_labels = {node["label"] for node in hardware["nodes"]}
+    assert "Guided Hardware Testing learning plan" in hardware_labels
+    assert "Business Analytics Foundations" not in hardware_labels
+    assert "Quality Assurance Analyst" in hardware_labels
+
+    career_change = client.post(
+        "/api/v1/maps/build",
+        json={
+            "profile": {
+                "roles": ["Elementary School Teacher"],
+                "responsibilities": [
+                    "Designed lessons and explained complex ideas to families"
+                ],
+                "skills": ["Teaching", "Communication", "Planning"],
+            },
+            "destinationId": "dest-customer-success-specialist",
+        },
+    ).get_json()
+    career_change_labels = {node["label"] for node in career_change["nodes"]}
+    assert "Design product adoption for a sample product" in career_change_labels
+    assert "Customer Service Manager" not in career_change_labels
+    assert all(
+        "for elementary school teacher" not in label.lower()
+        for label in career_change_labels
+    )
+
+    data_science = client.post(
+        "/api/v1/maps/build",
+        json={
+            "profile": CONTRASTING_PROFILES["data"],
+            "destinationId": "dest-data-scientist",
+        },
+    ).get_json()
+    data_science_labels = {node["label"] for node in data_science["nodes"]}
+    assert "Guided Experimentation learning plan" in data_science_labels
+    assert "Effective Communication Skills" not in data_science_labels
+    assert "Expand Data Analyst scope" in data_science_labels
+    assert data_science["profileSummary"].startswith(
+        "Your enabled profile input shows Data Analyst."
+    )
+
+    data_analyst = client.post(
+        "/api/v1/maps/build",
+        json={
+            "profile": CONTRASTING_PROFILES["data"],
+            "destinationId": "dest-data-analyst",
+        },
+    ).get_json()
+    assert "Business Analytics Foundations" in {
+        node["label"] for node in data_analyst["nodes"]
+    }
 
 
 def test_sparse_historical_transitions_remain_suppressed(

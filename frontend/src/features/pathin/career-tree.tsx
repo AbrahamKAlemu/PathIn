@@ -42,7 +42,14 @@ import type {
 } from "./types";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
-const SUPPORTED_FILE_EXTENSIONS = [".pdf", ".docx", ".txt"];
+const SUPPORTED_FILE_EXTENSIONS = [
+  ".pdf",
+  ".docx",
+  ".txt",
+  ".png",
+  ".jpg",
+  ".jpeg",
+];
 
 const profileCategories: ProfileCategory[] = [
   "education",
@@ -205,7 +212,7 @@ export function CareerTree() {
     setGenerationError("");
     const extension = `.${file.name.split(".").pop()?.toLowerCase() ?? ""}`;
     if (!SUPPORTED_FILE_EXTENSIONS.includes(extension)) {
-      setUploadError("Choose a PDF, DOCX, or TXT resume.");
+      setUploadError("Choose a PDF, DOCX, TXT, PNG, or JPEG resume.");
       if (fileInput.current) {
         fileInput.current.value = "";
       }
@@ -273,7 +280,9 @@ export function CareerTree() {
     setGenerationError("");
     const extension = `.${file.name.split(".").pop()?.toLowerCase() ?? ""}`;
     if (!SUPPORTED_FILE_EXTENSIONS.includes(extension)) {
-      setLinkedinError("Choose a PDF, DOCX, or TXT LinkedIn export.");
+      setLinkedinError(
+        "Choose a PDF, DOCX, TXT, PNG, or JPEG LinkedIn export.",
+      );
       if (linkedinInput.current) {
         linkedinInput.current.value = "";
       }
@@ -367,23 +376,25 @@ export function CareerTree() {
       name:
         connectedProfile && useConnectedProfile
           ? connectedProfile.name
-          : "",
+          : parsedResume?.identity?.name ??
+            parsedLinkedin?.identity?.name ??
+            "",
       headline,
       fields,
       enabledCategories,
       preferences: {
         industries: fields.industries.map((field) => field.value),
         workStyles: fields.workStyles.map((field) => field.value),
-        remotePreference: "Flexible",
-        trainingTime: "A few hours per week",
-        desiredDifficulty: "Flexible",
+        remotePreference: "",
+        trainingTime: "",
+        desiredDifficulty: "",
       },
       constraints: {
         excludedRoles: [],
         excludedIndustries: [],
       },
-      trainingTime: "A few hours per week",
-      desiredDifficulty: "Flexible",
+      trainingTime: "",
+      desiredDifficulty: "",
       exclusions: [],
     };
   }
@@ -562,18 +573,14 @@ export function CareerTree() {
       throw new PathInApiError("No saved generated map was found.");
     }
 
-    let source: "backend" | "browser" = "backend";
-    let reopened: CareerMapData | null = null;
-    if (mapId) {
+    const source: "backend" | "browser" = snapshot ? "browser" : "backend";
+    let reopened: CareerMapData | null = snapshot?.map ?? null;
+    if (!reopened && mapId) {
       try {
         reopened = await reopenCareerMap(mapId);
       } catch {
-        reopened = snapshot?.map ?? null;
-        source = "browser";
+        reopened = null;
       }
-    } else {
-      reopened = snapshot?.map ?? null;
-      source = "browser";
     }
     if (!reopened) {
       throw new PathInApiError(
@@ -594,7 +601,7 @@ export function CareerTree() {
           industries: snapshot.industries,
           workStyles: snapshot.workStyles,
           remotePreference: String(
-            snapshot.preferences.remotePreference ?? "Flexible",
+            snapshot.preferences.remotePreference ?? "",
           ),
           trainingTime: snapshot.trainingTime,
           desiredDifficulty: snapshot.desiredDifficulty,
@@ -932,7 +939,7 @@ function EvidenceUpload({
         onDrop={handleDrop}
       >
         <input
-          accept=".pdf,.docx,.txt"
+          accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,image/png,image/jpeg"
           aria-label={inputLabel}
           onChange={onSelect}
           ref={inputRef}
@@ -997,7 +1004,7 @@ function EvidenceUpload({
             <strong>{emptyLabel}</strong>
             <p>
               {compact
-                ? "PDF, DOCX, or TXT · maximum 5 MB"
+                ? "PDF, DOCX, TXT, PNG, or JPEG · maximum 5 MB"
                 : "Drag and drop here, or choose a file"}
             </p>
             <button
@@ -1006,7 +1013,10 @@ function EvidenceUpload({
             >
               Choose file
             </button>
-            <small>PDF, DOCX, or TXT · maximum 5 MB</small>
+            <small>
+              PDF, DOCX, TXT, PNG, or JPEG · maximum 5 MB. Screenshot OCR runs
+              in your browser.
+            </small>
           </>
         )}
       </div>

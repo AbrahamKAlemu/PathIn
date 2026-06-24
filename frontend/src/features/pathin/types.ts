@@ -328,10 +328,14 @@ export type ParsedProfileField = {
 export type ParsedProfile = {
   file: {
     displayName: string;
-    format: "pdf" | "docx" | "txt";
+    format: "pdf" | "docx" | "txt" | "png" | "jpeg";
     sizeBytes: number;
     sha256: string;
     retention: string;
+  };
+  identity?: {
+    name: string;
+    location: string;
   };
   fields: Partial<Record<ProfileCategory, ParsedProfileField[]>>;
   summary: {

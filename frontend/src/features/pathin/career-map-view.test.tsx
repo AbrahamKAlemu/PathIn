@@ -50,6 +50,7 @@ describe("CareerMapView navigation", () => {
       return window.setTimeout(() => callback(0), 0);
     };
     HTMLElement.prototype.scrollTo = vi.fn();
+    HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
   it("uses the approved PathIn logo and returns directly to current standing", () => {
@@ -220,7 +221,7 @@ describe("CareerMapView navigation", () => {
     await waitFor(() => expect(onExplore).toHaveBeenCalledTimes(1));
   });
 
-  it("shows LinkedIn Learning courses matched to the skills to build", () => {
+  it("builds live LinkedIn Learning searches from skills to build", () => {
     const initialMap = createCareerMap();
     const mapWithCrmGap: CareerMapData = {
       ...initialMap,
@@ -244,21 +245,14 @@ describe("CareerMapView navigation", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", {
-        name: /Customer Success Management Fundamentals/,
+        name: /Find CRM courses/,
       }),
     ).toHaveAttribute(
       "href",
-      "https://www.linkedin.com/learning/customer-success-management-fundamentals",
+      "https://www.linkedin.com/learning/search?keywords=CRM",
     );
     expect(
-      screen.getByRole("link", {
-        name: /Onboarding and Adoption Best Practices/,
-      }),
-    ).toHaveAttribute("target", "_blank");
-    expect(
-      screen.getByRole("link", {
-        name: /Salesforce Essential Training/,
-      }),
+      screen.getByText("Live LinkedIn Learning search · For CRM"),
     ).toBeInTheDocument();
   });
 
@@ -442,7 +436,53 @@ describe("CareerMapView navigation", () => {
     );
   });
 
-  it("shows where a saved path is stored and reopens it", async () => {
+  it("shows existing alternative steps without regenerating the map", () => {
+    const onRegenerate = vi.fn().mockResolvedValue(undefined);
+    renderCareerMap({ onRegenerate });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Your current standing, focused node/,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show alternatives" }),
+    );
+
+    const alternatives = screen.getByRole("region", {
+      name: "Alternative route options",
+    });
+    expect(
+      within(alternatives).getByText("Choose an existing route step"),
+    ).toBeInTheDocument();
+    expect(
+      within(alternatives).getByText("Machine Learning Fundamentals"),
+    ).toBeInTheDocument();
+    expect(
+      within(alternatives).getByText("Cloud Computing with AWS"),
+    ).toBeInTheDocument();
+    expect(onRegenerate).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(alternatives).getByRole("button", {
+        name: /Cloud Computing with AWS/,
+      }),
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: /Cloud Computing with AWS, focused node/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", {
+        name: "Alternative route options",
+      }),
+    ).not.toBeInTheDocument();
+    expect(onRegenerate).not.toHaveBeenCalled();
+  });
+
+  it("shows that the current saved path is already open", async () => {
     const onReopenSaved = vi.fn().mockResolvedValue({ source: "browser" });
     const onSave = vi.fn().mockResolvedValue({
       savedAt: "2026-06-24T08:00:00.000Z",
@@ -450,10 +490,13 @@ describe("CareerMapView navigation", () => {
     });
     renderCareerMap({ onReopenSaved, onSave });
 
+    expect(
+      screen.getByRole("button", { name: /Saved paths/ }),
+    ).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Save path" }));
 
     expect(
-      await screen.findByText("This path is saved"),
+      await screen.findByText("Path saved"),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -463,10 +506,108 @@ describe("CareerMapView navigation", () => {
     expect(
       screen.getByRole("button", { name: /Saved paths/ }),
     ).toHaveTextContent("1");
+    expect(
+      screen.getByRole("button", { name: "Currently open" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Saved" }),
+    ).toBeDisabled();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Open saved path" }),
+      screen.getByRole("button", { name: "Hide saved paths" }),
     );
-    await waitFor(() => expect(onReopenSaved).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByText("Path saved"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Saved paths/ }),
+    );
+    expect(
+      await screen.findByText("Path saved"),
+    ).toBeInTheDocument();
+    expect(onReopenSaved).not.toHaveBeenCalled();
+  });
+
+  it("restores a saved path after the current map changes", async () => {
+    const savedMap = createCareerMap();
+    const currentMap: CareerMapData = {
+      ...savedMap,
+      id: "map-regenerated",
+      generation: {
+        ...savedMap.generation,
+        generatedAt: "2026-06-24T09:30:00.000Z",
+      },
+    };
+    let resolveReopen:
+      | ((result: { source: "browser" }) => void)
+      | undefined;
+    const onReopenSaved = vi.fn(
+      () =>
+        new Promise<{ source: "browser" }>((resolve) => {
+          resolveReopen = resolve;
+        }),
+    );
+    const onSave = vi.fn().mockResolvedValue({
+      savedAt: "2026-06-24T08:00:00.000Z",
+      storage: "browser",
+    });
+    const view = renderCareerMap({
+      initialMap: savedMap,
+      onReopenSaved,
+      onSave,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save path" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Hide saved paths" }),
+    );
+
+    view.rerender(
+      <CareerMapView
+        initialMap={currentMap}
+        onBuildToward={vi.fn().mockResolvedValue(undefined)}
+        onExplore={vi.fn().mockResolvedValue(undefined)}
+        onRegenerate={vi.fn().mockResolvedValue(undefined)}
+        onReopenSaved={onReopenSaved}
+        onSave={onSave}
+        onStartOver={vi.fn()}
+        onSubmitFeedback={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Saved paths/ }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Saved paths/ }),
+    );
+    expect(
+      await screen.findByText("One saved path is ready to restore"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Restore saved path" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Restoring..." }),
+    ).toBeDisabled();
+    expect(onReopenSaved).toHaveBeenCalledTimes(1);
+    const savedStateBeforeRestore = window.localStorage.getItem(
+      "pathin-career-tree-state",
+    );
+
+    resolveReopen?.({ source: "browser" });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Restore saved path" }),
+      ).toBeEnabled(),
+    );
+    expect(
+      window.localStorage.getItem("pathin-career-tree-state"),
+    ).toBe(savedStateBeforeRestore);
+    expect(onSave).toHaveBeenCalledTimes(1);
   });
 });

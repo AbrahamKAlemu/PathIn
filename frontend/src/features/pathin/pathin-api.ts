@@ -57,7 +57,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return payload as T;
 }
 
-export async function parseProfileFile(
+async function uploadProfileText(
   file: File,
   source: "resume" | "linkedin",
 ): Promise<ParsedProfile> {
@@ -69,6 +69,86 @@ export async function parseProfileFile(
     body,
   });
   return parseResponse<ParsedProfile>(response);
+}
+
+async function fileSha256(file: File) {
+  if (
+    !globalThis.crypto?.subtle ||
+    typeof file.arrayBuffer !== "function"
+  ) {
+    return "";
+  }
+  try {
+    const digest = await globalThis.crypto.subtle.digest(
+      "SHA-256",
+      await file.arrayBuffer(),
+    );
+    return Array.from(new Uint8Array(digest))
+      .map((value) => value.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return "";
+  }
+}
+
+async function parseProfileImage(
+  file: File,
+  source: "resume" | "linkedin",
+): Promise<ParsedProfile> {
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("eng");
+  let text = "";
+  try {
+    const result = await worker.recognize(file);
+    text = result.data.text.trim();
+  } catch {
+    throw new PathInApiError(
+      "PathIn could not read text from this screenshot. Try a clearer image or upload PDF, DOCX, or TXT.",
+      { code: "UNREADABLE_IMAGE" },
+    );
+  } finally {
+    await worker.terminate();
+  }
+
+  if (text.length < 20 || text.replace(/\W/g, "").length < 10) {
+    throw new PathInApiError(
+      "No usable resume text was found in this screenshot. Try a higher-resolution image.",
+      { code: "NO_READABLE_TEXT" },
+    );
+  }
+
+  const stem = file.name.replace(/\.[^.]+$/, "") || "resume-screenshot";
+  const parsed = await uploadProfileText(
+    new File([text], `${stem}.txt`, { type: "text/plain" }),
+    source,
+  );
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  return {
+    ...parsed,
+    file: {
+      ...parsed.file,
+      displayName: file.name,
+      format: extension === "png" ? "png" : "jpeg",
+      sizeBytes: file.size,
+      sha256: (await fileSha256(file)) || parsed.file.sha256,
+      retention:
+        "OCR was performed in your browser; extracted text was processed in memory and not permanently stored.",
+    },
+  };
+}
+
+export async function parseProfileFile(
+  file: File,
+  source: "resume" | "linkedin",
+): Promise<ParsedProfile> {
+  if (
+    file.type === "image/png" ||
+    file.type === "image/jpeg" ||
+    /\.(png|jpe?g)$/i.test(file.name)
+  ) {
+    return parseProfileImage(file, source);
+  }
+  return uploadProfileText(file, source);
 }
 
 export async function normalizeProfile(

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { Header } from "@/components/linkedin/header";
-import { MessagingBar } from "@/components/linkedin/messaging";
 import { ProfilePage } from "@/features/profile/profile-page";
 
 export const metadata: Metadata = {
@@ -13,9 +12,8 @@ export const metadata: Metadata = {
 export default function WinstonProfilePage() {
   return (
     <main className="min-h-screen bg-[#f3f2ef]">
-      <Header active="profile" notificationCount={9} />
+      <Header active="profile" />
       <ProfilePage />
-      <MessagingBar />
     </main>
   );
 }

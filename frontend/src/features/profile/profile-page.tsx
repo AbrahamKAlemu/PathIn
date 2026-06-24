@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import {
   type FormEvent,
   type ReactNode,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -23,18 +23,14 @@ import type {
   ProfileEducation,
   ProfileExperience,
   ProfileHonor,
-  ProfilePerson,
   ProfileSkill,
 } from "./types";
 
 type DialogKind =
-  | "add-section"
   | "contact"
   | "edit"
   | "experience"
   | "honors"
-  | "open-to"
-  | "resources"
   | "skills"
   | null;
 
@@ -57,13 +53,6 @@ const categoryLabels: Partial<Record<ProfileCategory, string>> = {
 export function ProfilePage() {
   const [profile, setProfile] = useState(DEFAULT_CURRENT_PROFILE);
   const [dialog, setDialog] = useState<DialogKind>(null);
-  const [activeInterestTab, setActiveInterestTab] = useState(
-    DEFAULT_CURRENT_PROFILE.interests.activeTab,
-  );
-  const [connectedPeople, setConnectedPeople] = useState<string[]>([]);
-  const [followedItems, setFollowedItems] = useState<string[]>([
-    "brad-jacobs",
-  ]);
   const [compactHeaderVisible, setCompactHeaderVisible] = useState(false);
   const [loadMessage, setLoadMessage] = useState("");
   const [toast, setToast] = useState("");
@@ -76,7 +65,6 @@ export function ProfilePage() {
       .then((currentProfile) => {
         if (active) {
           setProfile(currentProfile);
-          setActiveInterestTab(currentProfile.interests.activeTab);
         }
       })
       .catch(() => {
@@ -116,36 +104,12 @@ export function ProfilePage() {
     toastTimer.current = window.setTimeout(() => setToast(""), 2600);
   }
 
-  function toggleConnection(id: string) {
-    setConnectedPeople((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
-    );
-  }
-
-  function toggleFollow(id: string) {
-    setFollowedItems((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
-    );
-  }
-
   async function saveProfile(patch: CurrentProfilePatch) {
     const updated = await updateCurrentProfile(patch);
     setProfile(updated);
     setDialog(null);
     showToast("Profile changes saved and available to PathIn.");
   }
-
-  const interestItems = useMemo(
-    () =>
-      profile.interests.items.filter(
-        (item) => item.tab === activeInterestTab,
-      ),
-    [activeInterestTab, profile.interests.items],
-  );
 
   return (
     <>
@@ -167,16 +131,8 @@ export function ProfilePage() {
             <ProfileHero onOpenDialog={setDialog} profile={profile} />
 
             <SuggestedCard
-              onAction={() =>
-                showToast("Profile enhancement is available as a scaffold.")
-              }
+              onAction={() => setDialog("edit")}
             />
-
-            <AnalyticsCard profile={profile} />
-
-            <ResourcesCard onOpenDialog={setDialog} />
-
-            <ActivityCard profile={profile} />
 
             <ExperienceCard
               experiences={profile.experience}
@@ -189,19 +145,12 @@ export function ProfilePage() {
               onEdit={() => setDialog("edit")}
             />
 
-            <ConnectedAppsCard
-              apps={profile.connectedApps}
-              onAction={showToast}
-            />
-
             <SkillsCard
               onEdit={() => setDialog("edit")}
               onShowAll={() => setDialog("skills")}
               skillCount={profile.skillCount}
               skills={profile.skills}
             />
-
-            <RecommendationsCard profile={profile} />
 
             <HonorsCard
               honorCount={profile.honorCount}
@@ -210,22 +159,10 @@ export function ProfilePage() {
               onShowAll={() => setDialog("honors")}
             />
 
-            <InterestsCard
-              activeTab={activeInterestTab}
-              followedItems={followedItems}
-              items={interestItems}
-              onTabChange={setActiveInterestTab}
-              onToggleFollow={toggleFollow}
-              profile={profile}
-            />
           </div>
 
           <ProfileRightRail
-            connectedPeople={connectedPeople}
-            followedItems={followedItems}
             onEdit={() => setDialog("edit")}
-            onToggleConnection={toggleConnection}
-            onToggleFollow={toggleFollow}
             profile={profile}
           />
         </div>
@@ -241,10 +178,6 @@ export function ProfilePage() {
         dialog={dialog}
         onClose={closeDialog}
         onSaveProfile={saveProfile}
-        onScaffoldAction={(message) => {
-          setDialog(null);
-          showToast(message);
-        }}
         profile={profile}
       />
     </>
@@ -280,15 +213,12 @@ function CompactProfileHeader({
           <span>{profile.headline}</span>
         </div>
         <div className={styles.compactActions}>
-          <OutlineButton onClick={() => onOpenDialog("resources")}>
-            Resources
+          <OutlineButton onClick={() => onOpenDialog("edit")}>
+            Manage PathIn data
           </OutlineButton>
-          <OutlineButton onClick={() => onOpenDialog("add-section")}>
-            Add section
-          </OutlineButton>
-          <PrimaryButton onClick={() => onOpenDialog("open-to")}>
-            Open to
-          </PrimaryButton>
+          <Link className={styles.primaryButton} href="/career-tree">
+            Explore paths
+          </Link>
         </div>
       </div>
     </div>
@@ -307,14 +237,7 @@ function ProfileHero({
       <div
         className={styles.cover}
         style={{ backgroundColor: profile.cover.value }}
-      >
-        <IconButton
-          label="Edit cover photo"
-          onClick={() => onOpenDialog("edit")}
-        >
-          <PencilIcon />
-        </IconButton>
-      </div>
+      />
 
       <Image
         alt={profile.name}
@@ -341,16 +264,6 @@ function ProfileHero({
             <h1>{profile.name}</h1>
             <LinkedInBadge className={styles.linkedinBadge} />
           </div>
-          <button
-            className={styles.verificationButton}
-            onClick={() =>
-              onOpenDialog("resources")
-            }
-            type="button"
-          >
-            <VerificationIcon />
-            Add verification badge
-          </button>
           <p className={styles.headline}>{profile.headline}</p>
           <p className={styles.locationLine}>
             {profile.location}
@@ -359,13 +272,9 @@ function ProfileHero({
               Contact info
             </button>
           </p>
-          <button
-            className={styles.connectionsLink}
-            onClick={() => onOpenDialog("resources")}
-            type="button"
-          >
+          <span className={styles.connectionsLink}>
             {profile.connectionCount} connections
-          </button>
+          </span>
         </div>
 
         <div className={styles.affiliations}>
@@ -383,17 +292,11 @@ function ProfileHero({
         </div>
 
         <div className={styles.heroActions}>
-          <PrimaryButton onClick={() => onOpenDialog("open-to")}>
-            Open to
-          </PrimaryButton>
-          <OutlineButton onClick={() => onOpenDialog("add-section")}>
-            Add section
-          </OutlineButton>
-          <OutlineButton onClick={() => onOpenDialog("resources")}>
-            Add custom button
-          </OutlineButton>
-          <OutlineButton dark onClick={() => onOpenDialog("resources")}>
-            Resources
+          <Link className={styles.primaryButton} href="/career-tree">
+            Explore career paths
+          </Link>
+          <OutlineButton dark onClick={() => onOpenDialog("edit")}>
+            Manage PathIn data
           </OutlineButton>
         </div>
       </div>
@@ -413,123 +316,20 @@ function SuggestedCard({ onAction }: { onAction: () => void }) {
           <SparkleIcon />
         </div>
         <div>
-          <h3>Enhance your profile</h3>
+          <h3>Control your PathIn evidence</h3>
           <p>
-            Stand out for almost 2x as many opportunities with the help of AI
-            and much more.
+            Choose which professional categories PathIn may analyze. Disabled
+            categories are removed before recommendation scoring.
           </p>
           <button
             className={styles.darkOutlineLink}
             onClick={onAction}
             type="button"
           >
-            Enhance with AI
+            Review data controls
           </button>
         </div>
       </div>
-    </section>
-  );
-}
-
-function AnalyticsCard({ profile }: { profile: CurrentProfile }) {
-  const analytics = [
-    {
-      label: `${profile.analytics.profileViews} profile views`,
-      detail: "Discover who's viewed your profile.",
-      icon: <PeopleIcon />,
-    },
-    {
-      label: `${profile.analytics.postImpressions} post impressions`,
-      detail: "Start a post to increase engagement.",
-      extra: profile.analytics.period,
-      icon: <ChartIcon />,
-    },
-    {
-      label: `${profile.analytics.searchAppearances} search appearances`,
-      detail: "See how often you appear in search results.",
-      icon: <SearchPersonIcon />,
-    },
-  ];
-
-  return (
-    <section className={`${styles.card} ${styles.sectionCard}`}>
-      <SectionHeading subtitle="Private to you" title="Analytics" />
-      <div className={styles.analyticsGrid}>
-        {analytics.map((item) => (
-          <button className={styles.analyticsItem} key={item.label} type="button">
-            <span className={styles.analyticsIcon}>{item.icon}</span>
-            <span>
-              <strong>{item.label}</strong>
-              <small>{item.detail}</small>
-              {item.extra ? <em>{item.extra}</em> : null}
-            </span>
-          </button>
-        ))}
-      </div>
-      <ShowAllButton label="Show all analytics" />
-    </section>
-  );
-}
-
-function ResourcesCard({
-  onOpenDialog,
-}: {
-  onOpenDialog: (dialog: DialogKind) => void;
-}) {
-  return (
-    <section className={`${styles.card} ${styles.sectionCard}`}>
-      <SectionHeading title="Resources" />
-      <button
-        className={styles.resourceRow}
-        onClick={() => onOpenDialog("resources")}
-        type="button"
-      >
-        <span className={styles.resourceIcon}>
-          <HeartHandsIcon />
-        </span>
-        <span>
-          <strong>
-            Tell non-profits you are interested in getting involved with your
-            time and skills
-          </strong>
-          <small>Get started</small>
-        </span>
-      </button>
-    </section>
-  );
-}
-
-function ActivityCard({ profile }: { profile: CurrentProfile }) {
-  return (
-    <section className={`${styles.card} ${styles.sectionCard}`}>
-      <div className={styles.headingWithAction}>
-        <SectionHeading
-          subtitle={`${profile.followerCount} followers`}
-          title="Activity"
-        />
-        <OutlineButton>Create a post</OutlineButton>
-      </div>
-      <div className={styles.activityList}>
-        {profile.activity.map((activity) => (
-          <article className={styles.activityItem} key={activity.id}>
-            <Image
-              alt=""
-              className={styles.activityAvatar}
-              height={56}
-              src={profile.profilePhoto}
-              width={56}
-            />
-            <div>
-              <p>
-                <strong>{profile.name}</strong> commented on a post
-              </p>
-              <small>• {activity.age}</small>
-              <p className={styles.activityText}>{activity.text}</p>
-            </div>
-          </article>
-        ))}
-      </div>
-      <ShowAllButton label="Show all comments" />
     </section>
   );
 }
@@ -644,38 +444,6 @@ function EducationItem({
   );
 }
 
-function ConnectedAppsCard({
-  apps,
-  onAction,
-}: {
-  apps: CurrentProfile["connectedApps"];
-  onAction: (message: string) => void;
-}) {
-  return (
-    <section className={`${styles.card} ${styles.sectionCard}`}>
-      <SectionHeading
-        subtitle="Add the products you use to stand out and get more profile views."
-        title="Connected apps"
-      />
-      <div className={styles.appsGrid}>
-        {apps.map((app) => (
-          <div className={styles.appItem} key={app.id}>
-            <span data-app={app.id}>{app.mark}</span>
-            <strong>{app.name}</strong>
-          </div>
-        ))}
-      </div>
-      <button
-        className={styles.addAppsButton}
-        onClick={() => onAction("Connected-app management scaffold opened.")}
-        type="button"
-      >
-        Add connected apps
-      </button>
-    </section>
-  );
-}
-
 function SkillsCard({
   onEdit,
   onShowAll,
@@ -730,41 +498,6 @@ function SkillItem({ skill }: { skill: ProfileSkill }) {
   );
 }
 
-function RecommendationsCard({ profile }: { profile: CurrentProfile }) {
-  const [tab, setTab] = useState<"received" | "given">("received");
-  return (
-    <section className={`${styles.card} ${styles.sectionCard}`}>
-      <SectionHeading title="Recommendations" />
-      <div className={styles.recommendationTabs} role="tablist">
-        <button
-          aria-selected={tab === "received"}
-          onClick={() => setTab("received")}
-          role="tab"
-          type="button"
-        >
-          Received ({profile.recommendations.receivedCount})
-        </button>
-        <button
-          aria-selected={tab === "given"}
-          onClick={() => setTab("given")}
-          role="tab"
-          type="button"
-        >
-          Given
-        </button>
-      </div>
-      <div className={styles.recommendationEmpty} role="tabpanel">
-        {tab === "received"
-          ? "All received recommendations are hidden"
-          : "Recommendations you give will appear here"}
-        <small>
-          Recommendations visible to others will appear here
-        </small>
-      </div>
-    </section>
-  );
-}
-
 function HonorsCard({
   honorCount,
   honors,
@@ -806,83 +539,28 @@ function HonorItem({ honor }: { honor: ProfileHonor }) {
   );
 }
 
-function InterestsCard({
-  activeTab,
-  followedItems,
-  items,
-  onTabChange,
-  onToggleFollow,
-  profile,
-}: {
-  activeTab: string;
-  followedItems: string[];
-  items: CurrentProfile["interests"]["items"];
-  onTabChange: (tab: string) => void;
-  onToggleFollow: (id: string) => void;
-  profile: CurrentProfile;
-}) {
-  return (
-    <section className={`${styles.card} ${styles.sectionCard}`}>
-      <SectionHeading title="Interests" />
-      <div className={styles.interestTabs} role="tablist">
-        {profile.interests.tabs.map((tab) => (
-          <button
-            aria-selected={activeTab === tab}
-            key={tab}
-            onClick={() => onTabChange(tab)}
-            role="tab"
-            type="button"
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-      <div className={styles.interestItems} role="tabpanel">
-        {items.length ? (
-          items.map((item) => (
-            <article className={styles.interestItem} key={item.id}>
-              <InitialAvatar initials={initialsFor(item.name)} />
-              <div>
-                <h3>
-                  {item.name}
-                  {item.relationship ? (
-                    <small> · {item.relationship}</small>
-                  ) : null}
-                </h3>
-                <p>{item.headline}</p>
-                {item.followers ? <small>{item.followers}</small> : null}
-                <FollowButton
-                  following={followedItems.includes(item.id)}
-                  onClick={() => onToggleFollow(item.id)}
-                />
-              </div>
-            </article>
-          ))
-        ) : (
-          <p className={styles.tabEmpty}>
-            No public {activeTab.toLowerCase()} entries were supplied.
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
-
 function ProfileRightRail({
-  connectedPeople,
-  followedItems,
   onEdit,
-  onToggleConnection,
-  onToggleFollow,
   profile,
 }: {
-  connectedPeople: string[];
-  followedItems: string[];
   onEdit: () => void;
-  onToggleConnection: (id: string) => void;
-  onToggleFollow: (id: string) => void;
   profile: CurrentProfile;
 }) {
+  const enabledCategoryCount = Object.values(
+    profile.pathinEvidence.enabledCategories,
+  ).filter(Boolean).length;
+  const enabledEvidenceCount = Object.entries(
+    profile.pathinEvidence.fields,
+  ).reduce(
+    (count, [category, fields]) =>
+      profile.pathinEvidence.enabledCategories[
+        category as ProfileCategory
+      ]
+        ? count + fields.length
+        : count,
+    0,
+  );
+
   return (
     <aside className={styles.rightRail}>
       <section className={`${styles.card} ${styles.settingsCard}`}>
@@ -910,43 +588,27 @@ function ProfileRightRail({
         </div>
       </section>
 
-      <PeopleCard
-        connectedPeople={connectedPeople}
-        onToggleConnection={onToggleConnection}
-        people={profile.viewerSuggestions}
-        premium
-        subtitle="Private to you"
-        title="Who your viewers also viewed"
-      />
-
-      <PeopleCard
-        connectedPeople={connectedPeople}
-        onToggleConnection={onToggleConnection}
-        people={profile.peopleYouMayKnow}
-        subtitle="From your school"
-        title="People you may know"
-      />
-
       <section className={`${styles.card} ${styles.railCard}`}>
-        <SectionHeading title="You might like" subtitle="Pages for you" />
-        <div className={styles.railList}>
-          {profile.suggestedPages.map((page) => (
-            <article className={styles.railPerson} key={page.id}>
-              <InitialAvatar initials={page.initials} square />
-              <div>
-                <h3>{page.name}</h3>
-                <p>{page.industry}</p>
-                <small>{page.followers}</small>
-                <small>{page.context}</small>
-                <FollowButton
-                  following={followedItems.includes(page.id)}
-                  onClick={() => onToggleFollow(page.id)}
-                />
-              </div>
-            </article>
-          ))}
+        <SectionHeading
+          subtitle="User-authorized profile source"
+          title="PathIn evidence controls"
+        />
+        <div className={styles.dialogContent}>
+          <p>
+            <strong>{enabledEvidenceCount} profile signals</strong> across{" "}
+            <strong>{enabledCategoryCount} enabled categories</strong> are
+            available to PathIn.
+          </p>
+          <p className={styles.privacyCopy}>
+            Analytics, activity, recommendations, connections, suggested
+            people, and connected apps are excluded.
+          </p>
         </div>
-        <ShowAllButton label="Show all" />
+        <ShowAllButton label="Review PathIn data controls" onClick={onEdit} />
+        <Link className={styles.showAllButton} href="/career-tree">
+          Generate career paths
+          <span aria-hidden="true">→</span>
+        </Link>
       </section>
 
       <ProfileFooter />
@@ -954,96 +616,30 @@ function ProfileRightRail({
   );
 }
 
-function PeopleCard({
-  connectedPeople,
-  onToggleConnection,
-  people,
-  premium = false,
-  subtitle,
-  title,
-}: {
-  connectedPeople: string[];
-  onToggleConnection: (id: string) => void;
-  people: ProfilePerson[];
-  premium?: boolean;
-  subtitle: string;
-  title: string;
-}) {
-  return (
-    <section className={`${styles.card} ${styles.railCard}`}>
-      {premium ? (
-        <span className={styles.premiumLabel}>
-          <i />
-          Premium
-        </span>
-      ) : null}
-      <SectionHeading subtitle={subtitle} title={title} />
-      <div className={styles.railList}>
-        {people.slice(0, premium ? 3 : 5).map((person) => (
-          <article className={styles.railPerson} key={person.id}>
-            <InitialAvatar initials={person.initials} />
-            <div>
-              <h3>
-                {person.name}
-                <small> · {person.relationship}</small>
-              </h3>
-              <p>{person.headline}</p>
-              <ConnectButton
-                connected={connectedPeople.includes(person.id)}
-                onClick={() => onToggleConnection(person.id)}
-              />
-            </div>
-          </article>
-        ))}
-      </div>
-      <ShowAllButton label="Show all" />
-    </section>
-  );
-}
-
 function ProfileFooter() {
   const links = [
-    "About",
-    "Accessibility",
-    "Talent Solutions",
-    "Community Guidelines",
-    "Careers",
-    "Marketing Solutions",
-    "Privacy & Terms",
-    "Ad Choices",
-    "Advertising",
-    "Sales Solutions",
-    "Mobile",
-    "Small Business",
-    "Safety Center",
+    { href: "/", label: "Home" },
+    { href: "/career-tree", label: "PathIn career explorer" },
+    { href: "/in/winstoniskandar", label: "Profile data controls" },
   ];
   return (
     <footer className={styles.profileFooter}>
-      <nav aria-label="LinkedIn footer">
+      <nav aria-label="Product navigation">
         {links.map((link) => (
-          <span key={link} className={styles.footerLink}>
-            {link}
-          </span>
+          <Link className={styles.footerLink} href={link.href} key={link.href}>
+            {link.label}
+          </Link>
         ))}
       </nav>
       <div className={styles.footerHelp}>
-        <strong>Questions?</strong>
-        <span>Visit our Help Center.</span>
-        <strong>Manage your account and privacy</strong>
-        <span>Go to your Settings.</span>
-        <strong>Recommendation transparency</strong>
-        <span>Learn more about Recommended Content.</span>
+        <strong>Profile boundary</strong>
+        <span>
+          This is a user-authorized LinkedIn-style profile copy. No LinkedIn
+          credentials or scraping are used.
+        </span>
       </div>
-      <label>
-        Select language
-        <select defaultValue="English">
-          <option>English</option>
-        </select>
-      </label>
-      <p>
-        <strong>Linked</strong>
-        <span>in</span> Corporation © 2026
-      </p>
+      <p>Language: English</p>
+      <p>PathIn · Explainable career exploration</p>
     </footer>
   );
 }
@@ -1052,13 +648,11 @@ function ProfileDialog({
   dialog,
   onClose,
   onSaveProfile,
-  onScaffoldAction,
   profile,
 }: {
   dialog: DialogKind;
   onClose: () => void;
   onSaveProfile: (patch: CurrentProfilePatch) => Promise<void>;
-  onScaffoldAction: (message: string) => void;
   profile: CurrentProfile;
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -1086,13 +680,10 @@ function ProfileDialog({
   }
 
   const titles: Record<Exclude<DialogKind, null>, string> = {
-    "add-section": "Add to profile",
     contact: "Contact info",
     edit: "Edit profile and PathIn data",
     experience: "Experience",
     honors: "Honors & awards",
-    "open-to": "Open to",
-    resources: "Resources",
     skills: "Skills",
   };
 
@@ -1176,51 +767,6 @@ function ProfileDialog({
           </div>
         ) : null}
 
-        {dialog === "add-section" ? (
-          <DialogMenu
-            items={[
-              "Add about",
-              "Add position",
-              "Add education",
-              "Add skills",
-              "Add projects",
-              "Add honors & awards",
-            ]}
-            onAction={(item) =>
-              onScaffoldAction(`${item} scaffold is ready for profile data.`)
-            }
-          />
-        ) : null}
-
-        {dialog === "resources" ? (
-          <div className={styles.dialogContent}>
-            <DialogMenu
-              items={[
-                "Volunteer interests",
-                "Creator mode",
-                "Saved items",
-                "Activity visibility",
-              ]}
-              onAction={(item) =>
-                onScaffoldAction(`${item} scaffold opened.`)
-              }
-            />
-          </div>
-        ) : null}
-
-        {dialog === "open-to" ? (
-          <DialogMenu
-            items={[
-              "Finding a new job",
-              "Hiring",
-              "Providing services",
-              "Finding volunteer opportunities",
-            ]}
-            onAction={(item) =>
-              onScaffoldAction(`Open-to preference selected: ${item}.`)
-            }
-          />
-        ) : null}
       </section>
     </div>
   );
@@ -1360,25 +906,6 @@ function EditProfileForm({
   );
 }
 
-function DialogMenu({
-  items,
-  onAction,
-}: {
-  items: string[];
-  onAction: (item: string) => void;
-}) {
-  return (
-    <div className={styles.dialogMenu}>
-      {items.map((item) => (
-        <button key={item} onClick={() => onAction(item)} type="button">
-          <span>{item}</span>
-          <Icon name="chevron-right" />
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function ContactRow({ label, value }: { label: string; value: string }) {
   return (
     <div className={styles.contactRow}>
@@ -1417,10 +944,11 @@ function EditableSectionHeading({
     <div className={styles.editableHeading}>
       <h2>{title}</h2>
       <div>
-        <button aria-label={`Add ${title}`} type="button">
-          <Icon name="plus" />
-        </button>
-        <button aria-label={`Edit ${title}`} onClick={onEdit} type="button">
+        <button
+          aria-label={`Manage PathIn use of ${title}`}
+          onClick={onEdit}
+          type="button"
+        >
           <PencilIcon />
         </button>
       </div>
@@ -1433,26 +961,12 @@ function ShowAllButton({
   onClick,
 }: {
   label: string;
-  onClick?: () => void;
+  onClick: () => void;
 }) {
   return (
     <button className={styles.showAllButton} onClick={onClick} type="button">
       {label}
       <span aria-hidden="true">→</span>
-    </button>
-  );
-}
-
-function PrimaryButton({
-  children,
-  onClick,
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-}) {
-  return (
-    <button className={styles.primaryButton} onClick={onClick} type="button">
-      {children}
     </button>
   );
 }
@@ -1464,7 +978,7 @@ function OutlineButton({
 }: {
   children: ReactNode;
   dark?: boolean;
-  onClick?: () => void;
+  onClick: () => void;
 }) {
   return (
     <button
@@ -1502,62 +1016,6 @@ function IconButton({
   );
 }
 
-function ConnectButton({
-  connected,
-  onClick,
-}: {
-  connected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button className={styles.connectButton} onClick={onClick} type="button">
-      <PeoplePlusIcon />
-      {connected ? "Pending" : "Connect"}
-    </button>
-  );
-}
-
-function FollowButton({
-  following,
-  onClick,
-}: {
-  following: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button className={styles.followButton} onClick={onClick} type="button">
-      {following ? "✓ Following" : "+ Follow"}
-    </button>
-  );
-}
-
-function InitialAvatar({
-  initials,
-  square = false,
-}: {
-  initials: string;
-  square?: boolean;
-}) {
-  return (
-    <span
-      aria-hidden="true"
-      className={styles.initialAvatar}
-      data-square={square ? "true" : "false"}
-    >
-      {initials}
-    </span>
-  );
-}
-
-function initialsFor(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
 function PencilIcon() {
   return (
     <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
@@ -1569,26 +1027,6 @@ function PencilIcon() {
         strokeWidth="2.2"
       />
       <path d="m14.8 5.8 3.4 3.4" stroke="currentColor" strokeWidth="2.2" />
-    </svg>
-  );
-}
-
-function VerificationIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-      <path
-        d="m12 2 8 3v6c0 5.2-3.4 9-8 11-4.6-2-8-5.8-8-11V5l8-3Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-      <path
-        d="m8.4 12 2.2 2.2 4.8-5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
     </svg>
   );
 }
@@ -1611,48 +1049,6 @@ function PeopleIcon() {
       <circle cx="8" cy="7" r="4" />
       <circle cx="17.5" cy="8.5" r="3" />
       <path d="M1 22v-5.5C1 13.5 3.4 11 6.5 11h3c3 0 5.5 2.5 5.5 5.5V22H1Zm15.5 0v-5.1c0-1.7-.5-3.2-1.4-4.4.7-.4 1.5-.5 2.4-.5 3 0 5.5 2.5 5.5 5.5V22h-6.5Z" />
-    </svg>
-  );
-}
-
-function ChartIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-      <path d="M4 20V9m8 11V4m8 16v-7" stroke="currentColor" strokeLinecap="round" strokeWidth="3" />
-    </svg>
-  );
-}
-
-function SearchPersonIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-      <circle cx="9" cy="8" r="4" fill="currentColor" />
-      <path d="M2 20v-3c0-3 2.5-5.5 5.5-5.5h3c2 0 3.8 1 4.8 2.5" fill="currentColor" />
-      <circle cx="17" cy="16" r="4" stroke="currentColor" strokeWidth="2" />
-      <path d="m20 19 2 2" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-    </svg>
-  );
-}
-
-function HeartHandsIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-      <path
-        d="M12 19s-7-4.3-7-9a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 4.7-7 9-7 9Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
-
-function PeoplePlusIcon() {
-  return (
-    <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
-      <circle cx="8" cy="7" r="4" />
-      <path d="M1 22v-5.2C1 13.6 3.6 11 6.8 11h2.4c3.2 0 5.8 2.6 5.8 5.8V22H1Z" />
-      <path d="M19 7v6M16 10h6" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" />
     </svg>
   );
 }

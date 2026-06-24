@@ -1602,6 +1602,11 @@
   gap: 7px;
 }
 
+.headerActions button:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
 .headerActions button svg,
 .backToFeed svg {
   height: 17px;
@@ -1651,6 +1656,11 @@
   padding: 10px 13px;
 }
 
+.savedPathBanner:focus-visible {
+  outline: 3px solid rgba(10, 102, 194, 0.18);
+  outline-offset: 2px;
+}
+
 .savedPathBanner[data-current="true"] {
   background: #f2faf4;
   border-color: #a9cfb2;
@@ -1693,6 +1703,12 @@
   margin-top: 2px;
 }
 
+.savedPathActions {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
 .savedPathBanner button {
   background: #ffffff;
   border: 1px solid var(--blue);
@@ -1703,6 +1719,29 @@
   font-weight: 750;
   min-height: 32px;
   padding-inline: 12px;
+}
+
+.savedPathBanner button:disabled {
+  cursor: default;
+}
+
+.savedPathBanner[data-current="true"] .savedPathRestore {
+  background: #eaf6ed;
+  border-color: #67a675;
+  color: #216635;
+}
+
+.savedPathClose {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  padding: 0 !important;
+  width: 32px;
+}
+
+.savedPathClose svg {
+  height: 15px;
+  width: 15px;
 }
 
 .persistenceError {
@@ -1762,7 +1801,8 @@
   height: 68px;
 }
 
-.profileAvatar {
+.profileAvatar,
+.profileAvatarFallback {
   background: #ffffff;
   border: 3px solid #ffffff;
   border-radius: 50%;
@@ -1772,6 +1812,16 @@
   position: absolute;
   top: 31px;
   width: 74px;
+}
+
+.profileAvatarFallback {
+  align-items: center;
+  background: linear-gradient(145deg, #0a66c2, #004182);
+  color: #ffffff;
+  display: flex;
+  font-size: 22px;
+  font-weight: 750;
+  justify-content: center;
 }
 
 .profileBody {
@@ -5376,6 +5426,116 @@
   padding: 10px 12px;
 }
 
+.alternativeRoutePicker {
+  background: #f3f8fd;
+  border-top: 1px solid #c9dced;
+  padding: 12px 14px;
+}
+
+.alternativeRouteHeading {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.alternativeRouteHeading strong,
+.alternativeRouteHeading span {
+  display: block;
+}
+
+.alternativeRouteHeading strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.alternativeRouteHeading span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+  margin-top: 3px;
+}
+
+.alternativeRouteHeading > button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  color: #56687a;
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 28px;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+}
+
+.alternativeRouteHeading > button:hover,
+.alternativeRouteHeading > button:focus-visible {
+  background: #e2eef8;
+  outline: 2px solid rgba(10, 102, 194, 0.18);
+}
+
+.alternativeRouteHeading svg {
+  height: 15px;
+  width: 15px;
+}
+
+.alternativeRouteList {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.alternativeRouteList > button {
+  background: #ffffff;
+  border: 1px solid #bccdde;
+  border-radius: 10px;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 9px 10px;
+  text-align: left;
+}
+
+.alternativeRouteList > button:hover,
+.alternativeRouteList > button:focus-visible {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(10, 102, 194, 0.1);
+  outline: 0;
+}
+
+.alternativeRouteList > button[aria-pressed="true"] {
+  background: #eef6ff;
+  border-color: var(--blue);
+}
+
+.alternativeRouteList span,
+.alternativeRouteList strong,
+.alternativeRouteList small {
+  display: block;
+}
+
+.alternativeRouteList span {
+  color: var(--blue-dark);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.alternativeRouteList strong {
+  font-size: 11px;
+  line-height: 1.35;
+  margin-top: 3px;
+}
+
+.alternativeRouteList small {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
 .detailActions button {
   align-items: center;
   background: #ffffff;
@@ -6345,9 +6505,18 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .savedPathBanner button {
+  .savedPathActions {
     grid-column: 1 / -1;
     width: 100%;
+  }
+
+  .savedPathRestore {
+    flex: 1;
+  }
+
+  .savedPathBanner .savedPathClose {
+    flex: 0 0 32px;
+    width: 32px;
   }
 
   .onboardingHero,

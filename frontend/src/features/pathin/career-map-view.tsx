@@ -3,6 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
+  type DragEvent as ReactDragEvent,
+  type FormEvent as ReactFormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -89,22 +91,27 @@ type ReopenMapResult = {
   source: "backend" | "browser";
 };
 
-type LinkedInLearningCourse = {
+type LinkedInLearningRecommendation = {
   title: string;
   href: string;
   meta: string;
-  matchTerms: string[];
+  matchedSkill: string;
 };
 
-type LinkedInLearningRecommendation = LinkedInLearningCourse & {
-  matchedSkill: string;
+type NodeEdit = {
+  label: string;
+  summary: string;
+};
+
+type BuildSuggestion = {
+  id: string;
+  node: CareerNode;
+  reason: string;
 };
 
 type CareerMapViewProps = {
   initialMap: CareerMapData;
   generationError?: string;
-  onBuildToward: (destinationId: string) => Promise<void>;
-  onExplore: () => Promise<void>;
   onRegenerate: (
     action: RegenerationAction,
     options?: {
@@ -166,159 +173,10 @@ const REDUCED_FOCUS_ENTER_DURATION_MS = 130;
 
 const detailSections: Array<{ id: DetailSection; label: string }> = [
   { id: "overview", label: "Overview" },
+  { id: "fit", label: "Fit" },
   { id: "skills", label: "Skills" },
   { id: "connections", label: "Path" },
-];
-
-const LINKEDIN_LEARNING_COURSES: LinkedInLearningCourse[] = [
-  {
-    title: "Customer Success Management Fundamentals",
-    href: "https://www.linkedin.com/learning/customer-success-management-fundamentals",
-    meta: "58m · Beginner",
-    matchTerms: [
-      "crm",
-      "customer success",
-      "customer relationship",
-      "customer adoption",
-    ],
-  },
-  {
-    title: "Onboarding and Adoption Best Practices for Customer Success",
-    href: "https://www.linkedin.com/learning/onboarding-and-adoption-best-practices-for-customer-success-management",
-    meta: "1h · Beginner",
-    matchTerms: [
-      "crm",
-      "customer success",
-      "onboarding",
-      "adoption",
-      "training",
-    ],
-  },
-  {
-    title: "Salesforce Essential Training",
-    href: "https://www.linkedin.com/learning/salesforce-essential-training-24934421",
-    meta: "LinkedIn Learning",
-    matchTerms: ["crm", "salesforce", "customer relationship", "sales"],
-  },
-  {
-    title: "Communication Foundations",
-    href: "https://www.linkedin.com/learning/communication-foundations-23064093",
-    meta: "Beginner",
-    matchTerms: [
-      "communication",
-      "stakeholder communication",
-      "collaboration",
-      "presentation",
-    ],
-  },
-  {
-    title: "Problem-Solving Techniques",
-    href: "https://www.linkedin.com/learning/problem-solving-techniques",
-    meta: "LinkedIn Learning",
-    matchTerms: [
-      "problem solving",
-      "troubleshooting",
-      "debugging",
-      "analytical thinking",
-    ],
-  },
-  {
-    title: "Programming Foundations: APIs and Web Services",
-    href: "https://www.linkedin.com/learning/programming-foundations-apis-and-web-services-27993033",
-    meta: "1h 55m · Beginner",
-    matchTerms: [
-      "api",
-      "apis",
-      "web services",
-      "backend",
-      "integration",
-      "rest",
-    ],
-  },
-  {
-    title: "SOLID Principles in System Design for Java Developers",
-    href: "https://www.linkedin.com/learning/solid-principles-in-system-design-for-java-developers",
-    meta: "56m · Intermediate",
-    matchTerms: [
-      "system design",
-      "software design",
-      "architecture",
-      "java",
-      "scalability",
-    ],
-  },
-  {
-    title: "UX Foundations: Interaction Design",
-    href: "https://www.linkedin.com/learning/ux-foundations-interaction-design",
-    meta: "3h 28m · Beginner",
-    matchTerms: [
-      "interaction design",
-      "ux",
-      "user research",
-      "product design",
-      "prototyping",
-      "visual hierarchy",
-    ],
-  },
-  {
-    title: "SQL Essential Training",
-    href: "https://www.linkedin.com/learning/sql-essential-training-20685933",
-    meta: "4h 36m · Beginner",
-    matchTerms: ["sql", "database", "data analysis", "analytics"],
-  },
-  {
-    title: "DevOps Foundations",
-    href: "https://www.linkedin.com/learning/devops-foundations-23454205",
-    meta: "3h 9m · Beginner",
-    matchTerms: [
-      "devops",
-      "observability",
-      "infrastructure as code",
-      "ci cd",
-      "deployment",
-    ],
-  },
-  {
-    title: "AWS Essential Training for Developers",
-    href: "https://www.linkedin.com/learning/aws-essential-training-for-developers-27846636",
-    meta: "4h 45m · Intermediate",
-    matchTerms: ["aws", "cloud", "cloud architecture", "cloud computing"],
-  },
-  {
-    title: "Technical Product Management",
-    href: "https://www.linkedin.com/learning/technical-product-management",
-    meta: "1h 5m · Beginner",
-    matchTerms: [
-      "product management",
-      "prioritization",
-      "roadmapping",
-      "customer insight",
-      "product metrics",
-    ],
-  },
-  {
-    title: "Machine Learning with Python: Foundations",
-    href: "https://www.linkedin.com/learning/machine-learning-with-python-foundations",
-    meta: "1h 54m · Intermediate",
-    matchTerms: [
-      "machine learning",
-      "python",
-      "model evaluation",
-      "statistics",
-      "ai",
-    ],
-  },
-  {
-    title: "Project Management Foundations",
-    href: "https://www.linkedin.com/learning/project-management-foundations-15528659",
-    meta: "4h 1m · Beginner",
-    matchTerms: [
-      "project management",
-      "scope management",
-      "planning",
-      "facilitation",
-    ],
-  },
+  { id: "evidence", label: "Evidence" },
 ];
 
 const PROFILE_NODE_IDS = [
@@ -341,111 +199,17 @@ function uniqueDisplayValues(values: string[]) {
   }, []);
 }
 
-function normalizedSkill(value: string) {
-  return safeMapText(value, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9+#]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function learningCourseScore(
-  course: LinkedInLearningCourse,
-  skill: string,
-) {
-  const normalized = normalizedSkill(skill);
-  if (!normalized) {
-    return 0;
-  }
-
-  const skillTokens = normalized
-    .split(" ")
-    .filter((token) => token.length >= 3);
-
-  return course.matchTerms.reduce((best, term) => {
-    const normalizedTerm = normalizedSkill(term);
-    if (!normalizedTerm) {
-      return best;
-    }
-    if (normalized === normalizedTerm) {
-      return Math.max(best, 12);
-    }
-    if (
-      normalized.includes(normalizedTerm) ||
-      normalizedTerm.includes(normalized)
-    ) {
-      return Math.max(best, 9);
-    }
-
-    const termTokens = new Set(normalizedTerm.split(" "));
-    const overlap = skillTokens.filter((token) =>
-      termTokens.has(token),
-    ).length;
-    return Math.max(best, overlap * 3);
-  }, 0);
-}
-
 function recommendLinkedInLearning(
   skills: string[],
 ): LinkedInLearningRecommendation[] {
-  const neededSkills = uniqueDisplayValues(skills).slice(0, 5);
-  if (neededSkills.length === 0) {
-    return [];
-  }
-
-  const selected = LINKEDIN_LEARNING_COURSES
-    .map((course) => {
-      const rankedSkills = neededSkills
-        .map((skill, skillIndex) => ({
-          skill,
-          skillIndex,
-          score: learningCourseScore(course, skill),
-        }))
-        .sort(
-          (left, right) =>
-            right.score - left.score ||
-            left.skillIndex - right.skillIndex,
-        );
-      return {
-        course,
-        matchedSkill: rankedSkills[0]?.skill ?? neededSkills[0],
-        skillIndex: rankedSkills[0]?.skillIndex ?? neededSkills.length,
-        score: rankedSkills[0]?.score ?? 0,
-      };
-    })
-    .filter(({ score }) => score > 0)
-    .sort(
-      (left, right) =>
-        right.score - left.score ||
-        left.skillIndex - right.skillIndex,
-    )
+  return uniqueDisplayValues(skills)
     .slice(0, 3)
-    .map(({ course, matchedSkill }) => ({
-      ...course,
-      matchedSkill,
-    }));
-
-  const selectedUrls = new Set(selected.map((course) => course.href));
-
-  for (const skill of neededSkills) {
-    const href = `https://www.linkedin.com/learning/search?keywords=${encodeURIComponent(skill)}`;
-    if (selectedUrls.has(href)) {
-      continue;
-    }
-    selected.push({
-      title: `Explore ${skill} courses`,
-      href,
-      meta: "LinkedIn Learning",
-      matchTerms: [skill],
+    .map((skill) => ({
+      title: `Find ${skill} courses`,
+      href: `https://www.linkedin.com/learning/search?keywords=${encodeURIComponent(skill)}`,
+      meta: "Live LinkedIn Learning search",
       matchedSkill: skill,
-    });
-    selectedUrls.add(href);
-    if (selected.length === 3) {
-      break;
-    }
-  }
-
-  return selected;
+    }));
 }
 
 function prefersReducedMotion() {
@@ -849,8 +613,10 @@ function MiniIcon({
     | "course"
     | "current"
     | "destination"
+    | "edit"
     | "expand"
     | "eye"
+    | "grip"
     | "history"
     | "info"
     | "list"
@@ -860,6 +626,7 @@ function MiniIcon({
     | "plus"
     | "refresh"
     | "sparkles";
+    | "trash";
   className?: string;
 }) {
   const common = {
@@ -965,6 +732,13 @@ function MiniIcon({
           <path d="M12 2V0M22 12h2M12 22v2M2 12H0" />
         </svg>
       );
+    case "edit":
+      return (
+        <svg {...common}>
+          <path d="M4 20h4L19 9l-4-4L4 16v4Z" />
+          <path d="m13.5 6.5 4 4" />
+        </svg>
+      );
     case "expand":
       return (
         <svg {...common}>
@@ -976,6 +750,17 @@ function MiniIcon({
         <svg {...common}>
           <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
           <circle cx="12" cy="12" r="2.5" />
+        </svg>
+      );
+    case "grip":
+      return (
+        <svg {...common}>
+          <circle cx="8" cy="6" r="1" />
+          <circle cx="16" cy="6" r="1" />
+          <circle cx="8" cy="12" r="1" />
+          <circle cx="16" cy="12" r="1" />
+          <circle cx="8" cy="18" r="1" />
+          <circle cx="16" cy="18" r="1" />
         </svg>
       );
     case "history":
@@ -1038,6 +823,13 @@ function MiniIcon({
         <svg {...common}>
           <path d="m12 2 1.4 4.6L18 8l-4.6 1.4L12 14l-1.4-4.6L6 8l4.6-1.4L12 2Z" />
           <path d="m19 14 .8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14ZM5 13l.7 2.3L8 16l-2.3.7L5 19l-.7-2.3L2 16l2.3-.7L5 13Z" />
+        </svg>
+      );
+    case "trash":
+      return (
+        <svg {...common}>
+          <path d="M4 7h16M9 3h6l1 4H8l1-4Z" />
+          <path d="m6 7 1 14h10l1-14M10 11v6M14 11v6" />
         </svg>
       );
   }
@@ -1312,6 +1104,8 @@ export function CareerMapView({
   const [detailSection, setDetailSection] =
     useState<DetailSection>("overview");
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [alternativeOptionsOpen, setAlternativeOptionsOpen] =
+    useState(false);
   const [detailMotion, setDetailMotion] =
     useState<DetailMotion>("select");
   const [focusTransition, setFocusTransition] =
@@ -1332,6 +1126,9 @@ export function CareerMapView({
   const [savedAt, setSavedAt] = useState("");
   const [savedStorage, setSavedStorage] =
     useState<SaveMapResult["storage"]>("browser");
+  const [savedPanelOpen, setSavedPanelOpen] = useState(false);
+  const [openedSavedCopy, setOpenedSavedCopy] = useState(false);
+  const [restoringSavedMap, setRestoringSavedMap] = useState(false);
   const [persistenceError, setPersistenceError] = useState("");
   const [feedbackTarget, setFeedbackTarget] =
     useState<FeedbackTarget | null>(null);
@@ -1344,6 +1141,8 @@ export function CareerMapView({
   const focusTransitionLockRef = useRef(false);
   const focusTransitionSequenceRef = useRef(0);
   const focusTransitionTimerRef = useRef<number | null>(null);
+  const savedPanelRef = useRef<HTMLElement>(null);
+  const explicitlySavedMapIdRef = useRef<string | null>(null);
   const webViewportRef = useRef<HTMLDivElement>(null);
   const webDragState = useRef<{
     pointerId: number;
@@ -1394,6 +1193,18 @@ export function CareerMapView({
   }, [activePathIds, dismissedNodeIds, pathById, pinnedNodeIds]);
 
   const selectedNode = nodeById.get(selectedNodeId) ?? nodeById.get("current")!;
+  const profileInitials =
+    initialMap.profile.name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "PI";
+  const hasConnectedProfilePhoto =
+    initialMap.profile.name === "Winston Iskandar" &&
+    Boolean(
+      initialMap.profileFingerprint?.sourcesPresent.includes("linkedin"),
+    );
   const focusNodeSummary =
     selectedNode.type === "destination"
       ? [
@@ -1508,6 +1319,35 @@ export function CareerMapView({
           path: activePaths[focusedPathIndex + 1],
         }
       : null;
+  const generatedRouteOptions: HorizontalRouteOption[] = (() => {
+    if (!focusedPath) {
+      return [];
+    }
+
+    const selectedDepth = focusedPath.nodeIds.indexOf(selectedNode.id);
+    const comparableDepth =
+      selectedNode.id === "current"
+        ? 1
+        : Math.max(0, selectedDepth);
+    const routeIds =
+      initialMap.buildPathIdsByDestination[focusedPath.destinationId] ?? [];
+
+    return routeIds.flatMap((pathId) => {
+      const path = pathById.get(pathId);
+      if (!path) {
+        return [];
+      }
+      const nodeId =
+        path.nodeIds[
+          Math.min(comparableDepth, Math.max(0, path.nodeIds.length - 1))
+        ];
+      const node = nodeById.get(nodeId);
+      const destination = nodeById.get(path.destinationId);
+      return node && destination
+        ? [{ destination, node, path }]
+        : [];
+    });
+  })();
   const previousFocusNode =
     focusIndex > 0
       ? nodeById.get(focusSequence[focusIndex - 1]) ?? null
@@ -1575,7 +1415,10 @@ export function CareerMapView({
       setSavedAt(state?.savedAt ?? "");
       setSavedStorage(state?.storage ?? "browser");
       if (!state || state.mapId !== initialMap.id) {
+        explicitlySavedMapIdRef.current = null;
         setSaved(false);
+        setOpenedSavedCopy(false);
+        setSavedPanelOpen(Boolean(state));
         return;
       }
       const versionsMatch =
@@ -1636,6 +1479,10 @@ export function CareerMapView({
       );
       setWebZoom(Math.max(0.6, Math.min(1.2, state.webZoom ?? 0.9)));
       setSaved(true);
+      setOpenedSavedCopy(
+        explicitlySavedMapIdRef.current !== initialMap.id,
+      );
+      setSavedPanelOpen(true);
     });
     return () => window.cancelAnimationFrame(frame);
   }, [
@@ -1676,6 +1523,7 @@ export function CareerMapView({
     if (matchingPath) {
       setFocusedPathId(matchingPath.id);
     }
+    setAlternativeOptionsOpen(false);
     setDetailMotion(motion);
     setSelectedNodeId(nodeId);
     setDetailsOpen(openDetails);
@@ -2069,11 +1917,14 @@ export function CareerMapView({
       savedAt: result.savedAt,
       storage: result.storage,
     };
+    explicitlySavedMapIdRef.current = initialMap.id;
     window.localStorage.setItem(SAVED_STATE_KEY, JSON.stringify(state));
     setSaved(true);
+    setOpenedSavedCopy(false);
     setHasSavedMap(true);
     setSavedAt(result.savedAt);
     setSavedStorage(result.storage);
+    setSavedPanelOpen(true);
     setStatusMessage(
       result.storage === "backend_and_browser"
         ? "Path saved in this browser with a server copy."
@@ -2081,14 +1932,41 @@ export function CareerMapView({
     );
   }
 
-  async function reopenSavedMap() {
+  function showSavedPaths() {
+    if (!hasSavedMap) {
+      return;
+    }
     setPersistenceError("");
+    setSavedPanelOpen(true);
+    setStatusMessage(
+      saved
+        ? "This saved path is already open."
+        : "Your saved path is ready to restore.",
+    );
+    window.requestAnimationFrame(() => {
+      savedPanelRef.current?.focus({ preventScroll: true });
+      savedPanelRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+        block: "nearest",
+      });
+    });
+  }
+
+  async function reopenSavedMap() {
+    if (saved || restoringSavedMap) {
+      setStatusMessage("This saved path is already open.");
+      return;
+    }
+
+    setPersistenceError("");
+    setRestoringSavedMap(true);
+    setStatusMessage("Restoring your saved path.");
     try {
       const result = await onReopenSaved();
       setStatusMessage(
         result.source === "backend"
-          ? "Saved path reopened from the server copy."
-          : "Saved path reopened from this browser.",
+          ? "Saved path opened from the server copy. No new save was created."
+          : "Saved path opened from this browser. No new save was created.",
       );
     } catch (error) {
       const message =
@@ -2097,46 +1975,58 @@ export function CareerMapView({
           : "The saved generated map could not be reopened.";
       setPersistenceError(message);
       setStatusMessage(message);
+    } finally {
+      setRestoringSavedMap(false);
     }
   }
 
   function closeDetails() {
+    setAlternativeOptionsOpen(false);
     setDetailsOpen(false);
     window.requestAnimationFrame(() => {
       focusedNodeRef.current?.focus({ preventScroll: true });
     });
   }
 
-  async function requestAlternative() {
-    if (pinnedNodeIds.includes(selectedNode.id)) {
-      setStatusMessage(
-        "Unpin this step before replacing its route with an alternative.",
-      );
-      return;
-    }
-
-    const currentPath =
-      focusedPath ??
-      activePaths.find((path) => path.nodeIds.includes(selectedNode.id));
-    if (!currentPath) {
-      setStatusMessage("No route alternative is available from this step.");
-      return;
-    }
-
-    const alternatives =
-      initialMap.buildPathIdsByDestination[currentPath.destinationId] ?? [];
-    if (alternatives.length < 2) {
+  function requestAlternative() {
+    if (generatedRouteOptions.length < 2) {
       setStatusMessage("No route alternative is available for this destination.");
       return;
     }
+
+    setAlternativeOptionsOpen((current) => !current);
     setStatusMessage(
-      `Requesting another route toward ${nodeById.get(currentPath.destinationId)?.label ?? "this destination"}.`,
+      alternativeOptionsOpen
+        ? "Alternative route options hidden."
+        : `${generatedRouteOptions.length} already-generated route options are available. The map was not regenerated.`,
     );
-    await onRegenerate("alternative_route", {
-      targetId: currentPath.destinationId,
-      pinnedNodeIds,
-      dismissedNodeIds,
-    });
+  }
+
+  function chooseGeneratedRoute(option: HorizontalRouteOption) {
+    cancelFocusTransition();
+    setDestinationId(option.path.destinationId);
+    if (mode === "explore") {
+      setExplorePathIds((current) => {
+        const matchingIndex = current.findIndex(
+          (pathId) =>
+            pathById.get(pathId)?.destinationId ===
+            option.path.destinationId,
+        );
+        if (matchingIndex < 0) {
+          return [...current, option.path.id];
+        }
+        const next = [...current];
+        next[matchingIndex] = option.path.id;
+        return next;
+      });
+    }
+    setFocusedPathId(option.path.id);
+    setSelectedNodeId(option.node.id);
+    setDetailMotion("select");
+    setAlternativeOptionsOpen(false);
+    setStatusMessage(
+      `${option.node.label} selected from ${option.path.label}. No regeneration was needed.`,
+    );
   }
 
   async function buildSelectedDestination() {
@@ -2246,8 +2136,11 @@ export function CareerMapView({
         </div>
         <div className={styles.headerActions}>
           <button
+            aria-controls="pathin-saved-paths"
+            aria-expanded={savedPanelOpen}
             className={styles.secondaryButton}
-            onClick={reopenSavedMap}
+            disabled={!hasSavedMap}
+            onClick={showSavedPaths}
             type="button"
           >
             <MiniIcon name="history" />
@@ -2266,11 +2159,16 @@ export function CareerMapView({
           </button>
           <button
             className={saved ? styles.savedButton : styles.primaryButton}
+            disabled={saved}
             onClick={saveMap}
             type="button"
           >
             <MiniIcon name={saved ? "check" : "bookmark"} />
-            {saved ? "Saved" : "Save path"}
+            {saved
+              ? openedSavedCopy
+                ? "Viewing saved path"
+                : "Saved"
+              : "Save path"}
           </button>
           <button
             className={styles.secondaryButton}
@@ -2283,20 +2181,30 @@ export function CareerMapView({
         </div>
       </section>
 
-      {hasSavedMap ? (
+      {hasSavedMap && savedPanelOpen ? (
         <section
+          aria-label="Saved paths"
           className={styles.savedPathBanner}
           data-current={saved ? "true" : "false"}
-          role="status"
+          id="pathin-saved-paths"
+          ref={savedPanelRef}
+          tabIndex={-1}
         >
           <span className={styles.savedPathIcon}>
             <MiniIcon name={saved ? "check" : "bookmark"} />
           </span>
-          <div>
+          <div role="status">
             <strong>
-              {saved ? "This path is saved" : "One saved path is available"}
+              {saved
+                ? openedSavedCopy
+                  ? "Viewing saved path"
+                  : "Path saved"
+                : "One saved path is ready to restore"}
             </strong>
             <span>
+              {saved && openedSavedCopy
+                ? "Opening this path did not create or overwrite a save. "
+                : ""}
               {savedAt
                 ? `Saved ${savedTimeLabel(savedAt)}. `
                 : ""}
@@ -2305,9 +2213,28 @@ export function CareerMapView({
                 : "Stored in this browser so it survives backend restarts."}
             </span>
           </div>
-          <button onClick={reopenSavedMap} type="button">
-            Open saved path
-          </button>
+          <div className={styles.savedPathActions}>
+            <button
+              className={styles.savedPathRestore}
+              disabled={saved || restoringSavedMap}
+              onClick={reopenSavedMap}
+              type="button"
+            >
+              {restoringSavedMap
+                ? "Restoring..."
+                : saved
+                  ? "Currently open"
+                  : "Restore saved path"}
+            </button>
+            <button
+              aria-label="Hide saved paths"
+              className={styles.savedPathClose}
+              onClick={() => setSavedPanelOpen(false)}
+              type="button"
+            >
+              <MiniIcon name="close" />
+            </button>
+          </div>
         </section>
       ) : null}
 
@@ -2332,13 +2259,22 @@ export function CareerMapView({
         <aside className={styles.profileRail}>
           <section className={styles.profileCard}>
             <div className={styles.profileCover} />
-            <Image
-              alt={initialMap.profile.name}
-              className={styles.profileAvatar}
-              height={96}
-              src="/linkedin/profile.png"
-              width={96}
-            />
+            {hasConnectedProfilePhoto ? (
+              <Image
+                alt={initialMap.profile.name}
+                className={styles.profileAvatar}
+                height={96}
+                src="/linkedin/profile.png"
+                width={96}
+              />
+            ) : (
+              <span
+                aria-label={`${initialMap.profile.name} initials`}
+                className={styles.profileAvatarFallback}
+              >
+                {profileInitials}
+              </span>
+            )}
             <div className={styles.profileBody}>
               <p className={styles.profileOverline}>Current profile</p>
               <h2>{initialMap.profile.name}</h2>
@@ -3038,11 +2974,66 @@ export function CareerMapView({
             </div>
           </div>
 
+          {alternativeOptionsOpen ? (
+            <section
+              aria-label="Alternative route options"
+              className={styles.alternativeRoutePicker}
+            >
+              <div className={styles.alternativeRouteHeading}>
+                <div>
+                  <strong>Choose an existing route step</strong>
+                  <span>
+                    These options were generated with this map. Selecting one
+                    does not regenerate or overwrite anything.
+                  </span>
+                </div>
+                <button
+                  aria-label="Hide alternative route options"
+                  onClick={() => setAlternativeOptionsOpen(false)}
+                  type="button"
+                >
+                  <MiniIcon name="close" />
+                </button>
+              </div>
+              <div className={styles.alternativeRouteList}>
+                {generatedRouteOptions.map((option) => {
+                  const isCurrentRoute =
+                    option.path.id === focusedPath?.id;
+                  return (
+                    <button
+                      aria-pressed={isCurrentRoute}
+                      key={option.path.id}
+                      onClick={() => chooseGeneratedRoute(option)}
+                      type="button"
+                    >
+                      <span>
+                        {isCurrentRoute
+                          ? "Current route"
+                          : "Alternative route"}
+                      </span>
+                      <strong>{option.node.label}</strong>
+                      <small>
+                        {option.path.shortLabel}
+                        {option.path.estimatedEffort
+                          ? ` · ${option.path.estimatedEffort}`
+                          : ""}
+                      </small>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
           {isProfileNode ? (
             <div className={styles.scaffoldDetailActions}>
               <span>
                 <MiniIcon name="current" />
-                Resume evidence used to establish your starting point.
+                {mapEvidenceSourceLabel(initialMap).replace(
+                  /^./,
+                  (value) => value.toUpperCase(),
+                )}{" "}
+                used to establish your starting point.
               </span>
             </div>
           ) : (
@@ -3065,9 +3056,15 @@ export function CareerMapView({
                   </button>
                 </>
               ) : (
-                <button onClick={requestAlternative} type="button">
+                <button
+                  aria-expanded={alternativeOptionsOpen}
+                  onClick={requestAlternative}
+                  type="button"
+                >
                   <MiniIcon name="branch" />
-                  Show alternative
+                  {alternativeOptionsOpen
+                    ? "Hide alternatives"
+                    : "Show alternatives"}
                 </button>
               )}
               <button onClick={dismissSelectedNode} type="button">
@@ -3173,7 +3170,7 @@ function CareerGoals({
           Career directions
         </span>
         <small>
-          Grounded in {dreamCareer?.sourceBlend ?? "your uploaded evidence"}
+          Grounded in {dreamCareer?.sourceBlend ?? "your enabled profile evidence"}
         </small>
       </div>
 
@@ -3663,7 +3660,7 @@ function LinkedInLearningCourses({ skills }: { skills: string[] }) {
         </span>
         <div>
           <h3>LinkedIn Learning</h3>
-          <p>Courses for the skills to build next</p>
+          <p>Live course searches for the skills to build next</p>
         </div>
       </div>
       <div className={styles.learningList}>

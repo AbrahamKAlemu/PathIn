@@ -15,6 +15,7 @@ from .taxonomy import (
     OCCUPATIONAL_TAXONOMY,
     ROLE_BY_ID,
     TAXONOMY_VERSION,
+    contains_alias,
     normalize_title,
     role_concepts,
     semantic_concepts,
@@ -71,6 +72,8 @@ SKILL_NORMALIZATION = {
     "nodejs": "node",
     "ms excel": "excel",
     "microsoft excel": "excel",
+    "spreadsheet": "excel",
+    "spreadsheets": "excel",
 }
 
 STOP_WORDS = {
@@ -92,6 +95,21 @@ STOP_WORDS = {
 }
 
 DOMAIN_SIGNALS: dict[str, tuple[str, ...]] = {
+    "Robotics and Hardware": (
+        "robotics",
+        "robot",
+        "battlebots",
+        "chassis",
+        "embedded systems",
+        "arduino",
+        "electronics",
+        "soldering",
+        "cad",
+        "autodesk inventor",
+        "autodesk fusion",
+        "manufacturing",
+        "3d printer",
+    ),
     "Education": (
         "education",
         "student",
@@ -160,6 +178,17 @@ DOMAIN_SIGNALS: dict[str, tuple[str, ...]] = {
 }
 
 PROBLEM_SIGNALS: dict[str, tuple[str, ...]] = {
+    "designing and validating physical systems": (
+        "robot",
+        "chassis",
+        "mechanical design",
+        "cad",
+        "prototype",
+        "embedded systems",
+        "electronics",
+        "manufacturing",
+        "hardware test",
+    ),
     "building usable digital products": (
         "app",
         "application",
@@ -329,6 +358,60 @@ ROLE_SPECIALIZATION_RULES: dict[
         ("Platform Engineering Manager", ("platform", "cloud", "infrastructure")),
         ("Software Delivery Manager", ("delivery", "planning", "release")),
     ),
+    "robotics-engineer": (
+        (
+            "Mechanical Robotics Engineer",
+            ("chassis", "cad", "mechanical", "manufacturing"),
+        ),
+        (
+            "Embedded Robotics Engineer",
+            ("embedded systems", "arduino", "electronics", "firmware"),
+        ),
+        (
+            "Robotics Prototyping Engineer",
+            ("prototype", "robotics", "robot"),
+        ),
+    ),
+    "embedded-systems-engineer": (
+        (
+            "Embedded Robotics Engineer",
+            ("robotics", "arduino", "robot"),
+        ),
+        (
+            "Firmware and Hardware Integration Engineer",
+            ("electronics", "sensor", "hardware"),
+        ),
+    ),
+    "mechanical-design-engineer": (
+        (
+            "Robotics Mechanical Design Engineer",
+            ("robotics", "chassis", "battlebots", "robot"),
+        ),
+        (
+            "CAD and Prototyping Engineer",
+            ("cad", "autodesk inventor", "autodesk fusion", "prototype"),
+        ),
+    ),
+    "manufacturing-engineer": (
+        (
+            "Robotics Manufacturing Engineer",
+            ("robotics", "chassis", "robot"),
+        ),
+        (
+            "Prototype Manufacturing Engineer",
+            ("prototype", "makerspace", "3d printer"),
+        ),
+    ),
+    "hardware-test-engineer": (
+        (
+            "Robotics Hardware Test Engineer",
+            ("robotics", "robot", "chassis", "arduino"),
+        ),
+        (
+            "Electronics Validation Engineer",
+            ("electronics", "soldering", "embedded systems"),
+        ),
+    ),
 }
 
 ROLE_ARTIFACTS: dict[str, tuple[str, str]] = {
@@ -349,7 +432,7 @@ ROLE_ARTIFACTS: dict[str, tuple[str, str]] = {
         "A threat model, prioritized controls, and a remediation brief",
     ),
     "data-scientist": (
-        "Model and validate {subject}",
+        "Build and validate a model for {subject}",
         "A reproducible model, evaluation notes, and a decision-focused readout",
     ),
     "data-analyst": (
@@ -416,7 +499,76 @@ ROLE_ARTIFACTS: dict[str, tuple[str, str]] = {
         "Lead a technical delivery cycle for {subject}",
         "A delivery plan, technical decision record, coaching evidence, and retrospective",
     ),
+    "robotics-engineer": (
+        "Design, integrate, and test {subject}",
+        "A working robotic subsystem, CAD or wiring evidence, a test log, and design tradeoffs",
+    ),
+    "embedded-systems-engineer": (
+        "Build embedded control for {subject}",
+        "Firmware, a circuit or wiring diagram, repeatable tests, and a short debugging log",
+    ),
+    "mechanical-design-engineer": (
+        "Engineer and validate {subject}",
+        "A dimensioned CAD assembly, design review, prototype evidence, and manufacturing notes",
+    ),
+    "manufacturing-engineer": (
+        "Create a manufacturing plan for {subject}",
+        "A process plan, bill of materials, quality checks, and measured improvement evidence",
+    ),
+    "hardware-test-engineer": (
+        "Build a validation plan for {subject}",
+        "A test fixture or procedure, pass/fail criteria, failure evidence, and a validation report",
+    ),
 }
+
+ROLE_ROUTE_SUBJECTS: dict[str, str] = {
+    "software-engineer": "a small user-facing application",
+    "quality-assurance-analyst": "a small software release",
+    "devops-engineer": "a small deployed service",
+    "cybersecurity-analyst": "a small application",
+    "data-scientist": "a public decision dataset",
+    "data-analyst": "a real operational question",
+    "financial-analyst": "a small business scenario",
+    "business-analyst": "a recurring workflow",
+    "operations-analyst": "a recurring workflow",
+    "product-manager": "a specific user problem",
+    "product-operations-specialist": "a small product launch",
+    "project-coordinator": "a small cross-functional project",
+    "ux-designer": "a specific user workflow",
+    "learning-experience-designer": "a short learning module",
+    "marketing-specialist": "a small audience campaign",
+    "content-strategist": "a focused information need",
+    "sales-representative": "a defined customer problem",
+    "customer-success-specialist": "a sample product",
+    "customer-service-manager": "a support workflow",
+    "hr-coordinator": "a recruiting or onboarding workflow",
+    "engineering-manager": "a small technical delivery",
+    "robotics-engineer": "a small robotic subsystem",
+    "embedded-systems-engineer": "a sensor-and-actuator device",
+    "mechanical-design-engineer": "a small mechanical assembly",
+    "manufacturing-engineer": "a prototype production process",
+    "hardware-test-engineer": "a small hardware subsystem",
+}
+
+EVIDENCE_CATEGORY_LABELS = {
+    "achievements": "achievement",
+    "education": "education entry",
+    "interests": "interest",
+    "projects": "project",
+    "responsibilities": "responsibility",
+    "roles": "role",
+    "skills": "skill",
+}
+
+EVIDENCE_SOURCE_LABELS = {
+    "inferred": "inferred profile",
+    "linkedin": "LinkedIn profile",
+    "manual": "profile",
+    "profile": "profile",
+    "resume": "resume",
+    "user_correction": "corrected profile",
+}
+
 
 def _timestamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -444,6 +596,11 @@ def _object(value: Any) -> dict[str, Any]:
 
 def _normalized_text(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+
+
+def _normalized_skill(value: str) -> str:
+    normalized = _normalized_text(value)
+    return SKILL_NORMALIZATION.get(normalized, normalized)
 
 
 def _terms(values: list[str]) -> set[str]:
@@ -584,6 +741,15 @@ class ProfileNormalizer:
             for role_id in (normalize_title(value) for value in roles)
             if role_id
         ]
+        goal_role_ids = list(
+            dict.fromkeys(
+                role_id
+                for role_id in (
+                    normalize_title(value) for value in values["goals"]
+                )
+                if role_id
+            )
+        )
         explicit_level, explicit_level_evidence = self._explicit_level(roles)
         enabled_signals = [
             category
@@ -636,7 +802,7 @@ class ProfileNormalizer:
             profile.get("desiredDifficulty")
             or preferences.get("desiredDifficulty")
             or constraints.get("desiredDifficulty")
-            or "flexible"
+            or ""
         ).strip()
 
         normalized = {
@@ -659,6 +825,7 @@ class ProfileNormalizer:
             "disabledFieldEvidence": disabled_fields,
             "conflicts": conflicts,
             "currentRoleIds": current_role_ids,
+            "goalRoleIds": goal_role_ids,
             "explicitCareerLevel": explicit_level,
             "explicitCareerLevelEvidence": explicit_level_evidence,
             "completeness": round(completeness, 2),
@@ -744,15 +911,23 @@ class ProfileNormalizer:
             definitions: dict[str, tuple[str, ...]],
             *,
             include_industries: bool = False,
+            include_education: bool = True,
         ) -> list[dict[str, Any]]:
             derived = []
             for label, keywords in definitions.items():
                 support = []
                 matched_keywords: set[str] = set()
                 for category, item in evidence_items:
+                    if (
+                        not include_education
+                        and category in {"education", "coursework"}
+                    ):
+                        continue
                     value = item["value"].lower()
                     keyword_hits = [
-                        keyword for keyword in keywords if keyword in value
+                        keyword
+                        for keyword in keywords
+                        if contains_alias(value, keyword)
                     ]
                     explicit_industry = (
                         include_industries
@@ -826,6 +1001,7 @@ class ProfileNormalizer:
             "domains": derive_signals(
                 DOMAIN_SIGNALS,
                 include_industries=True,
+                include_education=False,
             )[:4],
             "problemThemes": derive_signals(PROBLEM_SIGNALS)[:4],
             "capabilityCombination": [
@@ -966,7 +1142,7 @@ class RecommendationEngine:
                 -self._retrieval_score(profile, item),
                 item["title"],
             ),
-        )[:16]
+        )
         for destination_id in pinned_destination_ids:
             role_id = destination_id.removeprefix("dest-")
             candidate = next(
@@ -990,13 +1166,41 @@ class RecommendationEngine:
             if item["overallScore"] >= credibility_floor
             and item["confidence"] != "exploratory"
         ]
-        candidate_pool = credible if len(credible) >= 2 else scored[:2]
-        diversified = self._diversify(
-            candidate_pool,
-            max(2, min(count, 5)),
-        )
-        if len(diversified) < 2:
-            diversified = scored[: min(2, len(scored))]
+        if len(credible) >= 2:
+            candidate_pool = credible
+        else:
+            primary = scored[0]
+            primary_role = ROLE_BY_ID.get(primary["id"], {})
+            primary_adjacent_ids = set(
+                primary_role.get("adjacentRoleIds", [])
+            )
+
+            def fallback_key(item: dict[str, Any]) -> tuple[Any, ...]:
+                item_role = ROLE_BY_ID.get(item["id"], {})
+                is_adjacent = (
+                    item["id"] in primary_adjacent_ids
+                    or primary["id"]
+                    in set(item_role.get("adjacentRoleIds", []))
+                )
+                return (
+                    item["id"] not in profile.get("goalRoleIds", []),
+                    not is_adjacent,
+                    item["family"] != primary["family"],
+                    not bool(item.get("topMatchingSignals")),
+                    -item["overallScore"],
+                    item["title"],
+                )
+
+            fallback = (
+                min(scored[1:], key=fallback_key)
+                if len(scored) > 1
+                else None
+            )
+            candidate_pool = [primary, *([fallback] if fallback else [])]
+        target_count = max(2, min(count, 5))
+        diversified = self._diversify(candidate_pool, target_count)
+        if len(diversified) < min(2, len(scored)):
+            diversified = self._diversify(scored, target_count)
         if not diversified:
             raise ApiError(
                 "NO_DESTINATIONS",
@@ -1219,7 +1423,7 @@ class RecommendationEngine:
                 "taxonomyVersion": TAXONOMY_VERSION,
                 "modelVersion": MODEL_VERSION,
                 "algorithmVersion": ALGORITHM_VERSION,
-                "promptVersion": "evidence-grounded-career-paths-2.0",
+                "promptVersion": "evidence-grounded-career-paths-2.1",
                 "requestFingerprint": fingerprint,
                 "generatedAt": generated_at,
             },
@@ -1421,6 +1625,8 @@ class RecommendationEngine:
             [*profile["interests"], *profile["goals"]],
             [*candidate["interests"], candidate["family"], candidate["title"]],
         )
+        if candidate["id"] in profile.get("goalRoleIds", []):
+            interest_score = 100.0
         project_score, project_matches = self._overlap_score(
             [*profile["projects"], *profile["achievements"]],
             [*candidate["projects"], *candidate["responsibilities"]],
@@ -1585,6 +1791,9 @@ class RecommendationEngine:
             return 0.0, []
         profile_concepts = semantic_concepts(profile_values)
         profile_terms = _terms(profile_values)
+        normalized_profile_values = {
+            _normalized_skill(value) for value in profile_values
+        }
         matches = []
         for candidate_value in candidate_values:
             candidate_concepts = semantic_concepts([candidate_value])
@@ -1592,6 +1801,8 @@ class RecommendationEngine:
             if (
                 profile_concepts & candidate_concepts
                 or profile_terms & candidate_terms
+                or _normalized_skill(candidate_value)
+                in normalized_profile_values
             ):
                 matches.append(candidate_value)
         denominator = max(1, min(8, len(candidate_values)))
@@ -1663,11 +1874,15 @@ class RecommendationEngine:
         ]
         concepts = semantic_concepts(profile_values)
         terms = _terms(profile_values)
+        normalized_profile_skills = {
+            _normalized_skill(value) for value in profile["skills"]
+        }
         gaps = []
         for skill in candidate["skills"]:
             if not (
                 semantic_concepts([skill]) & concepts
                 or _terms([skill]) & terms
+                or _normalized_skill(skill) in normalized_profile_skills
             ):
                 gaps.append(skill)
         return gaps
@@ -1839,7 +2054,10 @@ class RecommendationEngine:
         for category in profile["enabledSignals"]:
             for item in profile["fieldEvidence"].get(category, []):
                 value = item["value"].lower()
-                if not any(keyword in value for keyword in keywords):
+                if not any(
+                    contains_alias(value, keyword)
+                    for keyword in keywords
+                ):
                     continue
                 evidence.append(
                     {
@@ -1879,7 +2097,7 @@ class RecommendationEngine:
             return "LinkedIn evidence"
         if "resume" in sources:
             return "resume evidence"
-        return "uploaded profile evidence"
+        return "enabled profile evidence"
 
     def _personalize_candidate(
         self,
@@ -1902,9 +2120,44 @@ class RecommendationEngine:
                 break
 
         fingerprint = profile.get("profileFingerprint", {})
-        domain = next(
-            iter(fingerprint.get("domains", [])),
-            None,
+        candidate_values = [
+            candidate["title"],
+            candidate["family"],
+            *candidate["skills"],
+            *candidate["responsibilities"],
+            *candidate["interests"],
+            *candidate["industries"],
+        ]
+        candidate_concepts = semantic_concepts(candidate_values)
+        candidate_terms = _terms(candidate_values)
+
+        def domain_fit(item: dict[str, Any]) -> tuple[int, int, float]:
+            support = item.get("supportingEvidence", [])
+            compatible = sum(
+                1
+                for evidence in support
+                if (
+                    semantic_concepts([evidence["value"]])
+                    & candidate_concepts
+                    or _terms([evidence["value"]]) & candidate_terms
+                )
+            )
+            non_education = sum(
+                1
+                for evidence in support
+                if evidence.get("category") != "education"
+            )
+            return compatible, non_education, float(item.get("strength", 0))
+
+        compatible_domains = [
+            item
+            for item in fingerprint.get("domains", [])
+            if domain_fit(item)[0] > 0 and domain_fit(item)[1] > 0
+        ]
+        domain = (
+            max(compatible_domains, key=domain_fit)
+            if compatible_domains
+            else None
         )
         target_domain = str(domain["label"]) if domain else ""
         target_problem = (
@@ -1914,8 +2167,13 @@ class RecommendationEngine:
         )
         domain_terms = _terms([target_domain])
         title_terms = _terms([specialization, candidate["family"]])
+        industry_terms = _terms(
+            [*candidate["industries"], *candidate["interests"]]
+        )
         append_domain = bool(
             target_domain
+            and len(domain.get("supportingEvidence", [])) >= 2
+            and domain_terms & industry_terms
             and not domain_terms & title_terms
             and target_domain
             not in {"Cloud Platforms", "Marketing and Media"}
@@ -1962,10 +2220,10 @@ class RecommendationEngine:
                 if len(item["value"]) <= 40
             ][:2]
         if not current_strengths:
-            current_strengths = [candidate["family"]]
+            current_strengths = ["limited role-specific evidence"]
         gap_copy = gaps[0] if gaps else "role-specific proof"
         career_thesis = (
-            f"Current strengths: {', '.join(current_strengths)}. "
+            f"Current evidence: {', '.join(current_strengths)}. "
             f"Build next: {gap_copy}."
         )
         return {
@@ -2016,6 +2274,19 @@ class RecommendationEngine:
 
         explicit_goal_match: tuple[dict[str, Any], str] | None = None
         for goal in profile.get("goals", []):
+            normalized_goal_role = normalize_title(goal)
+            if normalized_goal_role:
+                exact_match = next(
+                    (
+                        item
+                        for item in recommendations
+                        if item["id"] == normalized_goal_role
+                    ),
+                    None,
+                )
+                if exact_match:
+                    explicit_goal_match = (exact_match, goal)
+                    break
             goal_terms = _terms([goal])
             if not goal_terms:
                 continue
@@ -2045,7 +2316,7 @@ class RecommendationEngine:
             dream["uncertainty"] = (
                 "This destination reflects a stated aspiration. Employer fit, "
                 "seniority, interview readiness, and hiring outcomes are not "
-                "inferred from uploaded profile evidence."
+                "inferred from enabled profile evidence."
             )
         else:
             dream = max(recommendations, key=north_star_score)
@@ -2163,15 +2434,21 @@ class RecommendationEngine:
     def _diversify(
         scored: list[dict[str, Any]], count: int
     ) -> list[dict[str, Any]]:
-        selected = []
+        selected: list[dict[str, Any]] = []
+        deferred: list[dict[str, Any]] = []
         families: set[str] = set()
         for item in scored:
             if item["family"] in families:
+                deferred.append(item)
                 continue
             selected.append(item)
             families.add(item["family"])
             if len(selected) >= count:
                 return selected
+        for item in deferred:
+            selected.append(item)
+            if len(selected) >= count:
+                break
         return selected
 
     def _current_node(self, profile: dict[str, Any]) -> dict[str, Any]:
@@ -2183,35 +2460,62 @@ class RecommendationEngine:
             else "LinkedIn profile"
             if "linkedin" in sources
             else "Resume"
+            if "resume" in sources
+            else "Profile input"
         )
-        role_copy = (
+        evidence_subject = {
+            "LinkedIn profile": "LinkedIn profile",
+            "Profile input": "enabled profile input",
+            "Resume": "resume",
+            "Resume + LinkedIn profile": "resume and LinkedIn profile",
+        }[source_label]
+        role_values = [
             compact_profile_text(
-                profile["roles"][0],
-                max_characters=72,
-                fallback="your uploaded experience",
+                value,
+                max_characters=58,
+                fallback="",
             )
-            if profile["roles"]
-            else "your uploaded experience"
+            for value in profile["roles"][:3]
+        ]
+        role_values = [value for value in role_values if value]
+        role_copy = (
+            ", ".join(role_values[:-1]) + f", and {role_values[-1]}"
+            if len(role_values) > 1
+            else role_values[0]
+            if role_values
+            else "the enabled education, projects, and skills"
         )
         skill_values = [
             compact_profile_text(
-                item["value"],
+                value,
                 max_characters=36,
                 fallback="",
             )
-            for item in fingerprint["strongestCapabilities"][:3]
+            for value in profile["skills"][:5]
         ]
         skill_copy = ", ".join(
             value for value in skill_values if value
-        ) or "the capabilities present in your upload"
-        problem_copy = (
-            fingerprint["problemThemes"][0]["label"]
-            if fingerprint["problemThemes"]
-            else "building evidence through applied work"
+        ) or "the capabilities present in your enabled evidence"
+        project_values = [
+            compact_profile_text(
+                value,
+                max_characters=64,
+                fallback="",
+            )
+            for value in profile["projects"][:2]
+        ]
+        project_copy = "; ".join(
+            value for value in project_values if value
         )
         summary = (
-            f"Your evidence starts with {role_copy} and a capability mix of "
-            f"{skill_copy}, with a recurring focus on {problem_copy}."
+            f"Your {evidence_subject} shows {role_copy}. "
+            "Demonstrated strengths include "
+            f"{skill_copy}."
+            + (
+                f" Applied proof includes {project_copy}."
+                if project_copy
+                else ""
+            )
         )
         return {
             "id": "current",
@@ -2229,13 +2533,13 @@ class RecommendationEngine:
                 (
                     f"Evidence came from {', '.join(fingerprint['sourcesPresent'])}."
                     if fingerprint["sourcesPresent"]
-                    else "Evidence came from the uploaded profile."
+                    else "Evidence came from enabled profile input."
                 ),
             ],
-            "responsibilities": profile["responsibilities"][:4]
+            "responsibilities": profile["responsibilities"][:6]
             or ["Add responsibilities to improve experience-adjacency scoring."],
-            "existingSkills": profile["skills"][:8],
-            "transferableSkills": profile["skills"][:6],
+            "existingSkills": profile["skills"][:10],
+            "transferableSkills": profile["skills"][:8],
             "skillsToBuild": [],
             "preview": summary,
             "challenges": [
@@ -2332,10 +2636,23 @@ class RecommendationEngine:
         ] or base_gaps
         gap = gaps[0]
         seed = self._profile_seed(profile, recommendation)
-        subject = self._subject_from_evidence(
+        seed_value = compact_profile_text(
             seed["value"],
-            recommendation.get("targetProblem")
-            or recommendation["canonicalRole"].lower(),
+            max_characters=96,
+            fallback="supplied profile evidence",
+        )
+        seed_category_label = EVIDENCE_CATEGORY_LABELS.get(
+            seed["category"],
+            "profile signal",
+        )
+        seed_source_label = EVIDENCE_SOURCE_LABELS.get(
+            seed["source"],
+            "profile",
+        )
+        seed_context = f"{seed_source_label} {seed_category_label}"
+        subject = self._route_subject(
+            seed,
+            role_id,
         )
         artifact_template, completion_evidence = ROLE_ARTIFACTS.get(
             role_id,
@@ -2345,16 +2662,22 @@ class RecommendationEngine:
             ),
         )
         project_label = artifact_template.format(subject=subject)
-        if len(project_label) > 78:
-            project_label = project_label[:75].rstrip() + "..."
+        if role_id == "data-scientist" and contains_alias(subject, "model"):
+            project_label = f"Validate and document {subject}"
+        if len(project_label) > 110:
+            project_label = (
+                "Create a role-specific work sample for "
+                f"{recommendation['canonicalRole']}"
+            )
         evidence_support = (
-            f"Built from your {seed['category']} evidence "
-            f"'{seed['value']}' and the {gap} gap."
+            f"Grounded in your {seed_context}: {seed_value}. "
+            f"The step targets the identified {gap} gap."
         )
 
         course = self._select_course(
             gaps,
             recommendation["skills"],
+            role_id=role_id,
             avoided_labels=avoided_labels,
         )
         course_id = f"course-{role_id}-{slugify(course['id'])}"
@@ -2368,6 +2691,17 @@ class RecommendationEngine:
         bridge_id = f"bridge-{role_id}-{bridge['id']}"
         positioning_id = f"positioning-{role_id}-{slugify(subject)[:30]}"
         source_evidence = [copy.deepcopy(seed)]
+        practice = self._practice_blueprint(
+            role_id=role_id,
+            gap=gap,
+            subject=subject,
+        )
+        bridge_is_current = bridge["id"] in profile["currentRoleIds"]
+        bridge_label = (
+            f"Expand {bridge['title']} scope"
+            if bridge_is_current
+            else bridge["title"]
+        )
 
         course_node = {
             "id": course_id,
@@ -2382,7 +2716,10 @@ class RecommendationEngine:
             "workSetting": f"{course['level']} · {course['length']['value']} {course['length']['unit']}",
             "whyItFits": [
                 f"It addresses the explicit {gap} gap.",
-                f"It supports a project grounded in '{seed['value']}', not a generic exercise.",
+                (
+                    f"It prepares for a work sample grounded in your "
+                    f"{seed_context}, rather than ending with a credential."
+                ),
             ],
             "responsibilities": [
                 f"Complete only the modules needed for {gap}.",
@@ -2400,11 +2737,22 @@ class RecommendationEngine:
             ],
             "sourceRecord": {
                 "id": course["id"],
-                "kind": "course",
-                "label": "PIT course catalog",
+                "kind": (
+                    "course"
+                    if course["catalogSource"] == "pit"
+                    else "taxonomy"
+                ),
+                "label": (
+                    "PIT course catalog"
+                    if course["catalogSource"] == "pit"
+                    else f"Generated learning plan from {TAXONOMY_VERSION}"
+                ),
             },
             "stepDetails": {
-                "why": f"Closes enough of the {gap} gap to start {project_label.lower()}.",
+                "why": (
+                    f"Builds enough {gap} knowledge to begin the "
+                    "role-specific work sample."
+                ),
                 "support": evidence_support,
                 "skillsDeveloped": course["skills"],
                 "gapAddressed": gap,
@@ -2438,20 +2786,20 @@ class RecommendationEngine:
             "skillsToBuild": gaps[:3],
             "preview": (
                 f"Produce {completion_evidence.lower()}. Tie each decision back "
-                f"to the original {seed['category']} evidence."
+                f"to the original {seed_category_label} evidence."
             ),
             "challenges": ["Keep the project small enough to finish and review."],
             "sourceRecord": {
                 "id": f"generated-{role_id}-project",
                 "kind": "generated",
                 "label": (
-                    f"Generated from {seed['source']} {seed['category']} "
+                    f"Generated from {seed_context} "
                     "evidence plus a maintained role gap"
                 ),
             },
             "stepDetails": {
                 "why": (
-                    f"Turns your existing {seed['category']} into proof for "
+                    "Creates applied proof for "
                     f"{recommendation['personalizedTitle']}."
                 ),
                 "support": evidence_support,
@@ -2471,23 +2819,23 @@ class RecommendationEngine:
         skill_node = {
             "id": skill_id,
             "type": "skill",
-            "label": gap,
+            "label": practice["label"],
             "eyebrow": "Skill practice",
-            "summary": f"{gap} · 1-3 weeks of focused practice",
+            "summary": practice["summary"],
             "stage": "Capability-building step",
             "workSetting": "Practice in current work, volunteering, or a project",
             "whyItFits": [
-                f"{gap} is a concrete difference between the upload and the canonical role.",
-                f"The practice is attached to '{seed['value']}' so it remains personal.",
+                f"{gap} is a concrete difference between the enabled evidence and the canonical role.",
+                (
+                    f"The practice is grounded in your {seed_context}, so the "
+                    "exercise stays connected to supplied evidence."
+                ),
             ],
-            "responsibilities": [
-                f"Practice {gap} in one scoped task.",
-                "Request feedback and document the result.",
-            ],
+            "responsibilities": practice["responsibilities"],
             "existingSkills": recommendation["transferableSkills"][:4],
             "transferableSkills": recommendation["transferableSkills"][:4],
             "skillsToBuild": gaps[:3],
-            "preview": f"Use {subject} as the context for demonstrating {gap}.",
+            "preview": practice["preview"],
             "challenges": ["Avoid claiming proficiency without a reviewable example."],
             "sourceRecord": {
                 "id": f"gap-{role_id}-{slugify(gaps[0])}",
@@ -2495,21 +2843,30 @@ class RecommendationEngine:
                 "label": f"Gap analysis using {TAXONOMY_VERSION}",
             },
             "stepDetails": {
-                "why": f"Closes the highest-ranked gap before {project_label.lower()}.",
+                "why": (
+                    "Closes the highest-ranked gap before the "
+                    "role-specific portfolio project."
+                ),
                 "support": evidence_support,
                 "skillsDeveloped": gaps[:3],
                 "gapAddressed": gap,
                 "requirement": "recommended",
-                "effort": "1-3 weeks of focused practice",
-                "completionEvidence": "A task, artifact, or supervisor-reviewed example",
+                "effort": "1-3 weeks",
+                "completionEvidence": practice["completionEvidence"],
                 "supportingEvidence": source_evidence,
                 "sourceBlend": recommendation["sourceBlend"],
             },
         }
         bridge_node = {
             "id": bridge_id,
-            "type": "entry_role" if bridge["level"] <= 2 else "role",
-            "label": bridge["title"],
+            "type": (
+                "experience"
+                if bridge_is_current
+                else "entry_role"
+                if bridge["level"] <= 2
+                else "role"
+            ),
+            "label": bridge_label,
             "eyebrow": "Adjacent role",
             "summary": f"{gap} · workplace experience",
             "stage": "Experience-first step",
@@ -2517,8 +2874,8 @@ class RecommendationEngine:
             "whyItFits": [
                 f"{bridge['title']} is adjacent to the destination in the maintained taxonomy.",
                 (
-                    f"It creates a workplace setting for extending "
-                    f"'{seed['value']}' into broader responsibility."
+                    f"It creates a workplace setting for practicing {gap} and "
+                    "destination-adjacent responsibilities."
                 ),
             ],
             "responsibilities": bridge["responsibilities"],
@@ -2555,17 +2912,23 @@ class RecommendationEngine:
             "roleId": bridge["id"],
             "stepDetails": {
                 "why": (
-                    f"Adds adjacent responsibility evidence before "
-                    f"{recommendation['personalizedTitle']}."
+                    (
+                        "Adds destination-adjacent responsibility evidence "
+                        "within the current role before "
+                        if bridge_is_current
+                        else "Adds adjacent responsibility evidence before "
+                    )
+                    + f"{recommendation['personalizedTitle']}."
                 ),
-                "support": (
-                    f"Maintained role adjacency plus your {seed['category']} "
-                    f"evidence '{seed['value']}'."
-                ),
+                "support": evidence_support,
                 "skillsDeveloped": bridge["skills"][:4],
                 "gapAddressed": gap,
                 "requirement": "optional",
-                "effort": "One role transition or equivalent responsibility expansion",
+                "effort": (
+                    "One responsibility expansion in the current role"
+                    if bridge_is_current
+                    else "One role transition or equivalent responsibility expansion"
+                ),
                 "completionEvidence": "Documented ownership of adjacent responsibilities",
                 "supportingEvidence": source_evidence,
                 "sourceBlend": recommendation["sourceBlend"],
@@ -2598,14 +2961,12 @@ class RecommendationEngine:
                 "it with one practitioner or hiring-manager conversation."
             ),
             "challenges": [
-                "Do not overstate ownership or outcomes that are absent from the upload."
+                "Do not overstate ownership or outcomes that are absent from the supplied evidence."
             ],
             "sourceRecord": {
                 "id": f"generated-{role_id}-positioning",
                 "kind": "generated",
-                "label": (
-                    f"Generated from {seed['source']} {seed['category']} evidence"
-                ),
+                "label": f"Generated from {seed_context} evidence",
             },
             "stepDetails": {
                 "why": "Makes existing relevant evidence legible for the target role.",
@@ -2633,7 +2994,7 @@ class RecommendationEngine:
         proof_nodes.append(project_node)
         proof_strategy = (
             f"{recommendation['specialization']} proof from "
-            f"{seed['category']} evidence"
+            f"{seed_category_label} evidence"
         )
 
         if recommendation["matchStage"] == "qualified_now":
@@ -2644,10 +3005,10 @@ class RecommendationEngine:
             ]
             alternative_nodes = [positioning_node]
             alternative_strategy = (
-                f"Direct positioning from {seed['category']} evidence"
+                f"Direct positioning from {seed_category_label} evidence"
             )
             alternative_description = (
-                f"Package '{seed['value']}' as credible "
+                f"Package '{seed_value}' as credible "
                 f"{recommendation['canonicalRole']} evidence and validate it "
                 "before targeted applications."
             )
@@ -2661,12 +3022,24 @@ class RecommendationEngine:
             ]
             alternative_nodes = [course_node, bridge_node]
             alternative_strategy = (
-                f"{gap} plus {bridge['title']} responsibility bridge"
+                (
+                    f"{gap} plus expanded {bridge['title']} responsibilities"
+                    if bridge_is_current
+                    else f"{gap} plus {bridge['title']} responsibility bridge"
+                )
             )
             alternative_description = (
-                f"Build enough {gap} to take on adjacent {bridge['title']} "
-                f"responsibilities, then move toward "
-                f"{recommendation['personalizedTitle']}."
+                (
+                    f"Build enough {gap} to expand {bridge['title']} "
+                    f"responsibilities, then move toward "
+                    f"{recommendation['personalizedTitle']}."
+                    if bridge_is_current
+                    else (
+                        f"Build enough {gap} to take on adjacent "
+                        f"{bridge['title']} responsibilities, then move toward "
+                        f"{recommendation['personalizedTitle']}."
+                    )
+                )
             )
             alternative_effort = (
                 "Several months to one role transition"
@@ -2686,8 +3059,18 @@ class RecommendationEngine:
                     "destinationId": destination_id,
                     "nodeIds": proof_node_ids,
                     "description": (
-                        f"Use '{seed['value']}' as the starting point, close "
-                        f"{gap}, and produce role-specific evidence."
+                        (
+                            f"Use your {seed_context}, '{seed_value}', as the "
+                            f"starting point; close {gap} and produce "
+                            "role-specific evidence."
+                            if seed["category"] == "projects"
+                            else (
+                                f"Use the transferable evidence in your "
+                                f"{seed_context}, '{seed_value}', as context; "
+                                f"close {gap} by creating a role-specific work "
+                                "sample."
+                            )
+                        )
                     ),
                     "strategy": proof_strategy,
                     "estimatedEffort": (
@@ -2749,12 +3132,7 @@ class RecommendationEngine:
                     ProfileNormalizer._evidence_sources(item)
                 ),
             }
-        preferred_categories = (
-            "achievements",
-            "responsibilities",
-            "roles",
-        )
-        for category in preferred_categories:
+        for category in ("responsibilities", "achievements", "roles"):
             signal = next(
                 (
                     item
@@ -2767,7 +3145,6 @@ class RecommendationEngine:
             )
             if signal:
                 return copy.deepcopy(signal)
-        for category in preferred_categories:
             items = profile["fieldEvidence"].get(category, [])
             if items:
                 item = items[0]
@@ -2811,37 +3188,174 @@ class RecommendationEngine:
     @staticmethod
     def _subject_from_evidence(value: str, fallback: str) -> str:
         cleaned = re.sub(r"\s+", " ", value).strip(" .,:;-")
+        normalized = cleaned.lower()
+        if "customer churn" in normalized and "model" in normalized:
+            return "a customer churn prediction model"
+        if "chassis" in normalized and (
+            "robot" in normalized or "bot" in normalized
+        ):
+            return "a competitive robot chassis"
+        if "combat robot" in normalized:
+            return "a combat robot"
+        if "robot" in normalized:
+            return "a robot prototype"
         cleaned = re.sub(
             (
-                r"^(built|created|designed|developed|deployed|analyzed|"
-                r"redesigned|implemented|led|managed|conducted|produced|"
-                r"improved|coordinated)\s+"
+                r"^(?:assisted\s+(?:in\s+)?(?:building|creating|developing)|"
+                r"working\s+on|building|creating|designing|drafting|"
+                r"developing|learning|built|created|designed|developed|"
+                r"deployed|analyzed|redesigned|implemented|led|managed|"
+                r"conducted|produced|improved|coordinated)"
+                r"(?:\s+(?:and|&)\s+(?:building|creating|designing|drafting|"
+                r"developing|deployed|analyzed|redesigned|implemented|led|"
+                r"managed|conducted|produced|improved|coordinated|tested|"
+                r"validated))?"
+                r"\s+"
             ),
             "",
             cleaned,
             flags=re.IGNORECASE,
         )
-        cleaned = re.sub(r"^(a|an|the)\s+", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"^(?:and|&)\s+", "", cleaned, flags=re.IGNORECASE)
         cleaned = re.split(
             r"\s+\|\s+|\s+-\s+|:\s+",
             cleaned,
             maxsplit=1,
         )[0].strip(" .,:;-")
         words = cleaned.split()
-        subject = " ".join(words[:6]).strip(" .,:;-")
+        subject = " ".join(words[:8]).strip(" .,:;-")
         if not subject:
             subject = fallback.strip()
-        if subject:
-            first_word = subject.split()[0]
-            if not any(character.isupper() for character in first_word[1:]):
-                subject = subject[0].lower() + subject[1:]
         return subject or "an existing work sample"
+
+    @classmethod
+    def _route_subject(
+        cls,
+        seed: dict[str, Any],
+        role_id: str,
+    ) -> str:
+        fallback = ROLE_ROUTE_SUBJECTS.get(
+            role_id,
+            "a small role-relevant work sample",
+        )
+        if seed.get("category") != "projects":
+            return fallback
+        return cls._subject_from_evidence(str(seed.get("value", "")), fallback)
+
+    @staticmethod
+    def _practice_blueprint(
+        *,
+        role_id: str,
+        gap: str,
+        subject: str,
+    ) -> dict[str, Any]:
+        label = f"Apply {gap} to {subject}"
+        if len(label) > 78:
+            label = f"Build {gap} proof"
+
+        if role_id in {
+            "robotics-engineer",
+            "embedded-systems-engineer",
+            "mechanical-design-engineer",
+            "manufacturing-engineer",
+            "hardware-test-engineer",
+        }:
+            responsibilities = [
+                (
+                    f"Define one measurable {gap} requirement for "
+                    f"{subject}, including constraints and pass/fail criteria."
+                ),
+                (
+                    "Produce the relevant CAD, firmware, fabrication, wiring, "
+                    "or test artifact and record each design decision."
+                ),
+                (
+                    "Run a repeatable test, capture failures and revisions, "
+                    "then request review from a club lead, instructor, or engineer."
+                ),
+            ]
+            completion = (
+                f"A reviewable {gap} artifact for {subject}, test results, "
+                "revision notes, and one named reviewer’s feedback"
+            )
+        elif role_id in {"data-scientist", "data-analyst"}:
+            responsibilities = [
+                f"Frame one decision question about {subject} that requires {gap}.",
+                (
+                    "Create a reproducible analysis with documented inputs, "
+                    "assumptions, validation, and error checks."
+                ),
+                (
+                    "Present the result as a notebook, dashboard, or readout "
+                    "and obtain feedback from one intended user."
+                ),
+            ]
+            completion = (
+                f"A reproducible {gap} analysis of {subject}, validation notes, "
+                "a decision-focused readout, and reviewer feedback"
+            )
+        elif role_id in {
+            "product-manager",
+            "product-operations-specialist",
+            "business-analyst",
+            "operations-analyst",
+            "project-coordinator",
+        }:
+            responsibilities = [
+                (
+                    f"Use {subject} to define one real stakeholder problem "
+                    f"that requires {gap}."
+                ),
+                (
+                    "Document the current workflow, measurable outcome, "
+                    "constraints, and the smallest testable improvement."
+                ),
+                (
+                    "Run the test with at least one stakeholder and record "
+                    "the decision, result, and next revision."
+                ),
+            ]
+            completion = (
+                f"A {gap} brief for {subject}, measurable success criteria, "
+                "test evidence, and stakeholder feedback"
+            )
+        else:
+            responsibilities = [
+                (
+                    f"Define one concrete use of {gap} within {subject}, "
+                    "including a measurable acceptance criterion."
+                ),
+                (
+                    "Produce a reviewable artifact that shows the work, "
+                    "decisions, and result rather than only claiming the skill."
+                ),
+                (
+                    "Ask one informed reviewer for feedback and document "
+                    "the revision made in response."
+                ),
+            ]
+            completion = (
+                f"A reviewable {gap} artifact tied to {subject}, acceptance "
+                "criteria, outcome evidence, and reviewer feedback"
+            )
+
+        return {
+            "label": label,
+            "summary": f"{gap} proof tied to {subject} · 1-3 weeks",
+            "responsibilities": responsibilities,
+            "preview": (
+                f"Demonstrate {gap} through a specific deliverable connected "
+                f"to {subject}, with testing and external feedback."
+            ),
+            "completionEvidence": completion,
+        }
 
     def _select_course(
         self,
         gaps: list[str],
         destination_skills: list[str],
         *,
+        role_id: str,
         avoided_labels: set[str],
     ) -> dict[str, Any]:
         courses = [
@@ -2853,33 +3367,52 @@ class RecommendationEngine:
                 for label in avoided_labels
             )
         ]
-        if not courses:
-            return {
-                "id": "taxonomy-learning",
-                "name": f"{gaps[0]} foundations",
-                "category": "Role preparation",
-                "skills": gaps[:3],
-                "length": {"value": 6, "unit": "hours"},
-                "level": "Introductory",
-            }
-        ranked = sorted(
-            courses,
-            key=lambda course: (
-                -self._overlap_score(
-                    [*gaps, *destination_skills],
-                    [
-                        str(course.get("name", "")),
-                        str(course.get("category", "")),
-                        *[
-                            str(skill)
-                            for skill in course.get("skills", [])
-                        ],
-                    ],
-                )[0],
+        ranked: list[tuple[float, dict[str, Any]]] = []
+        for course in courses:
+            course_values = [
                 str(course.get("name", "")),
-            ),
-        )
-        return copy.deepcopy(ranked[0])
+                str(course.get("category", "")),
+                *[
+                    str(skill)
+                    for skill in course.get("skills", [])
+                ],
+            ]
+            course_text = " ".join(course_values)
+            primary_gap = gaps[0]
+            if not contains_alias(course_text, primary_gap):
+                continue
+            destination_matches = [
+                skill
+                for skill in destination_skills
+                if contains_alias(course_text, skill)
+            ]
+            if len(destination_matches) < 2:
+                continue
+            ranked.append(
+                (
+                    float(len(destination_matches)),
+                    course,
+                )
+            )
+        if ranked:
+            ranked.sort(
+                key=lambda item: (
+                    -item[0],
+                    str(item[1].get("name", "")),
+                )
+            )
+            selected = copy.deepcopy(ranked[0][1])
+            selected["catalogSource"] = "pit"
+            return selected
+        return {
+            "id": f"taxonomy-learning-{role_id}-{slugify(gaps[0])}",
+            "name": f"Guided {gaps[0]} learning plan",
+            "category": "Role preparation",
+            "skills": gaps[:3],
+            "length": {"value": "2-6", "unit": "hours"},
+            "level": "Self-directed",
+            "catalogSource": "taxonomy",
+        }
 
     def _select_bridge_role(
         self,
@@ -2895,6 +3428,7 @@ class RecommendationEngine:
             for candidate in self.candidates
             if candidate["id"] in candidate_ids
             and candidate["id"] != destination_role_id
+            and candidate["level"] <= destination["level"]
             and not any(
                 label in candidate["title"].lower()
                 or candidate["title"].lower() in label

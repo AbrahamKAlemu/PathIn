@@ -12,7 +12,12 @@ from pypdf import PdfReader
 from werkzeug.datastructures import FileStorage
 
 from .errors import ApiError
-from .taxonomy import CONCEPT_ALIASES, OCCUPATIONAL_TAXONOMY, normalize_title
+from .taxonomy import (
+    CONCEPT_ALIASES,
+    OCCUPATIONAL_TAXONOMY,
+    contains_alias,
+    normalize_title,
+)
 from .text_cleanup import (
     clean_extracted_text,
     clean_profile_text,
@@ -51,6 +56,12 @@ SECTION_ALIASES = {
         "experience",
         "work experience",
         "professional experience",
+        "professional technical experience",
+        "technical experience",
+        "leadership community service experience",
+        "leadership experience",
+        "community service experience",
+        "volunteer experience",
         "employment",
         "work history",
     },
@@ -67,17 +78,39 @@ DATE_PATTERN = re.compile(
     r"dec(?:ember)?)[\s.,-]+\d{4}\b|\b(?:19|20)\d{2}\b|\bpresent\b",
     re.IGNORECASE,
 )
+DATE_RANGE_AT_END = re.compile(
+    r"\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|"
+    r"jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|"
+    r"nov(?:ember)?|dec(?:ember)?)\s+\d{4}\s*[-–—]\s*"
+    r"(?:present|(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|"
+    r"jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|"
+    r"nov(?:ember)?|dec(?:ember)?)\s+\d{4})\s*$",
+    re.IGNORECASE,
+)
 LOCATION_PATTERN = re.compile(
     r"\b[A-Z][A-Za-z .'-]+,\s*(?:[A-Z]{2}|United States|USA|Canada|"
     r"United Kingdom|UK|India|Australia|Germany|France|Singapore)\b"
 )
 ACTION_VERBS = (
+    "assisted",
+    "attended",
+    "attending",
     "built",
+    "building",
     "created",
+    "delivering",
     "developed",
+    "developing",
     "designed",
+    "designing",
+    "drafted",
+    "drafting",
+    "elected",
+    "learning",
     "managed",
+    "mentoring",
     "led",
+    "networked",
     "analyzed",
     "implemented",
     "coordinated",
@@ -87,17 +120,106 @@ ACTION_VERBS = (
     "supported",
     "automated",
     "increased",
+    "relaunched",
     "reduced",
+    "selected",
+    "used",
+    "working",
     "delivered",
 )
 INDUSTRY_KEYWORDS = {
     "Technology": ["technology", "software", "saas", "tech"],
+    "Engineering": [
+        "engineering",
+        "robotics",
+        "embedded systems",
+        "mechanical",
+        "electronics",
+    ],
+    "Manufacturing": ["manufacturing", "makerspace", "3d printer", "chassis"],
     "Finance": ["finance", "financial", "bank", "investment", "fintech"],
     "Healthcare": ["healthcare", "health", "medical", "hospital"],
     "Retail": ["retail", "commerce", "ecommerce"],
     "Education": ["education", "school", "university", "teaching"],
     "Government": ["government", "public sector", "civic"],
     "Marketing": ["marketing", "advertising", "brand"],
+}
+
+ROLE_HINT_PATTERN = re.compile(
+    r"\b("
+    r"analyst|assistant|associate|chair|coordinator|deacon|designer|"
+    r"developer|director|engineer|founder|intern|lead|manager|member|"
+    r"officer|owner|president|representative|researcher|scholar|"
+    r"specialist|teacher|technician|volunteer"
+    r")\b",
+    re.IGNORECASE,
+)
+PROJECT_EVIDENCE_PATTERN = re.compile(
+    r"\b("
+    r"application|app|automation|bot|chassis|dashboard|experiment|"
+    r"machine learning model|model|pipeline|project|prototype|research|"
+    r"robot|study|system|website"
+    r")\b",
+    re.IGNORECASE,
+)
+
+EXPLICIT_SKILL_ALIASES: dict[str, tuple[str, ...]] = {
+    "Python": ("python",),
+    "Java": ("java",),
+    "SQL": ("sql",),
+    "CAD": ("cad", "computer aided design"),
+    "Autodesk Fusion 360": ("autodesk fusion", "fusion 360"),
+    "Autodesk Inventor": ("autodesk inventor",),
+    "Arduino": ("arduino",),
+    "Embedded Systems": ("embedded systems", "embedded system"),
+    "Electronics": ("electronics",),
+    "Soldering": ("soldering",),
+    "Manufacturing": ("manufacturing",),
+    "3D Printing": ("3d printers", "3d printing", "3d printer"),
+    "Machine Learning": ("machine learning",),
+    "Data Analysis": ("data analytics", "data analysis", "analytics"),
+    "Data Cleaning": ("clean company data", "data cleaning", "cleaned data"),
+    "Google Cloud": ("google cloud", "gcp"),
+    "Microsoft Excel": ("excel",),
+    "Microsoft Office": ("microsoft office",),
+    "Jira": ("jira",),
+    "Slack": ("slack",),
+    "PowerPoint": ("powerpoint",),
+    "Object-Oriented Programming": (
+        "object oriented programming",
+        "object-oriented programming",
+    ),
+    "Scientific Analysis": ("scientific analysis",),
+    "Mathematical Analysis": ("mathematical analysis",),
+    "Collaboration": ("collaboration", "collaborative"),
+    "Communication": ("communication", "communicate"),
+    "Problem Solving": ("problem solving", "problem-solving"),
+    "Technical Presentation": (
+        "present projects",
+        "presented projects",
+        "technical presentation",
+    ),
+    "Leadership": ("elected", "representative", "relaunched", "leadership"),
+    "Mentoring": ("mentoring", "mentored"),
+    "Public Speaking": ("sermons", "public speaking"),
+}
+
+INFERRED_INTEREST_ALIASES: dict[str, tuple[str, ...]] = {
+    "Robotics": ("robotics", "robot", "battlebots"),
+    "Embedded systems": ("embedded systems", "arduino"),
+    "Mechanical design": ("chassis", "mechanical training", "cad"),
+    "Manufacturing": ("manufacturing", "makerspace", "3d printer"),
+    "Data and machine learning": (
+        "data analytics",
+        "machine learning",
+        "customer churn",
+    ),
+    "Teaching and mentoring": ("teaching", "teacher", "mentoring"),
+    "Community leadership": (
+        "cohort representative",
+        "program funding",
+        "relaunched",
+    ),
 }
 
 
@@ -194,6 +316,7 @@ class ResumeParser:
                 "sha256": hashlib.sha256(data).hexdigest(),
                 "retention": "Processed in memory and not permanently stored.",
             },
+            "identity": self._extract_identity(text, fields),
             "fields": fields,
             "summary": {
                 "characterCount": len(text),
@@ -382,41 +505,69 @@ class ResumeParser:
         experience_lines = section_lines["experience"]
         known_titles = [item["title"] for item in OCCUPATIONAL_TAXONOMY]
         for line in experience_lines:
-            normalized_role = normalize_title(line)
-            is_role_line = normalized_role or any(
-                title.lower() in line.lower() for title in known_titles
+            stripped = self._strip_bullet(line)
+            if not stripped:
+                continue
+            is_bullet = self._is_bullet_line(line)
+            normalized_role = normalize_title(stripped)
+            is_role_line = (
+                not is_bullet
+                and (
+                    bool(normalized_role)
+                    or any(
+                        contains_alias(stripped, title)
+                        for title in known_titles
+                    )
+                    or self._looks_like_role(stripped)
+                )
             )
             if is_role_line:
-                self._append(fields["roles"], line, "roles", source, 0.9)
+                self._append(
+                    fields["roles"],
+                    self._clean_role_value(stripped),
+                    "roles",
+                    source,
+                    0.92,
+                )
             if is_role_line:
                 continue
-            if line.lower().lstrip("•- ").startswith(ACTION_VERBS):
+            if is_bullet or stripped.lower().startswith(ACTION_VERBS):
                 self._append(
                     fields["responsibilities"],
-                    line.lstrip("•- "),
+                    stripped,
                     "responsibilities",
                     source,
                     0.92,
                 )
-            elif len(line.split()) >= 7:
+                if PROJECT_EVIDENCE_PATTERN.search(stripped):
+                    self._append(
+                        fields["projects"],
+                        stripped,
+                        "projects",
+                        source,
+                        0.88,
+                    )
+            elif len(stripped.split()) >= 7 and not DATE_PATTERN.search(stripped):
                 self._append(
                     fields["responsibilities"],
-                    line.lstrip("•- "),
+                    stripped,
                     "responsibilities",
                     source,
                     0.78,
                 )
 
-        for line in section_lines["skills"]:
-            for skill in self._split_list(line):
-                self._append(fields["skills"], skill, "skills", source, 0.96)
+        raw_skill_values = [
+            skill
+            for line in section_lines["skills"]
+            for skill in self._split_skill_list(line)
+        ]
 
         for match in DATE_PATTERN.findall(text):
             self._append(fields["dates"], match, "dates", source, 0.94)
-        for match in LOCATION_PATTERN.findall(text):
-            self._append(fields["locations"], match, "locations", source, 0.86)
+        for location in self._extract_locations(lines):
+            self._append(fields["locations"], location, "locations", source, 0.9)
 
-        lower_text = "\n".join(
+        complete_text = "\n".join(
             [
                 *unsectioned,
                 *[
@@ -425,10 +576,23 @@ class ResumeParser:
                     for value in values
                 ],
             ]
+        )
+        lower_text = complete_text.lower()
+        professional_text = "\n".join(
+            [
+                *section_lines["experience"],
+                *section_lines["projects"],
+                *section_lines["skills"],
+                *section_lines["interests"],
+            ]
         ).lower()
         for industry, keywords in INDUSTRY_KEYWORDS.items():
             matching_keyword = next(
-                (keyword for keyword in keywords if keyword in lower_text),
+                (
+                    keyword
+                    for keyword in keywords
+                    if contains_alias(professional_text, keyword)
+                ),
                 None,
             )
             if matching_keyword:
@@ -443,7 +607,7 @@ class ResumeParser:
                     original_source=source,
                 )
 
-        if re.search(r"\bremote\b", lower_text):
+        if contains_alias(lower_text, "remote"):
             self._append(
                 fields["locations"],
                 "Remote",
@@ -452,11 +616,44 @@ class ResumeParser:
                 0.9,
             )
 
-        explicit_skill_values = {
-            item["normalized"] for item in fields["skills"]
-        }
+        for display, aliases in EXPLICIT_SKILL_ALIASES.items():
+            matching_alias = next(
+                (
+                    alias
+                    for alias in aliases
+                    if contains_alias(complete_text, alias)
+                ),
+                None,
+            )
+            if matching_alias:
+                self._append(
+                    fields["skills"],
+                    display,
+                    "skills",
+                    source,
+                    0.94,
+                    evidence=matching_alias,
+                )
+
+        for skill in raw_skill_values:
+            self._append(
+                fields["skills"],
+                skill,
+                "skills",
+                source,
+                0.9,
+            )
+
+        explicit_skill_values = {item["normalized"] for item in fields["skills"]}
         for concept, aliases in CONCEPT_ALIASES.items():
-            matching_alias = next((alias for alias in aliases if alias in lower_text), None)
+            matching_alias = next(
+                (
+                    alias
+                    for alias in aliases
+                    if contains_alias(lower_text, alias)
+                ),
+                None,
+            )
             if not matching_alias:
                 continue
             display = concept.title()
@@ -464,7 +661,8 @@ class ResumeParser:
             if normalized in explicit_skill_values:
                 continue
             explicit = any(
-                matching_alias in line.lower() for line in section_lines["skills"]
+                contains_alias(line, matching_alias)
+                for line in section_lines["skills"]
             )
             self._append(
                 fields["skills"],
@@ -477,15 +675,37 @@ class ResumeParser:
                 original_source=source,
             )
 
+        for display, aliases in INFERRED_INTEREST_ALIASES.items():
+            matching_alias = next(
+                (
+                    alias
+                    for alias in aliases
+                    if contains_alias(professional_text, alias)
+                ),
+                None,
+            )
+            if matching_alias:
+                self._append(
+                    fields["interests"],
+                    display,
+                    "interests",
+                    "inferred",
+                    0.58,
+                    explicit=False,
+                    evidence=matching_alias,
+                    original_source=source,
+                )
+
         if not fields["roles"]:
             for line in unsectioned + experience_lines:
-                if normalize_title(line):
+                if normalize_title(line) or self._looks_like_role(line):
                     self._append(fields["roles"], line, "roles", source, 0.72)
         return fields
 
     @staticmethod
     def _section_heading(line: str) -> str | None:
-        normalized = re.sub(r"[^a-z ]", "", line.lower()).strip()
+        normalized = re.sub(r"[^a-z ]", " ", line.lower())
+        normalized = re.sub(r"\s+", " ", normalized).strip()
         if len(normalized.split()) > 4:
             return None
         for section, aliases in SECTION_ALIASES.items():
@@ -496,10 +716,163 @@ class ResumeParser:
     @staticmethod
     def _split_list(value: str) -> list[str]:
         return [
-            item.strip(" •-\t")
-            for item in re.split(r"[,;|•]", value)
-            if item.strip(" •-\t")
+            item.strip(" ●•▪◦-\t")
+            for item in re.split(r"[,;|●•▪◦]", value)
+            if item.strip(" ●•▪◦-\t")
         ]
+
+    @classmethod
+    def _split_skill_list(cls, value: str) -> list[str]:
+        skills: list[str] = []
+        for segment in re.split(r"[●•▪◦]", value):
+            cleaned = clean_profile_text(segment).strip(" -\t")
+            if not cleaned:
+                continue
+            cleaned = re.sub(
+                r"^(programming languages?|technical skills?)\s*:\s*",
+                "",
+                cleaned,
+                flags=re.IGNORECASE,
+            )
+            parts = re.split(
+                r"\s*,\s*|\s+(?:and|&)\s+",
+                cleaned,
+            )
+            for part in parts:
+                skill = re.sub(
+                    r"^(and|or)\s+",
+                    "",
+                    part.strip(" -\t"),
+                    flags=re.IGNORECASE,
+                )
+                skill = re.sub(
+                    r"^(excellent|strong|high aptitude for)\s+",
+                    "",
+                    skill,
+                    flags=re.IGNORECASE,
+                )
+                skill = re.sub(
+                    r"\s+(skills?|machines?|software)\)?$",
+                    "",
+                    skill,
+                    flags=re.IGNORECASE,
+                ).strip()
+                word_count = len(skill.split())
+                if (
+                    not skill
+                    or word_count > 6
+                    or skill.lower().startswith(
+                        (
+                            "adaptable towards",
+                            "dedicated work ethic",
+                            "quick to",
+                        )
+                    )
+                    or "translating business" in skill.lower()
+                    or "understanding of" in skill.lower()
+                    or skill.lower()
+                    in {"3d printers", "programming concepts", "scientific"}
+                    or skill.lower().endswith((" and", " of", " with"))
+                ):
+                    continue
+                skills.append(skill)
+        return list(dict.fromkeys(skills))
+
+    @staticmethod
+    def _is_bullet_line(value: str) -> bool:
+        return bool(re.match(r"^\s*[●•▪◦\-–—]", value))
+
+    @staticmethod
+    def _strip_bullet(value: str) -> str:
+        return re.sub(r"^\s*[●•▪◦\-–—]\s*", "", value).strip()
+
+    @staticmethod
+    def _looks_like_role(value: str) -> bool:
+        cleaned = clean_profile_text(value)
+        return bool(
+            ROLE_HINT_PATTERN.search(cleaned)
+            and (
+                DATE_PATTERN.search(cleaned)
+                or "|" in cleaned
+                or len(cleaned.split()) <= 10
+            )
+        )
+
+    @staticmethod
+    def _clean_role_value(value: str) -> str:
+        return DATE_RANGE_AT_END.sub(
+            "",
+            clean_profile_text(value),
+        ).strip(" |,-")
+
+    @staticmethod
+    def _extract_locations(lines: list[str]) -> list[str]:
+        locations: list[str] = []
+        location_pattern = re.compile(
+            r"([A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*)?),\s*"
+            r"([A-Z]{2}|United States|USA|Canada|United Kingdom|UK|"
+            r"India|Australia|Germany|France|Singapore)$"
+        )
+        for line in lines:
+            segments = re.split(r"[|●•]", line)
+            for segment in segments:
+                candidate = clean_profile_text(segment).strip()
+                match = location_pattern.search(candidate)
+                if match:
+                    city_tokens = match.group(1).split()
+                    if (
+                        len(city_tokens) > 1
+                        and city_tokens[-2].lower()
+                        in {
+                            "fort",
+                            "kansas",
+                            "las",
+                            "los",
+                            "new",
+                            "oklahoma",
+                            "salt",
+                            "san",
+                            "santa",
+                            "st",
+                            "st.",
+                        }
+                    ):
+                        city = " ".join(city_tokens[-2:])
+                    else:
+                        city = city_tokens[-1]
+                    locations.append(f"{city}, {match.group(2)}")
+            if contains_alias(line, "remote"):
+                locations.append("Remote")
+        return list(dict.fromkeys(locations))
+
+    @staticmethod
+    def _extract_identity(
+        text: str,
+        fields: dict[str, list[dict[str, Any]]],
+    ) -> dict[str, str]:
+        name = ""
+        for line in text.splitlines()[:8]:
+            cleaned = clean_profile_text(line)
+            words = cleaned.split()
+            if (
+                2 <= len(words) <= 5
+                and not any(character.isdigit() for character in cleaned)
+                and "@" not in cleaned
+                and "|" not in cleaned
+                and not ResumeParser._section_heading(cleaned)
+                and all(
+                    re.fullmatch(r"[A-Za-z][A-Za-z.'-]*", word)
+                    for word in words
+                )
+            ):
+                name = cleaned
+                break
+        location = (
+            fields["locations"][0]["value"]
+            if fields.get("locations")
+            else ""
+        )
+        return {"name": name, "location": location}
 
     @staticmethod
     def _normalize(value: str) -> str:

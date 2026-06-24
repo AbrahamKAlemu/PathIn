@@ -139,48 +139,13 @@ def test_navigator_expand_node_returns_horizontal_branches(
     assert "right" in horizontal
 
 
-@pytest.fixture
-def app() -> Flask:
-    app = create_app()
+def test_fixture_navigator_is_not_exposed_as_product_api() -> None:
+    app: Flask = create_app()
     app.config.update(TESTING=True)
-    return app
+    client = app.test_client()
 
-
-def test_navigator_analyze_endpoint(app: Flask) -> None:
-    response = app.test_client().post(
-        "/api/v1/navigator/analyze",
-        json={
-            "profile": {
-                "education": ["Stanford University"],
-                "experience": ["Amazon"],
-                "skills": ["Python"],
-                "interests": ["Product"],
-            },
-            "activePathIds": list(PATH_FIXTURES.keys())[:3],
-        },
+    assert client.post("/api/v1/navigator/analyze", json={}).status_code == 404
+    assert (
+        client.post("/api/v1/navigator/nodes/current/expand", json={}).status_code
+        == 404
     )
-
-    assert response.status_code == 200
-    payload = response.get_json()
-    assert payload["careerIdentity"]["scenario"] == "early_career"
-    assert payload["neighbors"]
-    assert payload["predictedPathways"]
-    assert payload["horizontalNavigation"]
-
-
-def test_navigator_expand_endpoint(app: Flask) -> None:
-    response = app.test_client().post(
-        "/api/v1/navigator/nodes/current/expand",
-        json={
-            "profile": {
-                "education": ["Computer Science"],
-                "skills": ["Python", "Communication"],
-                "interests": ["AI", "Design"],
-            },
-            "activePathIds": list(PATH_FIXTURES.keys())[:3],
-        },
-    )
-
-    assert response.status_code == 200
-    payload = response.get_json()
-    assert payload["horizontalNavigation"]["focusNodeId"] == "current"

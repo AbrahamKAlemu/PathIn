@@ -48,16 +48,20 @@ describe("ProfilePage", () => {
     expect(
       screen.getByRole("heading", { name: "Honors & awards (7)" }),
     ).toBeInTheDocument();
-    const enhanceButton = screen.getByRole("button", {
-      name: "Enhance with AI",
+    const dataControlsButton = screen.getByRole("button", {
+      name: "Review data controls",
     });
-    expect(enhanceButton).toHaveAttribute("type", "button");
-    expect(enhanceButton.closest("a")).toBeNull();
-    expect(document.querySelector('a[href="/career-tree"]')).toBeNull();
-    fireEvent.click(enhanceButton);
+    expect(dataControlsButton).toHaveAttribute("type", "button");
+    fireEvent.click(dataControlsButton);
     expect(
-      screen.getByText("Profile enhancement is available as a scaffold."),
+      screen.getByRole("dialog", {
+        name: "Edit profile and PathIn data",
+      }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
+    expect(
+      screen.getByRole("link", { name: "Explore career paths" }),
+    ).toHaveAttribute("href", "/career-tree");
 
     fireEvent.click(screen.getByRole("button", { name: "Contact info" }));
     expect(
