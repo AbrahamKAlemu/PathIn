@@ -89,10 +89,22 @@ type ReopenMapResult = {
   source: "backend" | "browser";
 };
 
+type LinkedInLearningCourse = {
+  title: string;
+  href: string;
+  meta: string;
+  matchTerms: string[];
+};
+
+type LinkedInLearningRecommendation = LinkedInLearningCourse & {
+  matchedSkill: string;
+};
+
 type CareerMapViewProps = {
   initialMap: CareerMapData;
   generationError?: string;
   onBuildToward: (destinationId: string) => Promise<void>;
+  onExplore: () => Promise<void>;
   onRegenerate: (
     action: RegenerationAction,
     options?: {
@@ -158,6 +170,157 @@ const detailSections: Array<{ id: DetailSection; label: string }> = [
   { id: "connections", label: "Path" },
 ];
 
+const LINKEDIN_LEARNING_COURSES: LinkedInLearningCourse[] = [
+  {
+    title: "Customer Success Management Fundamentals",
+    href: "https://www.linkedin.com/learning/customer-success-management-fundamentals",
+    meta: "58m · Beginner",
+    matchTerms: [
+      "crm",
+      "customer success",
+      "customer relationship",
+      "customer adoption",
+    ],
+  },
+  {
+    title: "Onboarding and Adoption Best Practices for Customer Success",
+    href: "https://www.linkedin.com/learning/onboarding-and-adoption-best-practices-for-customer-success-management",
+    meta: "1h · Beginner",
+    matchTerms: [
+      "crm",
+      "customer success",
+      "onboarding",
+      "adoption",
+      "training",
+    ],
+  },
+  {
+    title: "Salesforce Essential Training",
+    href: "https://www.linkedin.com/learning/salesforce-essential-training-24934421",
+    meta: "LinkedIn Learning",
+    matchTerms: ["crm", "salesforce", "customer relationship", "sales"],
+  },
+  {
+    title: "Communication Foundations",
+    href: "https://www.linkedin.com/learning/communication-foundations-23064093",
+    meta: "Beginner",
+    matchTerms: [
+      "communication",
+      "stakeholder communication",
+      "collaboration",
+      "presentation",
+    ],
+  },
+  {
+    title: "Problem-Solving Techniques",
+    href: "https://www.linkedin.com/learning/problem-solving-techniques",
+    meta: "LinkedIn Learning",
+    matchTerms: [
+      "problem solving",
+      "troubleshooting",
+      "debugging",
+      "analytical thinking",
+    ],
+  },
+  {
+    title: "Programming Foundations: APIs and Web Services",
+    href: "https://www.linkedin.com/learning/programming-foundations-apis-and-web-services-27993033",
+    meta: "1h 55m · Beginner",
+    matchTerms: [
+      "api",
+      "apis",
+      "web services",
+      "backend",
+      "integration",
+      "rest",
+    ],
+  },
+  {
+    title: "SOLID Principles in System Design for Java Developers",
+    href: "https://www.linkedin.com/learning/solid-principles-in-system-design-for-java-developers",
+    meta: "56m · Intermediate",
+    matchTerms: [
+      "system design",
+      "software design",
+      "architecture",
+      "java",
+      "scalability",
+    ],
+  },
+  {
+    title: "UX Foundations: Interaction Design",
+    href: "https://www.linkedin.com/learning/ux-foundations-interaction-design",
+    meta: "3h 28m · Beginner",
+    matchTerms: [
+      "interaction design",
+      "ux",
+      "user research",
+      "product design",
+      "prototyping",
+      "visual hierarchy",
+    ],
+  },
+  {
+    title: "SQL Essential Training",
+    href: "https://www.linkedin.com/learning/sql-essential-training-20685933",
+    meta: "4h 36m · Beginner",
+    matchTerms: ["sql", "database", "data analysis", "analytics"],
+  },
+  {
+    title: "DevOps Foundations",
+    href: "https://www.linkedin.com/learning/devops-foundations-23454205",
+    meta: "3h 9m · Beginner",
+    matchTerms: [
+      "devops",
+      "observability",
+      "infrastructure as code",
+      "ci cd",
+      "deployment",
+    ],
+  },
+  {
+    title: "AWS Essential Training for Developers",
+    href: "https://www.linkedin.com/learning/aws-essential-training-for-developers-27846636",
+    meta: "4h 45m · Intermediate",
+    matchTerms: ["aws", "cloud", "cloud architecture", "cloud computing"],
+  },
+  {
+    title: "Technical Product Management",
+    href: "https://www.linkedin.com/learning/technical-product-management",
+    meta: "1h 5m · Beginner",
+    matchTerms: [
+      "product management",
+      "prioritization",
+      "roadmapping",
+      "customer insight",
+      "product metrics",
+    ],
+  },
+  {
+    title: "Machine Learning with Python: Foundations",
+    href: "https://www.linkedin.com/learning/machine-learning-with-python-foundations",
+    meta: "1h 54m · Intermediate",
+    matchTerms: [
+      "machine learning",
+      "python",
+      "model evaluation",
+      "statistics",
+      "ai",
+    ],
+  },
+  {
+    title: "Project Management Foundations",
+    href: "https://www.linkedin.com/learning/project-management-foundations-15528659",
+    meta: "4h 1m · Beginner",
+    matchTerms: [
+      "project management",
+      "scope management",
+      "planning",
+      "facilitation",
+    ],
+  },
+];
+
 const PROFILE_NODE_IDS = [
   "profile-interests",
   "profile-skills",
@@ -176,6 +339,113 @@ function uniqueDisplayValues(values: string[]) {
     }
     return result;
   }, []);
+}
+
+function normalizedSkill(value: string) {
+  return safeMapText(value, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9+#]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function learningCourseScore(
+  course: LinkedInLearningCourse,
+  skill: string,
+) {
+  const normalized = normalizedSkill(skill);
+  if (!normalized) {
+    return 0;
+  }
+
+  const skillTokens = normalized
+    .split(" ")
+    .filter((token) => token.length >= 3);
+
+  return course.matchTerms.reduce((best, term) => {
+    const normalizedTerm = normalizedSkill(term);
+    if (!normalizedTerm) {
+      return best;
+    }
+    if (normalized === normalizedTerm) {
+      return Math.max(best, 12);
+    }
+    if (
+      normalized.includes(normalizedTerm) ||
+      normalizedTerm.includes(normalized)
+    ) {
+      return Math.max(best, 9);
+    }
+
+    const termTokens = new Set(normalizedTerm.split(" "));
+    const overlap = skillTokens.filter((token) =>
+      termTokens.has(token),
+    ).length;
+    return Math.max(best, overlap * 3);
+  }, 0);
+}
+
+function recommendLinkedInLearning(
+  skills: string[],
+): LinkedInLearningRecommendation[] {
+  const neededSkills = uniqueDisplayValues(skills).slice(0, 5);
+  if (neededSkills.length === 0) {
+    return [];
+  }
+
+  const selected = LINKEDIN_LEARNING_COURSES
+    .map((course) => {
+      const rankedSkills = neededSkills
+        .map((skill, skillIndex) => ({
+          skill,
+          skillIndex,
+          score: learningCourseScore(course, skill),
+        }))
+        .sort(
+          (left, right) =>
+            right.score - left.score ||
+            left.skillIndex - right.skillIndex,
+        );
+      return {
+        course,
+        matchedSkill: rankedSkills[0]?.skill ?? neededSkills[0],
+        skillIndex: rankedSkills[0]?.skillIndex ?? neededSkills.length,
+        score: rankedSkills[0]?.score ?? 0,
+      };
+    })
+    .filter(({ score }) => score > 0)
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.skillIndex - right.skillIndex,
+    )
+    .slice(0, 3)
+    .map(({ course, matchedSkill }) => ({
+      ...course,
+      matchedSkill,
+    }));
+
+  const selectedUrls = new Set(selected.map((course) => course.href));
+
+  for (const skill of neededSkills) {
+    const href = `https://www.linkedin.com/learning/search?keywords=${encodeURIComponent(skill)}`;
+    if (selectedUrls.has(href)) {
+      continue;
+    }
+    selected.push({
+      title: `Explore ${skill} courses`,
+      href,
+      meta: "LinkedIn Learning",
+      matchTerms: [skill],
+      matchedSkill: skill,
+    });
+    selectedUrls.add(href);
+    if (selected.length === 3) {
+      break;
+    }
+  }
+
+  return selected;
 }
 
 function prefersReducedMotion() {
@@ -978,6 +1248,7 @@ export function CareerMapView({
   initialMap,
   generationError,
   onBuildToward,
+  onExplore,
   onRegenerate,
   onReopenSaved,
   onSave,
@@ -1876,6 +2147,48 @@ export function CareerMapView({
     await onBuildToward(selectedNode.id);
   }
 
+  async function showExploreRecommendations() {
+    cancelFocusTransition();
+    if (mode === "explore") {
+      setFocusedPathId(explorePathIds[0] ?? "");
+      setSelectedNodeId("current");
+      setDetailsOpen(false);
+      setStatusMessage(
+        "Explore mode selected. Current standing is focused.",
+      );
+      return;
+    }
+
+    setStatusMessage(
+      "Refreshing career suggestions from your profile evidence.",
+    );
+    await onExplore();
+  }
+
+  async function buildPersonalizedPath() {
+    cancelFocusTransition();
+    if (mode === "build") {
+      setFocusedPathId(activePaths[0]?.id ?? "");
+      setSelectedNodeId("current");
+      setDetailsOpen(false);
+      setStatusMessage(
+        `Build My Path selected. Showing personalized routes toward ${activeGoal?.destination.label ?? "your career goal"}.`,
+      );
+      return;
+    }
+
+    const targetId =
+      activeGoal?.destination.id ??
+      focusedPath?.destinationId ??
+      destinationId;
+    const targetLabel =
+      nodeById.get(targetId)?.label ?? "your selected career goal";
+    setStatusMessage(
+      `Generating personalized routes toward ${targetLabel} from your profile evidence.`,
+    );
+    await onBuildToward(targetId);
+  }
+
   function closeFeedback() {
     setFeedbackTarget(null);
     window.requestAnimationFrame(() => {
@@ -1923,7 +2236,7 @@ export function CareerMapView({
           <PathInLogo />
           <div>
             <div className={styles.featureTitleLine}>
-              <h1>PathIn</h1>
+              <h1>Path[In]</h1>
               <span className={styles.betaBadge}>Beta</span>
             </div>
             <p>
@@ -2096,16 +2409,7 @@ export function CareerMapView({
                 <button
                   aria-selected={mode === "explore"}
                   className={styles.modeTab}
-                  onClick={() => {
-                    cancelFocusTransition();
-                    setMode("explore");
-                    setFocusedPathId(explorePathIds[0] ?? "");
-                    setSelectedNodeId("current");
-                    setDetailsOpen(false);
-                    setStatusMessage(
-                      "Explore mode selected. Current standing is focused.",
-                    );
-                  }}
+                  onClick={showExploreRecommendations}
                   role="tab"
                   type="button"
                 >
@@ -2115,19 +2419,7 @@ export function CareerMapView({
                 <button
                   aria-selected={mode === "build"}
                   className={styles.modeTab}
-                  onClick={() => {
-                    cancelFocusTransition();
-                    setMode("build");
-                    setFocusedPathId(
-                      initialMap.buildPathIdsByDestination[destinationId]?.[0] ??
-                        "",
-                    );
-                    setSelectedNodeId("current");
-                    setDetailsOpen(false);
-                    setStatusMessage(
-                      "Build My Path mode selected. Current standing is focused.",
-                    );
-                  }}
+                  onClick={buildPersonalizedPath}
                   role="tab"
                   type="button"
                 >
@@ -2199,41 +2491,17 @@ export function CareerMapView({
               </div>
 
               {mode === "build" ? (
-                <label className={styles.destinationSelect}>
-                  <span>Destination</span>
-                  <span className={styles.selectWrap}>
-                    <select
-                      onChange={(event) => {
-                        cancelFocusTransition();
-                        const nextDestinationId = event.target.value;
-                        setDestinationId(nextDestinationId);
-                        setFocusedPathId(
-                          initialMap.buildPathIdsByDestination[
-                            nextDestinationId
-                          ]?.[0] ?? "",
-                        );
-                        setSelectedNodeId("current");
-                        setDetailsOpen(false);
-                        setStatusMessage(
-                          `Building routes toward ${nodeById.get(nextDestinationId)?.label}.`,
-                        );
-                      }}
-                      value={destinationId}
-                    >
-                      {initialMap.destinationIds.map((id) => (
-                        <option key={id} value={id}>
-                          {nodeById.get(id)?.label}
-                        </option>
-                      ))}
-                    </select>
-                    <MiniIcon name="chevron-down" />
-                  </span>
+                <div className={styles.scenarioStatus}>
+                  <span>Selected career goal</span>
+                  <strong>
+                    {activeGoal?.destination.label ?? "Career goal"}
+                  </strong>
                   <small>
-                    Route {Math.max(1, focusedPathIndex + 1)} of{" "}
-                    {activePaths.length} ·{" "}
-                    {focusedPath?.shortLabel ?? "Generated route"}
+                    {activePaths.length} personalized{" "}
+                    {activePaths.length === 1 ? "route" : "routes"} generated
+                    from your evidence. Left and right switch routes.
                   </small>
-                </label>
+                </div>
               ) : (
                 <div className={styles.scenarioStatus}>
                   <span>Current career suggestion</span>
@@ -3188,6 +3456,16 @@ function NodeDetailSection({
     ]
       .filter((skill, index, skills) => skills.indexOf(skill) === index)
       .slice(0, 4);
+    const skillsToBuild = uniqueDisplayValues([
+      ...node.skillsToBuild,
+      ...(node.recommendation?.gaps ?? []),
+      ...(node.stepDetails?.skillsDeveloped ?? []),
+      ...connections.next.flatMap(({ node: nextNode }) => [
+        ...nextNode.skillsToBuild,
+        ...(nextNode.recommendation?.gaps ?? []),
+        ...(nextNode.stepDetails?.skillsDeveloped ?? []),
+      ]),
+    ]).slice(0, 4);
 
     return (
       <div className={styles.detailSection}>
@@ -3197,9 +3475,10 @@ function NodeDetailSection({
         />
         <SkillGroup
           label="Build next"
-          skills={node.skillsToBuild.slice(0, 3)}
+          skills={skillsToBuild}
           tone="amber"
         />
+        <LinkedInLearningCourses skills={skillsToBuild} />
       </div>
     );
   }
@@ -3354,12 +3633,56 @@ function SkillGroup({
   skills: string[];
   tone?: "green" | "blue" | "amber";
 }) {
+  if (skills.length === 0) {
+    return null;
+  }
+
   return (
     <section className={styles.skillGroup}>
       <h3>{label}</h3>
       <div className={styles.skillPills} data-tone={tone}>
         {skills.map((skill) => (
           <span key={skill}>{skill}</span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LinkedInLearningCourses({ skills }: { skills: string[] }) {
+  const courses = recommendLinkedInLearning(skills);
+  if (courses.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className={styles.learningCourses}>
+      <div className={styles.learningHeading}>
+        <span className={styles.learningMark} aria-hidden="true">
+          in
+        </span>
+        <div>
+          <h3>LinkedIn Learning</h3>
+          <p>Courses for the skills to build next</p>
+        </div>
+      </div>
+      <div className={styles.learningList}>
+        {courses.map((course) => (
+          <a
+            className={styles.learningCourse}
+            href={course.href}
+            key={course.href}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <span>
+              <strong>{course.title}</strong>
+              <small>
+                {course.meta} · For {course.matchedSkill}
+              </small>
+            </span>
+            <MiniIcon name="arrow-right" />
+          </a>
         ))}
       </div>
     </section>

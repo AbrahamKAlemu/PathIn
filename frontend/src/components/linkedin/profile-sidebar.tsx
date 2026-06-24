@@ -75,7 +75,7 @@ export function ProfileSidebar() {
               in
             </span>
             <div>
-              <p className="text-[17px] font-bold leading-[20px]">PathIn</p>
+              <p className="text-[17px] font-bold leading-[20px]">Path[In]</p>
               <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#0a66c2]">
                 Career explorer
               </p>

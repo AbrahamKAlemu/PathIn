@@ -9,8 +9,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createCareerMap } from "./career-map-data";
 import { CareerMapView } from "./career-map-view";
+import type { CareerMapData } from "./types";
 
 function renderCareerMap({
+  initialMap = createCareerMap(),
+  onBuildToward = vi.fn().mockResolvedValue(undefined),
+  onExplore = vi.fn().mockResolvedValue(undefined),
   onRegenerate = vi.fn().mockResolvedValue(undefined),
   onReopenSaved = vi.fn().mockResolvedValue({ source: "browser" }),
   onSave = vi.fn().mockResolvedValue({
@@ -18,14 +22,18 @@ function renderCareerMap({
     storage: "browser",
   }),
 }: {
+  initialMap?: CareerMapData;
+  onBuildToward?: ReturnType<typeof vi.fn>;
+  onExplore?: ReturnType<typeof vi.fn>;
   onRegenerate?: ReturnType<typeof vi.fn>;
   onReopenSaved?: ReturnType<typeof vi.fn>;
   onSave?: ReturnType<typeof vi.fn>;
 } = {}) {
   return render(
     <CareerMapView
-      initialMap={createCareerMap()}
-      onBuildToward={vi.fn().mockResolvedValue(undefined)}
+      initialMap={initialMap}
+      onBuildToward={onBuildToward}
+      onExplore={onExplore}
       onRegenerate={onRegenerate}
       onReopenSaved={onReopenSaved}
       onSave={onSave}
@@ -50,6 +58,9 @@ describe("CareerMapView navigation", () => {
     const logo = screen.getByRole("img", { name: "PathIn" });
     expect(logo).toBeInTheDocument();
     expect(logo.getAttribute("src")).toContain("pathin-logo.png");
+    expect(
+      screen.getByRole("heading", { name: "Path[In]" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
         name: "Return focus to current standing",
@@ -152,10 +163,25 @@ describe("CareerMapView navigation", () => {
     ).toBeInTheDocument();
   });
 
-  it("merges shared Build My Path destinations into one final bubble", async () => {
-    renderCareerMap();
+  it("asks Flask to build personalized routes for the selected career", async () => {
+    const onBuildToward = vi.fn().mockResolvedValue(undefined);
+    renderCareerMap({ onBuildToward });
 
     fireEvent.click(screen.getByRole("tab", { name: "Build My Path" }));
+
+    await waitFor(() =>
+      expect(onBuildToward).toHaveBeenCalledWith("data-senior"),
+    );
+  });
+
+  it("renders a returned build map as one goal with multiple routes", async () => {
+    const initialMap: CareerMapData = {
+      ...createCareerMap(),
+      mode: "build",
+      destinationIds: ["data-senior"],
+    };
+    renderCareerMap({ initialMap });
+
     fireEvent.click(screen.getByRole("button", { name: "Web" }));
 
     const web = screen.getByRole("region", {
@@ -176,8 +202,62 @@ describe("CareerMapView navigation", () => {
       web.querySelectorAll("[data-route-label='true']"),
     ).toHaveLength(2);
     expect(
-      screen.getByText("2 routes to Senior Data Scientist", {
-        exact: false,
+      screen.getByText(/2 personalized routes generated from your evidence/),
+    ).toBeInTheDocument();
+  });
+
+  it("returns to Flask-powered career exploration from a build map", async () => {
+    const onExplore = vi.fn().mockResolvedValue(undefined);
+    const initialMap: CareerMapData = {
+      ...createCareerMap(),
+      mode: "build",
+      destinationIds: ["data-senior"],
+    };
+    renderCareerMap({ initialMap, onExplore });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Explore" }));
+
+    await waitFor(() => expect(onExplore).toHaveBeenCalledTimes(1));
+  });
+
+  it("shows LinkedIn Learning courses matched to the skills to build", () => {
+    const initialMap = createCareerMap();
+    const mapWithCrmGap: CareerMapData = {
+      ...initialMap,
+      nodes: initialMap.nodes.map((node) =>
+        node.id === "current"
+          ? { ...node, skillsToBuild: ["CRM"] }
+          : node,
+      ),
+    };
+    renderCareerMap({ initialMap: mapWithCrmGap });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Your current standing, focused node/,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Skills" }));
+
+    expect(
+      screen.getByRole("heading", { name: "LinkedIn Learning" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: /Customer Success Management Fundamentals/,
+      }),
+    ).toHaveAttribute(
+      "href",
+      "https://www.linkedin.com/learning/customer-success-management-fundamentals",
+    );
+    expect(
+      screen.getByRole("link", {
+        name: /Onboarding and Adoption Best Practices/,
+      }),
+    ).toHaveAttribute("target", "_blank");
+    expect(
+      screen.getByRole("link", {
+        name: /Salesforce Essential Training/,
       }),
     ).toBeInTheDocument();
   });

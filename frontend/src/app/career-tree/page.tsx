@@ -5,7 +5,7 @@ import { MessagingBar } from "@/components/linkedin/messaging";
 import { CareerTree } from "@/features/pathin/career-tree";
 
 export const metadata: Metadata = {
-  title: "PathIn | LinkedIn",
+  title: "Path[In] | LinkedIn",
   description:
     "Explore possible career paths, compare route evidence, and build practical next steps from your profile.",
 };

@@ -470,7 +470,7 @@ export function CareerTree() {
     }
 
     setGenerationError("");
-    setLoadingStage(0);
+    setLoadingStage(3);
     setPhase("generating");
     const startedAt = Date.now();
 
@@ -487,6 +487,34 @@ export function CareerTree() {
         error instanceof Error
           ? error.message
           : "PathIn could not build this destination.",
+      );
+      setPhase("map");
+    }
+  }
+
+  async function exploreCareerOptions() {
+    if (!lastSubmission) {
+      return;
+    }
+
+    setGenerationError("");
+    setLoadingStage(2);
+    setPhase("generating");
+    const startedAt = Date.now();
+
+    try {
+      const generated = await generateCareerMap(lastSubmission);
+      const remaining = Math.max(0, 2200 - (Date.now() - startedAt));
+      if (remaining) {
+        await new Promise((resolve) => window.setTimeout(resolve, remaining));
+      }
+      setCareerMap(generated);
+      setPhase("map");
+    } catch (error) {
+      setGenerationError(
+        error instanceof Error
+          ? error.message
+          : "PathIn could not refresh career suggestions.",
       );
       setPhase("map");
     }
@@ -638,6 +666,7 @@ export function CareerTree() {
         initialMap={careerMap}
         key={`${careerMap.id}-${careerMap.generation.generatedAt ?? ""}`}
         onBuildToward={buildToward}
+        onExplore={exploreCareerOptions}
         onRegenerate={regenerate}
         onReopenSaved={reopenSavedMap}
         onSave={saveMap}
