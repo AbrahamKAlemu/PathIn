@@ -3,8 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
-  type DragEvent as ReactDragEvent,
-  type FormEvent as ReactFormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -98,20 +96,11 @@ type LinkedInLearningRecommendation = {
   matchedSkill: string;
 };
 
-type NodeEdit = {
-  label: string;
-  summary: string;
-};
-
-type BuildSuggestion = {
-  id: string;
-  node: CareerNode;
-  reason: string;
-};
-
 type CareerMapViewProps = {
   initialMap: CareerMapData;
   generationError?: string;
+  onBuildToward: (destinationId: string) => Promise<void>;
+  onExplore: () => Promise<void>;
   onRegenerate: (
     action: RegenerationAction,
     options?: {
@@ -625,7 +614,7 @@ function MiniIcon({
     | "pin"
     | "plus"
     | "refresh"
-    | "sparkles";
+    | "sparkles"
     | "trash";
   className?: string;
 }) {
