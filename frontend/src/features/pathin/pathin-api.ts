@@ -46,7 +46,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     throw new PathInApiError(
       payload.error?.message ??
-        "Path[IN] could not complete this request.",
+        "PathIn could not complete this request.",
       {
         code: payload.error?.code,
         details: payload.error?.details,

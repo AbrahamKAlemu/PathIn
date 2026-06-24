@@ -71,7 +71,7 @@ describe("ProfilePage", () => {
     ).toBeInTheDocument();
   });
 
-  it("saves edited identity and Path[IN] category controls through Flask", async () => {
+  it("saves edited identity and PathIn category controls through Flask", async () => {
     const updated = {
       ...DEFAULT_CURRENT_PROFILE,
       headline: "Founder | CS/Math @ Stanford",
@@ -99,7 +99,7 @@ describe("ProfilePage", () => {
     );
 
     const dialog = screen.getByRole("dialog", {
-      name: "Edit profile and Path[IN] data",
+      name: "Edit profile and PathIn data",
     });
     fireEvent.change(within(dialog).getByLabelText("Headline"), {
       target: { value: "Founder | CS/Math @ Stanford" },
@@ -121,7 +121,7 @@ describe("ProfilePage", () => {
     );
     expect(patchBody.profile.enabledCategories.skills).toBe(false);
     expect(
-      await screen.findByText("Profile changes saved and available to Path[IN]."),
+      await screen.findByText("Profile changes saved and available to PathIn."),
     ).toBeInTheDocument();
   });
 

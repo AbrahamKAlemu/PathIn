@@ -265,6 +265,7 @@ export type CareerMapData = {
   exactSignalsUsed?: Record<string, ParsedProfileField[]>;
   generationConstraints?: Record<string, unknown>;
   warnings?: string[];
+  navigator?: NavigatorData;
   source: {
     name: string;
     url: string;
@@ -450,4 +451,35 @@ export type PitDataset = {
   members: PitMember[];
   jobs: PitJob[];
   courses: PitCourse[];
+};
+
+export type HorizontalBranch = {
+  nodeId: string;
+  label: string;
+  nodeType: string;
+  totalScore: number;
+  confidence: number;
+  transitionSupport: number;
+  neighborSupport: number;
+  fitReasons: string[];
+};
+
+export type HorizontalNavigation = {
+  method: string;
+  focusNodeId: string;
+  left: HorizontalBranch[];
+  right: HorizontalBranch[];
+};
+
+export type NavigatorData = {
+  horizontalNavigation?: HorizontalNavigation;
+  statisticalAnalysis?: {
+    method: string;
+    transitionModel: {
+      approvedTransitions: number;
+      suppressedTransitions: number;
+      privacyThreshold: number;
+      method: string;
+    };
+  };
 };

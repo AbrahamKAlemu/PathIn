@@ -6,6 +6,8 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from .suggestion_service import get_roles, get_scenario, generate_suggestions
 
 from .career_service import ApiError, CareerService
+from .navigator import HorizontalPathNavigator
+from .navigator_fixtures import NODE_FIXTURES, PATH_FIXTURES
 from .resume_parser import MAX_UPLOAD_BYTES
 
 
@@ -28,6 +30,31 @@ def create_app(career_service: CareerService | None = None) -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES + 64 * 1024
     service = career_service or CareerService()
+    navigator = HorizontalPathNavigator()
+
+    def _run_navigator(payload: dict[str, object]) -> dict[str, object]:
+        profile = payload.get("profile")
+        if not isinstance(profile, dict):
+            profile = payload
+        active_path_ids = payload.get("activePathIds") or list(
+            PATH_FIXTURES.keys()
+        )[:3]
+        focus_node_id = str(payload.get("focusNodeId") or "").strip() or None
+        destination_id = str(payload.get("destinationId") or "").strip() or None
+        try:
+            neighbor_limit = int(payload.get("neighborLimit", 8))
+        except (TypeError, ValueError):
+            neighbor_limit = 8
+        return navigator.analyze(
+            profile,
+            node_fixtures=NODE_FIXTURES,
+            path_fixtures=PATH_FIXTURES,
+            active_path_ids=active_path_ids,
+            focus_node_id=focus_node_id,
+            destination_id=destination_id,
+            neighbor_limit=neighbor_limit,
+        )
+
     CORS(
         app,
         resources={
@@ -109,6 +136,16 @@ def create_app(career_service: CareerService | None = None) -> Flask:
     @app.get("/api/v1/roles/<role_id>")
     def role_details(role_id: str):
         return jsonify(service.role_details(role_id))
+
+    @app.post("/api/v1/navigator/analyze")
+    def navigator_analyze():
+        return jsonify(_run_navigator(_json_payload()))
+
+    @app.post("/api/v1/navigator/nodes/<node_id>/expand")
+    def navigator_expand_node(node_id: str):
+        payload = _json_payload()
+        payload["focusNodeId"] = node_id
+        return jsonify(_run_navigator(payload))
 
     @app.errorhandler(ApiError)
     def handle_api_error(error: ApiError):

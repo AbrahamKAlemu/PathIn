@@ -14,7 +14,6 @@ const API_URL =
 export class QuizApiError extends Error {
   code: string;
   details: Record<string, unknown>;
-
   constructor(
     message: string,
     { code = "REQUEST_FAILED", details = {} }: {
@@ -54,13 +53,11 @@ export async function fetchScenario(roleId: string): Promise<{ scenario: Scenari
   return parseResponse(response);
 }
 
-import type { CareerMapData } from "@/features/pathin/types";
-
 export async function generateSuggestions(input: {
   profile: QuizProfile | null;
   user_profile: UserProfile;
   new_responses: ScenarioResponse[];
-}): Promise<CareerMapData> {
+}): Promise<SuggestionResult> {
   const response = await fetch(`${API_URL}/api/v1/quiz/suggestions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

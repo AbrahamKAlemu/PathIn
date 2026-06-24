@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-
-import { CareerMapView } from "@/features/pathin/career-map-view";
-import type { CareerMapData } from "@/features/pathin/types";
 
 import { fetchRoles, fetchScenario, generateSuggestions } from "./quiz-api";
 import type {
+  Direction,
   QuizProfile,
   Role,
   Scenario,
   ScenarioResponse,
+  Suggestion,
 } from "./types";
 
 const PROFILE_KEY = "pathin.quiz.profile";
@@ -38,7 +38,8 @@ export function CareerQuiz() {
   const [skips, setSkips] = useState(0);
   const [rating, setRating] = useState(7);
 
-  const [careerMap, setCareerMap] = useState<CareerMapData | null>(null);
+  const [direction, setDirection] = useState<Direction | null>(null);
+  const [actions, setActions] = useState<Suggestion[]>([]);
 
   const threadEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -113,7 +114,14 @@ export function CareerQuiz() {
         user_profile: USER_PROFILE,
         new_responses: [response],
       });
-      setCareerMap(result);
+      if (result.error || !result.direction) {
+        setError(result.message ?? "Could not generate suggestions.");
+        setStage("play");
+        return;
+      }
+      window.localStorage.setItem(PROFILE_KEY, JSON.stringify(result.profile));
+      setDirection(result.direction);
+      setActions(result.actions ?? []);
       setStage("results");
     } catch (err) {
       setError((err as Error).message);
@@ -123,7 +131,8 @@ export function CareerQuiz() {
 
   function restart() {
     setScenario(null);
-    setCareerMap(null);
+    setDirection(null);
+    setActions([]);
     setStage("pick");
   }
 
@@ -157,40 +166,18 @@ export function CareerQuiz() {
 
       {stage === "loading" ? (
         <Card>
-          <p className="text-[15px] text-[#666]">
-            Reading how you worked through that…
-          </p>
+          <div className="inline-flex items-center gap-1.5 rounded-[14px] bg-[#f3f2ef] px-5 py-4">
+            <span className="size-2.5 animate-bounce rounded-full bg-[#0a66c2]" style={{ animationDelay: "0ms" }} />
+            <span className="size-2.5 animate-bounce rounded-full bg-[#0a66c2]" style={{ animationDelay: "160ms" }} />
+            <span className="size-2.5 animate-bounce rounded-full bg-[#0a66c2]" style={{ animationDelay: "320ms" }} />
+          </div>
         </Card>
       ) : null}
 
-      {stage === "results" && careerMap ? (
-        <ResultsMap careerMap={careerMap} onRestart={restart} />
+      {stage === "results" && direction ? (
+        <Results direction={direction} actions={actions} onRestart={restart} />
       ) : null}
     </section>
-  );
-}
-
-function ResultsMap({
-  careerMap,
-  onRestart,
-}: {
-  careerMap: CareerMapData;
-  onRestart: () => void;
-}) {
-  const noop = async () => {};
-  return (
-    <div>
-      <CareerMapView
-        key={careerMap.id}
-        initialMap={careerMap}
-        onBuildToward={noop}
-        onRegenerate={noop}
-        onReopenSaved={noop}
-        onSave={noop}
-        onStartOver={onRestart}
-        onSubmitFeedback={noop}
-      />
-    </div>
   );
 }
 
@@ -215,8 +202,7 @@ function PickRole({
         Try a career for a few minutes
       </h1>
       <p className="mb-5 text-[14px] text-[#666]">
-        Pick something you&apos;re curious about. No experience needed — just
-        see how it feels.
+        Pick something you&apos;re curious about. No experience needed — just see how it feels.
       </p>
       <div className="grid grid-cols-2 gap-3">
         {roles.map((role) => (
@@ -225,19 +211,14 @@ function PickRole({
             onClick={() => onChoose(role.role_id)}
             className="rounded-[10px] border border-[#d4d4d4] bg-white p-4 text-left transition hover:border-[#0a66c2] hover:shadow-sm"
           >
-            <p className="text-[15px] font-semibold text-[#191919]">
-              {role.role}
-            </p>
+            <p className="text-[15px] font-semibold text-[#191919]">{role.role}</p>
             <p className="mt-1 text-[13px] text-[#666]">{role.industry}</p>
           </button>
         ))}
       </div>
       <p className="mt-5 text-[13px] text-[#666]">
         Already have experience?{" "}
-        <Link
-          href="/career-tree"
-          className="font-semibold text-[#0a66c2] hover:underline"
-        >
+        <Link href="/career-tree" className="font-semibold text-[#0a66c2] hover:underline">
           Get recommendations from your resume instead
         </Link>
       </p>
@@ -320,9 +301,7 @@ function PlayScenario({
 
       {onRatingStep ? (
         <div className="border-t border-[#e8e8e8] pt-4">
-          <p className="mb-3 text-[16px] text-[#191919]">
-            {scenario.closer_rating}
-          </p>
+          <p className="mb-3 text-[16px] text-[#191919]">{scenario.closer_rating}</p>
           <div className="mb-4 flex items-center gap-3">
             <input
               type="range"
@@ -373,5 +352,90 @@ function PlayScenario({
         </div>
       )}
     </Card>
+  );
+}
+
+function Results({
+  direction,
+  actions,
+  onRestart,
+}: {
+  direction: Direction;
+  actions: Suggestion[];
+  onRestart: () => void;
+}) {
+  const router = useRouter();
+  return (
+    <div className="space-y-4">
+      <Card>
+        <p className="text-[13px] font-semibold uppercase tracking-wide text-[#0a66c2]">
+          Your best-fit direction
+        </p>
+        <h2 className="mt-1 text-[20px] font-semibold text-[#191919]">
+          {direction.role}
+        </h2>
+        <p className="mt-1 text-[14px] text-[#666]">{direction.industry}</p>
+        <p className="mt-3 text-[15px] leading-relaxed text-[#444]">{direction.why}</p>
+      </Card>
+
+      <div>
+        <p className="mb-2 px-1 text-[15px] font-semibold text-[#191919]">
+          Next steps for you
+        </p>
+        <div className="space-y-3">
+          {actions.length === 0 ? (
+            <Card>
+              <p className="text-[14px] text-[#666]">
+                No matches yet for this combination — try another scenario.
+              </p>
+            </Card>
+          ) : (
+            actions.map((action) => (
+              <div
+                key={action.id}
+                className="rounded-[10px] border border-[#d4d4d4] bg-white p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-[15px] font-semibold text-[#191919]">
+                    {action.title}
+                  </p>
+                  <span className="rounded-full bg-[#eef3f8] px-2.5 py-0.5 text-[12px] font-semibold uppercase text-[#0a66c2]">
+                    {action.type}
+                  </span>
+                </div>
+                <p className="mt-1 text-[13px] text-[#666]">
+                  {action.location} · deadline {action.deadline}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <button
+        onClick={() => router.push("/career-tree?from=sim")}
+        className="w-full rounded-full bg-[#0a66c2] px-5 py-2.5 text-[15px] font-semibold text-white hover:bg-[#004182]"
+      >
+        Build my full career map from this →
+      </button>
+
+      <div className="flex gap-4">
+        <button
+          onClick={onRestart}
+          className="text-[14px] font-semibold text-[#0a66c2] hover:underline"
+        >
+          Try another career
+        </button>
+        <button
+          onClick={() => {
+            window.localStorage.removeItem("pathin.quiz.profile");
+            onRestart();
+          }}
+          className="text-[14px] font-semibold text-[#666] hover:text-[#191919]"
+        >
+          Clear my results
+        </button>
+      </div>
+    </div>
   );
 }

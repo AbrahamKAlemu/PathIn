@@ -255,7 +255,7 @@ def test_current_profile_exposes_authorized_evidence_without_social_metrics(
         "authorized": True,
         "scraped": False,
         "description": (
-            "Profile facts supplied by the user for this Path[IN] prototype. "
+            "Profile facts supplied by the user for this PathIn prototype. "
             "No LinkedIn credentials or scraping are used."
         ),
     }
@@ -327,7 +327,7 @@ def test_current_profile_persists_across_service_restart(tmp_path) -> None:
     )
     first_service.update_current_profile(
         {
-            "headline": "Persistent Path[IN] profile",
+            "headline": "Persistent PathIn profile",
             "enabledCategories": {
                 "roles": True,
                 "skills": False,
@@ -342,7 +342,7 @@ def test_current_profile_persists_across_service_restart(tmp_path) -> None:
     )
     reopened = restarted_service.get_current_profile()
 
-    assert reopened["headline"] == "Persistent Path[IN] profile"
+    assert reopened["headline"] == "Persistent PathIn profile"
     assert reopened["enabledCategories"]["skills"] is False
 
 
@@ -608,7 +608,7 @@ def test_profile_merge_prefers_corrections_deduplicates_and_flags_conflicts(
     assert payload["conflicts"][0]["category"] == "roles"
 
 
-def test_resume_and_linkedin_evidence_unlock_user_selected_linkedin_north_star(
+def test_resume_and_linkedin_evidence_does_not_invent_senior_north_star(
     client: FlaskClient,
 ) -> None:
     def field(value: str, source: str) -> dict[str, Any]:
@@ -662,26 +662,23 @@ def test_resume_and_linkedin_evidence_unlock_user_selected_linkedin_north_star(
         "linkedin",
     }
     dream = payload["dreamCareer"]
-    assert dream["personalizedDreamTitle"] == (
+    assert dream["personalizedDreamTitle"] != (
         "Senior Software Engineer at LinkedIn"
     )
-    assert dream["canonicalRole"] == "Software Engineer"
-    assert dream["aspirationSource"] == "user_selected"
-    assert dream["sourceBlend"] == "resume and LinkedIn evidence"
-    assert dream["careerHorizon"] == "3 to 7 years"
-    assert dream["criticalGaps"][:3] == [
+    assert dream["aspirationSource"] == "inferred"
+    assert "LinkedIn-specific hiring fit" not in dream["uncertainty"]
+    assert not {
         "System Design",
         "Technical Leadership",
         "Large-scale Distributed Systems",
-    ]
-    assert dream["careerThesis"].startswith("North Star selected by you.")
+    } <= set(dream["criticalGaps"])
     recommendation = next(
         item
         for item in payload["rankedDestinations"]
         if item["isDreamCareer"]
     )
     assert recommendation["title"] == dream["personalizedDreamTitle"]
-    assert recommendation["aspirationSource"] == "user_selected"
+    assert recommendation["aspirationSource"] == "inferred"
     route_ids = payload["buildPathIdsByDestination"][
         dream["destinationId"]
     ]
@@ -696,11 +693,44 @@ def test_resume_and_linkedin_evidence_unlock_user_selected_linkedin_north_star(
         for node in payload["nodes"]
         if node["id"] in route_nodes
     }
-    assert "System Design" in route_labels
     assert any(
         "next.js scheduling app" in label.lower()
         for label in route_labels
     )
+
+
+def test_explicit_role_goal_can_select_a_north_star(
+    client: FlaskClient,
+) -> None:
+    payload = _explore(
+        client,
+        {
+            "education": ["BS Computer Science"],
+            "roles": ["Software Engineer Intern"],
+            "responsibilities": [
+                "Built React applications and REST APIs",
+            ],
+            "projects": ["Deployed a Next.js scheduling app"],
+            "skills": [
+                "JavaScript",
+                "React",
+                "Python",
+                "Git",
+            ],
+            "goals": ["Senior Software Engineer at LinkedIn"],
+        },
+        count=5,
+    )
+
+    dream = payload["dreamCareer"]
+    assert dream["canonicalRole"] == "Software Engineer"
+    assert dream["aspirationSource"] == "user_selected"
+    assert dream["careerThesis"].startswith(
+        "North Star selected from your stated goal:"
+    )
+    assert "Senior Software Engineer at LinkedIn" in dream["careerThesis"]
+    assert "seniority" in dream["uncertainty"]
+    assert "hiring outcomes are not inferred" in dream["uncertainty"]
 
 
 def test_disabled_fields_do_not_influence_recommendations(
@@ -1078,6 +1108,30 @@ def test_saved_map_can_be_reopened_and_feedback_regenerates_backend_ranking(
     ]["notForMeRoleIds"]
 
 
+def test_regenerate_returns_a_new_destination_set(
+    client: FlaskClient,
+) -> None:
+    created = _explore(client, CONTRASTING_PROFILES["design"])
+
+    regenerated = client.post(
+        f"/api/v1/maps/{created['id']}/regenerate",
+        json={
+            "profile": CONTRASTING_PROFILES["design"],
+            "action": "regenerate",
+        },
+    )
+
+    assert regenerated.status_code == 201
+    payload = regenerated.get_json()
+    assert payload["id"] != created["id"]
+    assert set(payload["destinationIds"]).isdisjoint(
+        created["destinationIds"]
+    )
+    assert payload["generationConstraints"]["feedback"][
+        "regeneratedFromRoleIds"
+    ] == created["destinationIds"]
+
+
 def test_explicitly_saved_map_survives_service_restart(tmp_path) -> None:
     database_path = tmp_path / "saved-maps.sqlite3"
     first_service = CareerService(
@@ -1185,7 +1239,7 @@ def test_errors_use_consistent_contract(client: FlaskClient) -> None:
     assert response.get_json() == {
         "error": {
             "code": "INVALID_DESTINATION",
-            "message": "Choose a destination returned by the Path[IN] catalog.",
+            "message": "Choose a destination returned by the PathIn catalog.",
             "retryable": False,
             "details": {"destinationId": "astronaut"},
         }

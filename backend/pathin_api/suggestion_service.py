@@ -43,12 +43,24 @@ def get_scenario(role_id):
     return {"scenario": scenario}
 
 
+
 def _analyze(transcript, rating, skips):
-    prompt = (f"{ANALYZER_PROMPT}\n\nTRANSCRIPT:\n{transcript}\n"
-              f"RATING: {rating}/10\nSKIPS: {skips}\n\n"
-              "Return ONLY JSON with keys: industry, role, readiness "
-              "(one of: explore, build-skills, ready), enjoyment (low/med/high), "
-              "aptitude (low/med/high), strengths (list of short strings).")
+    prompt = (
+        f"{ANALYZER_PROMPT}\n\n"
+        "IMPORTANT: The person's self-rating and how many prompts they skipped "
+        "are the STRONGEST signal of fit. A low rating or many skips means this "
+        "career is NOT a good fit, regardless of what the transcript says. A high "
+        "rating with engaged answers means strong fit. Weight rating and skips "
+        "above the transcript.\n\n"
+        f"TRANSCRIPT:\n{transcript or '(the person skipped most or all prompts)'}\n"
+        f"SELF-RATING: {rating}/10\n"
+        f"SKIPPED PROMPTS: {skips}\n\n"
+        "Return ONLY JSON with keys: industry, role, "
+        "readiness (one of: explore, build-skills, ready), "
+        "enjoyment (low/med/high), aptitude (low/med/high), "
+        "fit_score (integer 0-100, honest fit for THIS person), "
+        "strengths (list of short strings), gaps (list of short strings)."
+    )
     resp = _client().chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.2,
@@ -57,7 +69,37 @@ def _analyze(transcript, rating, skips):
     text = resp.choices[0].message.content.strip()
     if text.startswith("```"):
         text = text.strip("`").split("\n", 1)[1].rsplit("```", 1)[0]
-    return json.loads(text)
+    signals = json.loads(text)
+
+    # --- Hard guard: extremes can't slip through as positive ---
+    try:
+        rating_val = int(rating)
+    except (TypeError, ValueError):
+        rating_val = 7
+
+    fit = signals.get("fit_score")
+    if not isinstance(fit, (int, float)):
+        fit = rating_val * 10  # fall back to rating if model omitted it
+
+    # Rating dominates: pull fit toward the rating, then clamp on extremes.
+    fit = round(0.65 * (rating_val * 10) + 0.35 * fit)
+
+    if rating_val <= 2 or skips >= 3:
+        fit = min(fit, 20)
+        signals["enjoyment"] = "low"
+        signals["aptitude"] = signals.get("aptitude", "low")
+        signals["readiness"] = "explore"
+    elif rating_val >= 8 and skips == 0:
+        fit = max(fit, 75)
+        signals["enjoyment"] = "high"
+
+    fit = max(0, min(100, fit))
+    signals["fit_score"] = fit
+    signals["fit_label"] = (
+        "strong fit" if fit >= 70 else "low fit" if fit < 40 else "moderate fit"
+    )
+    return signals
+
 
 
 def _is_young(user_profile):
@@ -90,21 +132,39 @@ def _explore(profile):
 
 
 def _filter_suggestions(signals, user_profile):
+    experience = user_profile.get("experience") or []
+    has_experience = len(experience) > 0
     young = _is_young(user_profile)
     industry = (signals.get("industry") or "").lower()
     readiness = signals.get("readiness", "explore")
+
     out = []
     for s in SUGGESTIONS:
-        if industry and industry not in (s.get("industry", "").lower()):
+        s_industry = (s.get("industry", "") or "").lower()
+        # industry relevance (loose match either direction)
+        if industry and s_industry and industry not in s_industry \
+                and s_industry not in industry:
             continue
+
         stage = s.get("stage", "both")
         if not young and stage == "high_school":
             continue
         if young and stage == "college":
             continue
-        if not young and s.get("readiness_fit") == "explore" \
-                and readiness == "ready":
+
+        s_type = (s.get("type", "") or "").lower()
+        # scholarships / intro outreach only for people WITHOUT work experience
+        if has_experience and s_type in ("scholarship", "outreach"):
             continue
+
+        # readiness gating: don't show "explore" items to someone ready, or
+        # advanced "ready" items to someone just exploring
+        fit = s.get("readiness_fit")
+        if fit == "explore" and readiness == "ready":
+            continue
+        if fit == "ready" and readiness == "explore":
+            continue
+
         out.append(s)
     return out[:4]
 
@@ -170,20 +230,105 @@ def _inject(career_map, suggestions):
         return career_map
 
 
+
 def generate_suggestions(payload):
     user_profile = payload.get("user_profile", {}) or {}
     responses = payload.get("new_responses", []) or []
-    transcript = "\n".join(
-        f"Q: {r.get('prompt', '')}\nA: {r.get('answer', '(skipped)')}"
-        for r in responses)
-    rating = next((r.get("rating") for r in responses if r.get("rating")), 7)
-    skips = sum(1 for r in responses if not r.get("answer"))
+
+    transcript_parts = []
+    for r in responses:
+        if r.get("transcript"):
+            transcript_parts.append(r["transcript"])
+        else:
+            transcript_parts.append(
+                f"Q: {r.get('prompt', '')}\nA: {r.get('answer', '(skipped)')}"
+            )
+    transcript = "\n\n".join(part for part in transcript_parts if part)
+
+    rating = next((r.get("rating") for r in responses if r.get("rating") is not None), 7)
+    skips = sum((r.get("skip_count") or 0) for r in responses)
 
     signals = _analyze(transcript, rating, skips)
-    profile = _shape_profile(signals, user_profile)
-    career_map = _explore(profile)
 
-    if _is_young(user_profile):
-        career_map = _inject(career_map, _filter_suggestions(signals, user_profile))
+    resp_role = next((r.get("role") for r in responses if r.get("role")), "")
+    resp_industry = next(
+        (r.get("industry") for r in responses if r.get("industry")), ""
+    )
+    role = signals.get("role") or resp_role
+    industry = signals.get("industry") or resp_industry
+    readiness = signals.get("readiness") or "explore"
+    strengths = signals.get("strengths") or [
+        "curiosity",
+        "willingness to try new things",
+    ]
+    fit_score = signals.get("fit_score", 50)
+    fit_label = signals.get("fit_label", "moderate fit")
 
-    return career_map
+    role_id = next(
+        (
+            rid
+            for rid, sc in SCENARIOS.items()
+            if (sc.get("role") or "").lower() == (role or "").lower()
+        ),
+        None,
+    )
+
+    enjoyment = signals.get("enjoyment", "med")
+    aptitude = signals.get("aptitude", "med")
+    if fit_score < 40:
+        why = (
+            f"This one doesn't look like a strong fit — you rated it {rating}/10"
+            + (f" and skipped {skips} prompts" if skips else "")
+            + ". That's useful to know. Build your full map to see directions "
+            "that match your profile better."
+        )
+    else:
+        readiness_phrase = {
+            "ready": "you could start pursuing it now",
+            "build-skills": "building a few skills would set you up well",
+            "explore": "it's worth exploring further",
+        }.get(readiness, "it's worth exploring further")
+        why = (
+            f"You showed {enjoyment} enjoyment and {aptitude} aptitude in the "
+            f"{role or 'this'} scenario, which suggests {readiness_phrase}."
+        )
+    confidence = (
+        "high" if fit_score >= 70 else "low" if fit_score < 40 else "medium"
+    )
+
+    direction = {
+        "industry": industry,
+        "role": role,
+        "role_id": role_id,
+        "readiness": readiness,
+        "why": why,
+        "fit_score": fit_score,
+        "fit_label": fit_label,
+    }
+
+    actions = _filter_suggestions(signals, user_profile)
+
+    profile = {
+        "best_fit": {
+            "industry": industry,
+            "role": role,
+            "role_id": role_id,
+            "readiness": readiness,
+            "why": why,
+            "confidence": confidence,
+            "fit_score": fit_score,
+        },
+        "strengths": strengths,
+        "gaps": signals.get("gaps", []) or [],
+        "roles_explored": [
+            {
+                "industry": industry,
+                "role": role,
+                "sessions_seen": 1,
+                "strength_score": fit_score,
+            }
+        ],
+        "shift_note": None,
+    }
+
+    return {"direction": direction, "actions": actions, "profile": profile}

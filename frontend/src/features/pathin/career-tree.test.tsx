@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createCareerMap } from "./career-map-data";
 import { CareerTree } from "./career-tree";
+import { SAVED_MAP_SNAPSHOT_KEY } from "./saved-map-storage";
 
 function jsonResponse(
   payload: unknown,
@@ -144,7 +146,7 @@ function currentProfileResponse() {
   };
 }
 
-describe("CareerTree resume-first onboarding", () => {
+describe("CareerTree evidence-first onboarding", () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.restoreAllMocks();
@@ -162,7 +164,7 @@ describe("CareerTree resume-first onboarding", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Upload a resume for custom recommendations. Your authorized profile can add verified context without replacing the resume.",
+        "Generate from your connected profile. Add a resume for stronger, more personalized recommendations.",
       ),
     ).toBeInTheDocument();
     expect(await screen.findByText("Winston Iskandar")).toBeInTheDocument();
@@ -176,7 +178,7 @@ describe("CareerTree resume-first onboarding", () => {
     ).toHaveAttribute("type", "file");
     expect(
       screen.getByRole("button", { name: "Generate career path" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
 
     expect(screen.queryAllByRole("textbox")).toHaveLength(0);
     expect(screen.queryAllByRole("combobox")).toHaveLength(0);
@@ -191,12 +193,13 @@ describe("CareerTree resume-first onboarding", () => {
     expect(screen.queryByText("Possible career goals")).not.toBeInTheDocument();
   });
 
-  it("rejects an unsupported resume before sending it to Flask", () => {
+  it("rejects an unsupported resume without blocking the connected profile", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(jsonResponse(currentProfileResponse()));
     vi.stubGlobal("fetch", fetchMock);
     render(<CareerTree />);
+    await screen.findByText("Winston Iskandar");
 
     const file = new File(["resume"], "resume.rtf", {
       type: "text/rtf",
@@ -212,7 +215,50 @@ describe("CareerTree resume-first onboarding", () => {
     expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/profiles/current");
     expect(
       screen.getByRole("button", { name: "Generate career path" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
+  });
+
+  it("generates from the connected profile without requiring a resume", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
+      .mockImplementationOnce(() => new Promise<Response>(() => undefined));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<CareerTree />);
+
+    await screen.findByText("Winston Iskandar");
+    expect(screen.queryByText("Resume ready")).not.toBeInTheDocument();
+
+    const generate = screen.getByRole("button", {
+      name: "Generate career path",
+    });
+    expect(generate).toBeEnabled();
+    fireEvent.click(generate);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Reading your experience",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Creating recommendations from your LinkedIn profile",
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    const generationBody = JSON.parse(
+      String(fetchMock.mock.calls[1][1]?.body),
+    ) as {
+      profile: {
+        fields: {
+          roles: Array<{ source: string }>;
+          skills: Array<{ source: string }>;
+        };
+      };
+    };
+    expect(generationBody.profile.fields.roles.map((field) => field.source))
+      .toEqual(["linkedin"]);
+    expect(generationBody.profile.fields.skills.map((field) => field.source))
+      .toEqual(["linkedin"]);
   });
 
   it("replaces the dropzone with a compact file row after parsing", async () => {
@@ -290,7 +336,6 @@ describe("CareerTree resume-first onboarding", () => {
       .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
       .mockResolvedValueOnce(jsonResponse(parsedResumeResponse()))
       .mockResolvedValueOnce(jsonResponse(parsedLinkedinResponse()))
-      .mockResolvedValueOnce(jsonResponse({ id: "normalized-profile" }))
       .mockImplementationOnce(() => new Promise<Response>(() => undefined));
     vi.stubGlobal("fetch", fetchMock);
     render(<CareerTree />);
@@ -321,14 +366,14 @@ describe("CareerTree resume-first onboarding", () => {
       name: "Generate career path",
     });
     fireEvent.click(generate);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
 
     const resumeBody = fetchMock.mock.calls[1][1]?.body as FormData;
     const linkedinBody = fetchMock.mock.calls[2][1]?.body as FormData;
     expect(resumeBody.get("source")).toBe("resume");
     expect(linkedinBody.get("source")).toBe("linkedin");
 
-    const normalizeBody = JSON.parse(
+    const generationBody = JSON.parse(
       String(fetchMock.mock.calls[3][1]?.body),
     ) as {
       profile: {
@@ -338,9 +383,9 @@ describe("CareerTree resume-first onboarding", () => {
         };
       };
     };
-    expect(normalizeBody.profile.fields.roles.map((field) => field.source))
+    expect(generationBody.profile.fields.roles.map((field) => field.source))
       .toEqual(["resume", "linkedin", "linkedin"]);
-    expect(normalizeBody.profile.fields.skills.map((field) => field.source))
+    expect(generationBody.profile.fields.skills.map((field) => field.source))
       .toEqual(["resume", "linkedin", "linkedin"]);
     expect(screen.getByRole("status")).toHaveTextContent(
       "Creating recommendations from your resume and LinkedIn evidence",
@@ -352,7 +397,6 @@ describe("CareerTree resume-first onboarding", () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
       .mockResolvedValueOnce(jsonResponse(parsedResumeResponse()))
-      .mockResolvedValueOnce(jsonResponse({ id: "normalized-profile" }))
       .mockResolvedValueOnce(
         jsonResponse(
           {
@@ -390,7 +434,7 @@ describe("CareerTree resume-first onboarding", () => {
     expect(screen.getByText("resume.txt")).toBeInTheDocument();
     expect(generate).toBeEnabled();
     expect(screen.queryByText("Possible career goals")).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("removes connected-profile evidence from the backend request when disabled", async () => {
@@ -398,7 +442,6 @@ describe("CareerTree resume-first onboarding", () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
       .mockResolvedValueOnce(jsonResponse(parsedResumeResponse()))
-      .mockResolvedValueOnce(jsonResponse({ id: "normalized-profile" }))
       .mockImplementationOnce(() => new Promise<Response>(() => undefined));
     vi.stubGlobal("fetch", fetchMock);
     render(<CareerTree />);
@@ -424,9 +467,9 @@ describe("CareerTree resume-first onboarding", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Generate career path" }),
     );
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
 
-    const normalizeBody = JSON.parse(
+    const generationBody = JSON.parse(
       String(fetchMock.mock.calls[2][1]?.body),
     ) as {
       profile: {
@@ -436,9 +479,87 @@ describe("CareerTree resume-first onboarding", () => {
         };
       };
     };
-    expect(normalizeBody.profile.fields.roles.map((field) => field.source))
+    expect(generationBody.profile.fields.roles.map((field) => field.source))
       .toEqual(["resume"]);
-    expect(normalizeBody.profile.fields.skills.map((field) => field.source))
+    expect(generationBody.profile.fields.skills.map((field) => field.source))
       .toEqual(["resume"]);
+  });
+
+  it("reopens the browser snapshot when backend saved-map storage is unavailable", async () => {
+    const map = createCareerMap();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
+      .mockResolvedValueOnce(jsonResponse(parsedResumeResponse()))
+      .mockResolvedValueOnce(jsonResponse(map, { status: 201 }))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: "SAVE_UNAVAILABLE",
+              message: "Persistent backend storage is unavailable.",
+            },
+          },
+          { ok: false, status: 503 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: "MAP_NOT_FOUND",
+              message: "The requested map was not found.",
+            },
+          },
+          { ok: false, status: 404 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(Date, "now")
+      .mockImplementationOnce(() => 0)
+      .mockImplementation(() => 4_000);
+    render(<CareerTree />);
+
+    fireEvent.change(screen.getByLabelText("Upload resume"), {
+      target: {
+        files: [
+          new File(["resume content"], "resume.txt", {
+            type: "text/plain",
+          }),
+        ],
+      },
+    });
+    await screen.findByText("resume.txt");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Generate career path" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Compare career directions one step at a time",
+      }, { timeout: 4_000 }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save path" }));
+
+    expect(
+      await screen.findByText("This path is saved"),
+    ).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(SAVED_MAP_SNAPSHOT_KEY),
+    ).toContain(map.id);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Saved paths/ }),
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Compare career directions one step at a time",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("The requested map was not found."),
+    ).not.toBeInTheDocument();
   });
 });

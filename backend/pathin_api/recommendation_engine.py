@@ -418,20 +418,6 @@ ROLE_ARTIFACTS: dict[str, tuple[str, str]] = {
     ),
 }
 
-USER_SELECTED_SOFTWARE_NORTH_STAR = {
-    "title": "Senior Software Engineer at LinkedIn",
-    "specialization": "Senior Software Engineering",
-    "domain": "LinkedIn professional network",
-    "problem": "building reliable products at LinkedIn scale",
-    "horizon": "3 to 7 years",
-    "gaps": [
-        "System Design",
-        "Technical Leadership",
-        "Large-scale Distributed Systems",
-    ],
-}
-
-
 def _timestamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -1043,7 +1029,7 @@ class RecommendationEngine:
         if not candidate:
             raise ApiError(
                 "INVALID_DESTINATION",
-                "Choose a destination returned by the Path[IN] catalog.",
+                "Choose a destination returned by the PathIn catalog.",
                 details={"destinationId": role_id},
             )
         if self._excluded(candidate, profile, feedback or {}):
@@ -1172,7 +1158,7 @@ class RecommendationEngine:
         )
         map_data = {
             "id": map_id,
-            "name": "My Path[IN] career map",
+            "name": "My PathIn career map",
             "mode": mode,
             "disclaimer": (
                 "These are explainable possibilities based on enabled profile "
@@ -2028,86 +2014,38 @@ class RecommendationEngine:
             )
             return score, item["overallScore"], item["canonicalRole"]
 
-        source_set = set(
-            profile.get("profileFingerprint", {}).get(
-                "sourcesPresent", []
-            )
-        )
-        profile_concepts = semantic_concepts(
-            [
-                *profile.get("roles", []),
-                *profile.get("responsibilities", []),
-                *profile.get("projects", []),
-                *profile.get("skills", []),
-                *profile.get("goals", []),
-            ]
-        )
-        software_goal = next(
-            (
+        explicit_goal_match: tuple[dict[str, Any], str] | None = None
+        for goal in profile.get("goals", []):
+            goal_terms = _terms([goal])
+            if not goal_terms:
+                continue
+            matching_recommendations = [
                 item
                 for item in recommendations
-                if item["id"] == "software-engineer"
-            ),
-            None,
-        )
-        explicit_linkedin_goal = any(
-            "linkedin" in goal.lower()
-            and any(
-                marker in goal.lower()
-                for marker in (
-                    "software",
-                    "engineer",
-                    "swe",
+                if (
+                    role_terms := _terms([item["canonicalRole"]])
                 )
-            )
-            for goal in profile.get("goals", [])
-        )
-        combined_uploaded_sources = {"resume", "linkedin"} <= source_set
-        software_supported = bool(
-            {"programming", "javascript", "apis", "debugging"}
-            & profile_concepts
-        )
-        if (
-            software_goal
-            and software_supported
-            and (combined_uploaded_sources or explicit_linkedin_goal)
-        ):
-            dream = software_goal
-            target = USER_SELECTED_SOFTWARE_NORTH_STAR
-            existing_values = _terms(
-                [
-                    *profile.get("skills", []),
-                    *profile.get("responsibilities", []),
-                    *profile.get("projects", []),
-                ]
-            )
-            senior_gaps = [
-                gap
-                for gap in target["gaps"]
-                if not _terms([gap]) <= existing_values
+                and role_terms <= goal_terms
             ]
-            dream["personalizedTitle"] = target["title"]
-            dream["title"] = target["title"]
-            dream["specialization"] = target["specialization"]
-            dream["targetIndustryOrDomain"] = target["domain"]
-            dream["targetProblem"] = target["problem"]
-            dream["careerHorizon"] = target["horizon"]
+            if matching_recommendations:
+                explicit_goal_match = (
+                    max(matching_recommendations, key=north_star_score),
+                    goal,
+                )
+                break
+
+        if explicit_goal_match:
+            dream, stated_goal = explicit_goal_match
             dream["aspirationSource"] = "user_selected"
-            dream["gaps"] = list(
-                dict.fromkeys([*senior_gaps, *dream["gaps"]])
-            )[:6]
+            gap_copy = ", ".join(dream["gaps"][:2]) or "role-specific proof"
             dream["careerThesis"] = (
-                "North Star selected by you. Build next: "
-                f"{', '.join(dream['gaps'][:2])}."
-            )
-            dream["explanation"] = (
-                "Current software evidence supports the direction. "
-                f"Next gaps: {', '.join(dream['gaps'][:2])}."
+                f"North Star selected from your stated goal: {stated_goal}. "
+                f"Build next: {gap_copy}."
             )
             dream["uncertainty"] = (
-                "LinkedIn-specific hiring fit is not inferred from uploads. "
-                "This is an aspirational target, and team, interview, and "
-                "leveling requirements must be validated separately."
+                "This destination reflects a stated aspiration. Employer fit, "
+                "seniority, interview readiness, and hiring outcomes are not "
+                "inferred from uploaded profile evidence."
             )
         else:
             dream = max(recommendations, key=north_star_score)
@@ -2188,6 +2126,7 @@ class RecommendationEngine:
             *profile.get("exclusions", []),
             *_string_list(feedback.get("excludedRoles")),
             *_string_list(feedback.get("notForMeRoleIds")),
+            *_string_list(feedback.get("regeneratedFromRoleIds")),
         ]
         normalized_exclusions = {_normalized_text(value) for value in exclusions}
         role_keys = {
@@ -2363,7 +2302,7 @@ class RecommendationEngine:
                     if recommendation["catalogSource"] == "pit"
                     else (
                         f"Personalized from {recommendation['sourceBlend']}; "
-                        f"Path[IN] taxonomy {TAXONOMY_VERSION}"
+                        f"PathIn taxonomy {TAXONOMY_VERSION}"
                     )
                 ),
             },
@@ -2609,7 +2548,7 @@ class RecommendationEngine:
                 "label": (
                     "Aggregated PIT job family"
                     if bridge.get("market")
-                    else f"Path[IN] taxonomy {TAXONOMY_VERSION}"
+                    else f"PathIn taxonomy {TAXONOMY_VERSION}"
                 ),
             },
             **({"market": bridge["market"]} if bridge.get("market") else {}),
@@ -3080,7 +3019,7 @@ class RecommendationEngine:
             or "Resume-based career explorer"
         )
         return {
-            "name": profile.get("name") or "Path[IN] user",
+            "name": profile.get("name") or "PathIn user",
             "headline": headline,
             "location": (
                 profile["locationPreferences"][0]

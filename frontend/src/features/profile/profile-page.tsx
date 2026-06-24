@@ -136,7 +136,7 @@ export function ProfilePage() {
     const updated = await updateCurrentProfile(patch);
     setProfile(updated);
     setDialog(null);
-    showToast("Profile changes saved and available to Path[IN].");
+    showToast("Profile changes saved and available to PathIn.");
   }
 
   const interestItems = useMemo(
@@ -587,8 +587,8 @@ function ExperienceItem({
           {experience.startDate} - {experience.endDate} · {experience.duration}
         </small>
         {experience.location ? <small>{experience.location}</small> : null}
-        {experience.description.map((line) => (
-          <p className={styles.timelineDescription} key={line}>
+        {experience.description.map((line, index) => (
+          <p className={styles.timelineDescription} key={index}>
             {line}
           </p>
         ))}
@@ -1021,9 +1021,9 @@ function ProfileFooter() {
     <footer className={styles.profileFooter}>
       <nav aria-label="LinkedIn footer">
         {links.map((link) => (
-          <button key={link} type="button">
+          <span key={link} className={styles.footerLink}>
             {link}
-          </button>
+          </span>
         ))}
       </nav>
       <div className={styles.footerHelp}>
@@ -1088,7 +1088,7 @@ function ProfileDialog({
   const titles: Record<Exclude<DialogKind, null>, string> = {
     "add-section": "Add to profile",
     contact: "Contact info",
-    edit: "Edit profile and Path[IN] data",
+    edit: "Edit profile and PathIn data",
     experience: "Experience",
     honors: "Honors & awards",
     "open-to": "Open to",
@@ -1132,7 +1132,7 @@ function ProfileDialog({
             <ContactRow label="Profile" value={profile.publicUrl} />
             <ContactRow label="Location" value={profile.location} />
             <p className={styles.privacyCopy}>
-              Path[IN] only uses fields you enable. It does not request
+              PathIn only uses fields you enable. It does not request
               LinkedIn credentials or scrape this public URL.
             </p>
           </div>
@@ -1157,7 +1157,7 @@ function ProfileDialog({
             ))}
             <p className={styles.integrityNote}>
               The profile reports {profile.skillCount} skills, but only{" "}
-              {profile.skills.length} names were supplied. Path[IN] does not
+              {profile.skills.length} names were supplied. PathIn does not
               invent the remaining skill names.
             </p>
           </div>
@@ -1263,7 +1263,7 @@ function EditProfileForm({
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Path[IN] could not save this profile.",
+          : "PathIn could not save this profile.",
       );
       setSaving(false);
     }
@@ -1318,7 +1318,7 @@ function EditProfileForm({
       </div>
 
       <fieldset className={styles.categoryControls}>
-        <legend>Information Path[IN] may analyze</legend>
+        <legend>Information PathIn may analyze</legend>
         <p>
           Disabling a profile category removes only this connected-profile
           evidence. Information in a separately uploaded resume remains under

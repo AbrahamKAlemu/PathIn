@@ -1,0 +1,392 @@
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { createCareerMap } from "./career-map-data";
+import { CareerMapView } from "./career-map-view";
+
+function renderCareerMap({
+  onRegenerate = vi.fn().mockResolvedValue(undefined),
+  onReopenSaved = vi.fn().mockResolvedValue({ source: "browser" }),
+  onSave = vi.fn().mockResolvedValue({
+    savedAt: "2026-06-24T08:00:00.000Z",
+    storage: "browser",
+  }),
+}: {
+  onRegenerate?: ReturnType<typeof vi.fn>;
+  onReopenSaved?: ReturnType<typeof vi.fn>;
+  onSave?: ReturnType<typeof vi.fn>;
+} = {}) {
+  return render(
+    <CareerMapView
+      initialMap={createCareerMap()}
+      onBuildToward={vi.fn().mockResolvedValue(undefined)}
+      onRegenerate={onRegenerate}
+      onReopenSaved={onReopenSaved}
+      onSave={onSave}
+      onStartOver={vi.fn()}
+      onSubmitFeedback={vi.fn().mockResolvedValue(undefined)}
+    />,
+  );
+}
+
+describe("CareerMapView navigation", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.requestAnimationFrame = (callback) => {
+      return window.setTimeout(() => callback(0), 0);
+    };
+    HTMLElement.prototype.scrollTo = vi.fn();
+  });
+
+  it("uses the approved PathIn logo and returns directly to current standing", () => {
+    renderCareerMap();
+
+    const logo = screen.getByRole("img", { name: "PathIn" });
+    expect(logo).toBeInTheDocument();
+    expect(logo.getAttribute("src")).toContain("pathin-logo.png");
+    expect(
+      screen.queryByRole("button", {
+        name: "Return focus to current standing",
+      }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Focus selected goal Senior Data Scientist/,
+      }),
+    );
+
+    const returnButton = screen.getByRole("button", {
+      name: "Return focus to current standing",
+    });
+    expect(returnButton).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /Senior Data Scientist, focused node/,
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(returnButton);
+
+    expect(
+      screen.getByRole("button", {
+        name: /Your current standing, focused node/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Return focus to current standing",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render placeholder blocks when the focused route ends", () => {
+    const { container } = renderCareerMap();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Focus selected goal Senior Data Scientist/,
+      }),
+    );
+
+    expect(screen.queryByText("End of current route")).not.toBeInTheDocument();
+    expect(screen.queryByText("No second later step")).not.toBeInTheDocument();
+    expect(screen.queryByText("No connected node")).not.toBeInTheDocument();
+    expect(container.querySelector("[data-empty='true']")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Move focus up to/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lays out the complete Web view from profile evidence to destinations", async () => {
+    renderCareerMap();
+
+    fireEvent.click(screen.getByRole("button", { name: "Web" }));
+
+    const web = screen.getByRole("region", {
+      name: "Complete connected career path web",
+    });
+    await waitFor(() =>
+      expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledWith(
+        expect.objectContaining({ top: 0 }),
+      ),
+    );
+    const current = within(web).getByRole("button", {
+      name: /Your current standing/,
+    });
+    const profileFoundation = within(web).getByRole("button", {
+      name: /Current skills/,
+    });
+    const destinations = web.querySelectorAll<HTMLButtonElement>(
+      "button[data-kind='destination']",
+    );
+    const currentTop = Number.parseFloat(current.style.top);
+    const profileTop = Number.parseFloat(profileFoundation.style.top);
+    const routeLabels = web.querySelectorAll<HTMLElement>(
+      "[data-route-label='true']",
+    );
+
+    expect(profileTop).toBeLessThan(currentTop);
+    expect(routeLabels).toHaveLength(3);
+    for (const routeLabel of routeLabels) {
+      expect(Number.parseFloat(routeLabel.style.top)).toBeGreaterThan(
+        currentTop + 120,
+      );
+    }
+    expect(destinations.length).toBeGreaterThan(0);
+    for (const destination of destinations) {
+      expect(Number.parseFloat(destination.style.top)).toBeGreaterThan(
+        currentTop,
+      );
+    }
+    expect(
+      screen.getByRole("heading", {
+        name: "See every suggested career and its route",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("merges shared Build My Path destinations into one final bubble", async () => {
+    renderCareerMap();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Build My Path" }));
+    fireEvent.click(screen.getByRole("button", { name: "Web" }));
+
+    const web = screen.getByRole("region", {
+      name: "Complete connected career path web",
+    });
+    await waitFor(() =>
+      expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledWith(
+        expect.objectContaining({ top: 0 }),
+      ),
+    );
+
+    expect(
+      within(web).getAllByRole("button", {
+        name: /Senior Data Scientist/,
+      }),
+    ).toHaveLength(1);
+    expect(
+      web.querySelectorAll("[data-route-label='true']"),
+    ).toHaveLength(2);
+    expect(
+      screen.getByText("2 routes to Senior Data Scientist", {
+        exact: false,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("animates vertical travel without allowing repeated clicks to skip steps", async () => {
+    renderCareerMap();
+
+    const navigator = screen.getByRole("region", {
+      name: "Focused career bubble navigator",
+    });
+    const upButton = screen.getByRole("button", {
+      name: /Move focus up to Machine Learning Fundamentals/,
+    });
+
+    fireEvent.click(upButton);
+
+    expect(navigator).toHaveAttribute("aria-busy", "true");
+    expect(navigator).toHaveAttribute("data-transition-direction", "next");
+    expect(navigator).toHaveAttribute("data-transition-phase", "exit");
+    expect(upButton).toBeDisabled();
+
+    fireEvent.click(upButton);
+
+    await waitFor(() =>
+      expect(navigator).toHaveAttribute("data-transition-phase", "enter"),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Machine Learning Fundamentals, focused node/,
+      }),
+    ).toBeInTheDocument();
+
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Move focus down to Your current standing/,
+      }),
+    );
+
+    expect(navigator).toHaveAttribute(
+      "data-transition-direction",
+      "previous",
+    );
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Your current standing, focused node/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("animates direct preview clicks when skipping between nodes", async () => {
+    renderCareerMap();
+
+    const navigator = screen.getByRole("region", {
+      name: "Focused career bubble navigator",
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Focus Applied data analysis, two steps ahead/,
+      }),
+    );
+
+    expect(navigator).toHaveAttribute("aria-busy", "true");
+    expect(navigator).toHaveAttribute("data-transition-direction", "next");
+    expect(navigator).toHaveAttribute("data-transition-phase", "exit");
+    expect(
+      screen.getByRole("button", {
+        name: /Your current standing, focused node/,
+      }),
+    ).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(navigator).toHaveAttribute("data-transition-phase", "enter"),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Applied data analysis, focused node/,
+      }),
+    ).toBeInTheDocument();
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Focus Your current standing, two steps back/,
+      }),
+    );
+    expect(navigator).toHaveAttribute(
+      "data-transition-direction",
+      "previous",
+    );
+    expect(navigator).toHaveAttribute("data-transition-phase", "exit");
+
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Your current standing, focused node/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("switches horizontally between generated routes at the same depth", async () => {
+    renderCareerMap();
+
+    const navigator = screen.getByRole("region", {
+      name: "Focused career bubble navigator",
+    });
+    expect(screen.getByText(/Career 1 of 3/)).toBeInTheDocument();
+    const rightRouteButton = screen.getByRole("button", {
+      name: /Switch right to Product Manager career at Your current standing/,
+    });
+    fireEvent.click(rightRouteButton);
+
+    expect(navigator).toHaveAttribute("aria-busy", "true");
+    expect(navigator).toHaveAttribute("data-transition-direction", "right");
+    expect(navigator).toHaveAttribute("data-transition-phase", "exit");
+    expect(rightRouteButton).toHaveAttribute("data-active", "true");
+    expect(rightRouteButton).toBeDisabled();
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+    expect(screen.getByText(/Career 2 of 3/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /Your current standing, focused node/,
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Move focus up to Project Management Basics/,
+      }),
+    );
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+    const leftRouteButton = screen.getByRole("button", {
+      name: /Switch left to Senior Data Scientist career at Machine Learning Fundamentals/,
+    });
+    fireEvent.click(leftRouteButton);
+
+    expect(navigator).toHaveAttribute("data-transition-direction", "left");
+    expect(leftRouteButton).toHaveAttribute("data-active", "true");
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Machine Learning Fundamentals, focused node/,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Career 1 of 3/)).toBeInTheDocument();
+  });
+
+  it("requests a new backend set when Regenerate is clicked", async () => {
+    const onRegenerate = vi.fn().mockResolvedValue(undefined);
+    renderCareerMap({ onRegenerate });
+
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+
+    await waitFor(() =>
+      expect(onRegenerate).toHaveBeenCalledWith("regenerate", {
+        dismissedNodeIds: [],
+        pinnedNodeIds: [],
+      }),
+    );
+  });
+
+  it("shows where a saved path is stored and reopens it", async () => {
+    const onReopenSaved = vi.fn().mockResolvedValue({ source: "browser" });
+    const onSave = vi.fn().mockResolvedValue({
+      savedAt: "2026-06-24T08:00:00.000Z",
+      storage: "browser",
+    });
+    renderCareerMap({ onReopenSaved, onSave });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save path" }));
+
+    expect(
+      await screen.findByText("This path is saved"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Stored in this browser so it survives backend restarts/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Saved paths/ }),
+    ).toHaveTextContent("1");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open saved path" }),
+    );
+    await waitFor(() => expect(onReopenSaved).toHaveBeenCalledTimes(1));
+  });
+});

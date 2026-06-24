@@ -4,6 +4,29 @@ import { describe, expect, it } from "vitest";
 import { Header } from "./header";
 
 describe("Header", () => {
+  it("keeps the full LinkedIn-style labeled navigation at the corrected height", () => {
+    const { container } = render(<Header />);
+
+    expect(container.querySelector("header")).toHaveClass("h-[66px]");
+    for (const label of [
+      "Home",
+      "My Network",
+      "Jobs",
+      "Messaging",
+      "Notifications",
+      "Me",
+      "For Business",
+      "Learning",
+    ]) {
+      expect(
+        screen.getByRole(
+          label === "Home" || label === "Me" ? "link" : "button",
+          { name: label },
+        ),
+      ).toBeInTheDocument();
+    }
+  });
+
   it("links the Me avatar to Winston's profile and hides badge when notifications are zero", () => {
     render(<Header active="profile" notificationCount={0} />);
 
@@ -31,7 +54,7 @@ describe("Header", () => {
     expect(within(notifications).getByText("9")).toBeInTheDocument();
   });
 
-  it("keeps Jobs separate from the Path[IN] Career Tree", () => {
+  it("keeps Jobs separate from the PathIn Career Tree", () => {
     render(<Header />);
 
     expect(document.querySelector('a[href="/career-tree"]')).toBeNull();

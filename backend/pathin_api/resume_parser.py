@@ -158,7 +158,7 @@ class ResumeParser:
         except Exception as error:
             raise ApiError(
                 "UNREADABLE_FILE",
-                "Path[IN] could not read this file. Try exporting it again or use TXT.",
+                "PathIn could not read this file. Try exporting it again or use TXT.",
                 details={"format": file_format},
             ) from error
 
@@ -282,7 +282,7 @@ class ResumeParser:
             if len(reader.pages) > MAX_PDF_PAGES:
                 raise ApiError(
                     "UNSAFE_DOCUMENT",
-                    "This PDF has more pages than Path[IN] can safely process.",
+                    "This PDF has more pages than PathIn can safely process.",
                     details={
                         "format": file_format,
                         "maxPages": MAX_PDF_PAGES,

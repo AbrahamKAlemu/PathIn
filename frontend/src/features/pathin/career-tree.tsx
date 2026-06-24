@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   type ChangeEvent,
   type DragEvent,
@@ -12,18 +13,15 @@ import {
   useState,
 } from "react";
 
-import { simProfileToFields } from "./sim-to-profile";
+import { LinkedInLogo } from "@/components/linkedin/icons";
 import { getCurrentProfile } from "@/features/profile/profile-api";
 import type { CurrentProfile } from "@/features/profile/types";
+
 import { CareerMapView } from "./career-map-view";
 import styles from "./career-tree.module.css";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Avatar } from "@/components/linkedin/avatar";
-import { DEFAULT_CURRENT_PROFILE } from "@/features/profile/profile-data";
 import {
   buildCareerMap,
   generateCareerMap,
-  normalizeProfile,
   parseProfileFile,
   PathInApiError,
   regenerateCareerMap,
@@ -32,6 +30,12 @@ import {
   submitCareerFeedback,
   type RegenerationAction,
 } from "./pathin-api";
+import {
+  readSavedMapSnapshot,
+  SAVED_MAP_ID_KEY,
+  writeSavedMapSnapshot,
+} from "./saved-map-storage";
+import { simProfileToFields } from "./sim-to-profile";
 import type {
   CareerMapData,
   ParsedProfile,
@@ -42,7 +46,7 @@ import type {
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const SUPPORTED_FILE_EXTENSIONS = [".pdf", ".docx", ".txt"];
-const SAVED_MAP_ID_KEY = "pathin-generated-map-id";
+
 const profileCategories: ProfileCategory[] = [
   "education",
   "coursework",
@@ -108,13 +112,23 @@ function cloneProfileFields(
   );
 }
 
+function hasEnabledProfileEvidence(profile: CurrentProfile | null) {
+  if (!profile?.pathinEvidence) {
+    return false;
+  }
+
+  return profileCategories.some(
+    (category) =>
+      profile.pathinEvidence.enabledCategories[category] &&
+      (profile.pathinEvidence.fields[category]?.length ?? 0) > 0,
+  );
+}
+
 export function CareerTree() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const autoGenRef = useRef(false);
-  const [showResumeDrop, setShowResumeDrop] = useState(false);
-  const router = useRouter();
   const [phase, setPhase] = useState<ExperiencePhase>("choice");
-  const [choiceOpen, setChoiceOpen] = useState(false);
   const [careerMap, setCareerMap] = useState<CareerMapData | null>(null);
   const [resume, setResume] = useState<File | null>(null);
   const [parsedResume, setParsedResume] = useState<ParsedProfile | null>(null);
@@ -165,20 +179,13 @@ export function CareerTree() {
     };
   }, []);
 
-  useEffect(() => {
-    if (autoGenRef.current) return;
-    if (searchParams.get("from") !== "sim") return;
-    if (connectedProfileLoading) return;
-    autoGenRef.current = true;
-    void generate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectedProfileLoading, searchParams]);
-
+  const hasResumeEvidence = Boolean(resume && parsedResume);
+  const hasLinkedinEvidence = Boolean(
+    parsedLinkedin ||
+      (useConnectedProfile && hasEnabledProfileEvidence(connectedProfile)),
+  );
   const canGenerate =
-    Boolean(
-      (resume && parsedResume) ||
-        (connectedProfile?.pathinEvidence && useConnectedProfile),
-    ) &&
+    (hasResumeEvidence || hasLinkedinEvidence) &&
     !parsingResume &&
     !parsingLinkedin &&
     (phase === "onboarding" || phase === "choice");
@@ -231,7 +238,7 @@ export function CareerTree() {
       setUploadError(
         error instanceof Error
           ? error.message
-          : "Path[IN] could not read this resume.",
+          : "PathIn could not read this resume.",
       );
       if (fileInput.current) {
         fileInput.current.value = "";
@@ -301,7 +308,7 @@ export function CareerTree() {
       setLinkedinError(
         error instanceof Error
           ? error.message
-          : "Path[IN] could not read this LinkedIn export.",
+          : "PathIn could not read this LinkedIn export.",
       );
       if (linkedinInput.current) {
         linkedinInput.current.value = "";
@@ -322,7 +329,6 @@ export function CareerTree() {
   }
 
   function buildSubmission(): ProfileSubmission {
-
     const connectedFields =
       connectedProfile?.pathinEvidence && useConnectedProfile
         ? categoryRecord((category) =>
@@ -333,7 +339,7 @@ export function CareerTree() {
         : null;
     const fields = cloneProfileFields(
       [
-        simProfileToFields(),   // <-- add this line
+        simProfileToFields(),
         parsedResume?.fields,
         connectedFields,
         parsedLinkedin?.fields,
@@ -391,7 +397,6 @@ export function CareerTree() {
     const startedAt = Date.now();
 
     try {
-      await normalizeProfile(submission);
       const generated = await generateCareerMap(submission);
       const remaining = Math.max(0, 3200 - (Date.now() - startedAt));
       if (remaining) {
@@ -403,11 +408,24 @@ export function CareerTree() {
       setGenerationError(
         error instanceof PathInApiError || error instanceof Error
           ? error.message
-          : "Path[IN] could not generate a career path.",
+          : "PathIn could not generate a career path.",
       );
       setPhase("onboarding");
     }
   }
+
+  useEffect(() => {
+    if (autoGenRef.current) return;
+    if (searchParams.get("from") !== "sim") return;
+    if (connectedProfileLoading) return;
+    autoGenRef.current = true;
+    // Defer out of the effect body so we don't setState synchronously.
+    const timer = window.setTimeout(() => {
+      void generate();
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectedProfileLoading, searchParams]);
 
   async function regenerate(
     action: RegenerationAction,
@@ -448,7 +466,7 @@ export function CareerTree() {
       setGenerationError(
         error instanceof Error
           ? error.message
-          : "Path[IN] could not regenerate this map.",
+          : "PathIn could not regenerate this map.",
       );
       setPhase("map");
     }
@@ -476,7 +494,7 @@ export function CareerTree() {
       setGenerationError(
         error instanceof Error
           ? error.message
-          : "Path[IN] could not build this destination.",
+          : "PathIn could not build this destination.",
       );
       setPhase("map");
     }
@@ -485,25 +503,64 @@ export function CareerTree() {
   async function saveMap(
     pinnedNodeIds: string[],
     dismissedNodeIds: string[],
-  ) {
+  ): Promise<{
+    savedAt: string;
+    storage: "backend_and_browser" | "browser";
+  }> {
     if (!careerMap) {
-      return;
+      throw new PathInApiError("There is no generated map to save.");
     }
-    const saved = await saveCareerMap(careerMap.id, {
+    const savedAt = new Date().toISOString();
+    let storage: "backend_and_browser" | "browser" = "backend_and_browser";
+    let saved: CareerMapData = {
+      ...careerMap,
       pinnedNodeIds,
       dismissedNodeIds,
-    });
+    };
+
+    try {
+      saved = await saveCareerMap(careerMap.id, {
+        pinnedNodeIds,
+        dismissedNodeIds,
+      });
+    } catch {
+      storage = "browser";
+    }
+
+    writeSavedMapSnapshot(saved, savedAt);
     setCareerMap(saved);
-    window.localStorage.setItem(SAVED_MAP_ID_KEY, saved.id);
+    return { savedAt, storage };
   }
 
-  async function reopenSavedMap() {
-    const mapId = window.localStorage.getItem(SAVED_MAP_ID_KEY);
-    if (!mapId) {
+  async function reopenSavedMap(): Promise<{
+    source: "backend" | "browser";
+  }> {
+    const snapshot = readSavedMapSnapshot();
+    const mapId =
+      window.localStorage.getItem(SAVED_MAP_ID_KEY) ?? snapshot?.map.id;
+    if (!mapId && !snapshot) {
       throw new PathInApiError("No saved generated map was found.");
     }
 
-    const reopened = await reopenCareerMap(mapId);
+    let source: "backend" | "browser" = "backend";
+    let reopened: CareerMapData | null = null;
+    if (mapId) {
+      try {
+        reopened = await reopenCareerMap(mapId);
+      } catch {
+        reopened = snapshot?.map ?? null;
+        source = "browser";
+      }
+    } else {
+      reopened = snapshot?.map ?? null;
+      source = "browser";
+    }
+    if (!reopened) {
+      throw new PathInApiError(
+        "The saved map is no longer available. Save the current map again.",
+      );
+    }
+
     setCareerMap(reopened);
 
     if (reopened.profileSnapshot) {
@@ -533,6 +590,7 @@ export function CareerTree() {
     }
 
     setPhase("map");
+    return { source };
   }
 
   async function submitFeedback(
@@ -567,120 +625,87 @@ export function CareerTree() {
     if (linkedinInput.current) {
       linkedinInput.current.value = "";
     }
-    setPhase("onboarding");
+    setPhase("choice");
   }
-
-// ============================================================================
-// REPLACE your existing `if (phase === "choice") { ... }` block in
-// career-tree.tsx with this one.
-//
-// Needs two imports at the top of career-tree.tsx (add if not already there):
-//   import { Avatar } from "@/components/linkedin/avatar";
-//   import { DEFAULT_CURRENT_PROFILE } from "@/features/profile/profile-data";
-//
-// Also add one state near the other useState calls:
-//   const [showResumeDrop, setShowResumeDrop] = useState(false);
-//
-// Styling/animation lives in career-tree.module.css (see CHOICE_CSS.css).
-// ============================================================================
 
   if (phase === "choice") {
     return (
-      <section className={styles.choiceScene}>
-        {/* Floating YOU node with Winston's avatar */}
-        <div className={styles.youNode}>
-          <Avatar
-            alt={DEFAULT_CURRENT_PROFILE.name}
-            src={DEFAULT_CURRENT_PROFILE.profilePhoto}
-            className="size-[96px] border-[3px] border-white shadow-md"
-          />
-          <span className={styles.youLabel}>{DEFAULT_CURRENT_PROFILE.name}</span>
-        </div>
-
-        {/* connector from YOU down to the choices */}
-        <div
-          className={`${styles.connector} ${choiceOpen ? styles.connectorOpen : ""}`}
-        />
-
-        {!choiceOpen ? (
-          <button
-            type="button"
-            onClick={() => setChoiceOpen(true)}
-            aria-label="Add a path"
-            className={styles.plusButton}
-          >
-            +
-          </button>
-        ) : (
-          <div className={styles.choiceRow}>
-            {/* Simulate careers */}
+      <section className={styles.onboardingPage}>
+        <div className={styles.onboardingHero}>
+          <span className={styles.heroLogo}>
+            <LinkedInLogo className="size-[34px]" />
+          </span>
+          <span className={styles.heroEyebrow}>
+            Explainable career exploration
+          </span>
+          <h1>Try careers before you commit to one.</h1>
+          <p>
+            Simulate a real day in a role to see how it actually fits — or build
+            straight from the profile you already control. Every recommendation
+            is one you can open and inspect.
+          </p>
+          <div className={styles.heroActions}>
             <button
               type="button"
               onClick={() => router.push("/quiz")}
-              className={`${styles.choiceCard} ${styles.choiceCardPrimary}`}
+              className={styles.heroPrimary}
             >
-              <span className={styles.choiceTitle}>Simulate careers</span>
-              <span className={styles.choiceSub}>Try roles, discover a path</span>
+              Simulate careers
             </button>
-
-            {/* Use my profile */}
             <button
               type="button"
-              onClick={() => setShowResumeDrop(true)}
-              className={styles.choiceCard}
+              onClick={() => setPhase("onboarding")}
+              className={styles.heroSecondary}
             >
-              <span className={styles.choiceTitlePrimary}>Use my profile</span>
-              <span className={styles.choiceSubMuted}>
-                Add a resume, or use your profile as-is
-              </span>
+              Use my profile
             </button>
           </div>
-        )}
+        </div>
 
-        {/* Inline resume drop-zone, revealed when "Use my profile" is tapped */}
-        {showResumeDrop ? (
-          <div className={styles.dropWrap}>
-            <label
-              className={styles.dropZone}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault();
-                const file = event.dataTransfer.files?.[0] ?? null;
-                if (file) selectResume(file);
-              }}
-            >
-              <input
-                type="file"
-                accept=".pdf,.docx,.txt"
-                className="hidden"
-                onChange={(event) => selectResume(event.target.files?.[0] ?? null)}
-              />
-              <span className={styles.dropTitle}>
-                {resume ? resume.name : "Drop a resume or click to upload"}
-              </span>
-              <span className={styles.dropSub}>
-                {parsingResume
-                  ? "Reading your resume…"
-                  : "PDF, DOCX, or TXT — optional"}
-              </span>
-            </label>
-
-            {uploadError ? (
-              <p className={styles.dropError}>{uploadError}</p>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={() => generate()}
-              disabled={parsingResume}
-              className={styles.generateButton}
-            >
-              {resume
-                ? "Generate from my resume"
-                : "Continue with my profile"}
-            </button>
+        <div className={styles.featureRow}>
+          <div className={styles.featureCol}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            <h3>Try the work itself</h3>
+            <p>
+              Play a short, scripted scenario for a role and rate how it felt.
+              No experience needed.
+            </p>
           </div>
-        ) : null}
+          <div className={styles.featureCol}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="2" y="7" width="20" height="14" rx="2" />
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+            </svg>
+            <h3>Build from your profile</h3>
+            <p>
+              Generate routes from the profile you control. Add a resume for
+              stronger, more personal matches.
+            </p>
+          </div>
+          <div className={styles.featureCol}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <h3>Inspect every step</h3>
+            <p>
+              Open any recommendation to see its score, the signals behind it,
+              and where the evidence came from.
+            </p>
+          </div>
+        </div>
+
+        <div className={styles.boundariesCard}>
+          <h2 className={styles.boundariesTitle}>Recommendation boundaries</h2>
+          <p>Only enabled profile categories and any resume you upload are scored.</p>
+          <p>Social activity, analytics, demographics, and private messages are excluded.</p>
+          <p>Results are explainable possibilities, not hiring predictions or guarantees.</p>
+        </div>
       </section>
     );
   }
@@ -689,10 +714,8 @@ export function CareerTree() {
     return (
       <GenerationScreen
         currentStage={loadingStage}
-        hasLinkedin={Boolean(
-          parsedLinkedin ||
-            (connectedProfile?.pathinEvidence && useConnectedProfile),
-        )}
+        hasLinkedin={hasLinkedinEvidence}
+        hasResume={hasResumeEvidence}
         stages={loadingStages}
       />
     );
@@ -720,8 +743,8 @@ export function CareerTree() {
         <header className={styles.uploadIntro}>
           <h1>Build your career path</h1>
           <p>
-            Upload a resume for custom recommendations. Your authorized
-            profile can add verified context without replacing the resume.
+            Generate from your connected profile. Add a resume for stronger,
+            more personalized recommendations.
           </p>
         </header>
 
@@ -795,12 +818,17 @@ export function CareerTree() {
           ? "Reading the selected resume."
           : parsingLinkedin
             ? "Reading the selected LinkedIn profile export."
-          : parsedResume
-            ? parsedLinkedin ||
-              (connectedProfile?.pathinEvidence && useConnectedProfile)
-              ? "Resume and authorized profile evidence ready. Generate your career path."
-              : "Resume ready. Generate your career path."
-            : uploadError || "Choose a resume to begin."}
+            : hasResumeEvidence
+              ? hasLinkedinEvidence
+                ? "Resume and authorized profile evidence ready. Generate your career path."
+                : "Resume ready. Generate your career path."
+              : hasLinkedinEvidence
+                ? "Authorized profile evidence ready. Generate your career path."
+                : connectedProfileLoading
+                  ? "Checking your connected profile."
+                  : uploadError ||
+                    linkedinError ||
+                    "Use your connected profile or add a resume to begin."}
       </p>
     </form>
   );
@@ -842,7 +870,7 @@ function ConnectedProfileCard({
           <span />
           <div>
             <strong>Loading authorized profile</strong>
-            <small>Checking enabled Path[IN] evidence</small>
+            <small>Checking enabled PathIn evidence</small>
           </div>
         </div>
       ) : profile?.pathinEvidence ? (
@@ -906,7 +934,7 @@ function ResumeUpload({
 }) {
   return (
     <EvidenceUpload
-      emptyLabel="Upload your resume"
+      emptyLabel="Add your resume (optional)"
       error={error}
       file={file}
       inputLabel="Upload resume"
@@ -1056,12 +1084,20 @@ function EvidenceUpload({
 function GenerationScreen({
   currentStage,
   hasLinkedin,
+  hasResume,
   stages,
 }: {
   currentStage: number;
   hasLinkedin: boolean;
+  hasResume: boolean;
   stages: string[];
 }) {
+  const evidenceLabel = hasResume
+    ? hasLinkedin
+      ? "your resume and LinkedIn evidence"
+      : "your resume"
+    : "your LinkedIn profile";
+
   return (
     <section
       aria-labelledby="pathin-generation-title"
@@ -1074,10 +1110,7 @@ function GenerationScreen({
           <strong>in</strong>
         </div>
         <h1 id="pathin-generation-title">{stages[currentStage]}</h1>
-        <p role="status">
-          Creating recommendations from your resume
-          {hasLinkedin ? " and LinkedIn evidence" : " evidence"}
-        </p>
+        <p role="status">Creating recommendations from {evidenceLabel}</p>
         <div className={styles.careerLoadingDots} aria-hidden="true">
           {stages.map((stage, index) => (
             <span
