@@ -1702,13 +1702,17 @@ export function CareerTree({
     >
       <section className={styles.featureHeader}>
         <div className={styles.featureIdentity}>
-          <div className={styles.pathinMark} aria-hidden="true">
-            <span>in</span>
-            <MiniIcon className={styles.pathinMarkSpark} name="sparkles" />
-          </div>
+          <Image
+            className={styles.pathinLogo}
+            src="/pathin-logo.png"
+            alt="Path[IN]"
+            width={48}
+            height={48}
+            priority
+          />
           <div>
             <div className={styles.featureTitleLine}>
-              <h1>Path[IN]</h1>
+              <h1>Path[In]</h1>
               <span className={styles.betaBadge}>Beta</span>
             </div>
             <p>

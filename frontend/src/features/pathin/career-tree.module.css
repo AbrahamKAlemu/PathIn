@@ -37,6 +37,15 @@
   display: flex;
 }
 
+.pathinLogo {
+  border-radius: 10px;
+  flex: 0 0 auto;
+  height: 46px;
+  margin-right: 14px;
+  object-fit: contain;
+  width: 46px;
+}
+
 .pathinMark {
   align-items: center;
   background: var(--blue);
@@ -3285,7 +3294,8 @@
     display: none;
   }
 
-  .pathinMark {
+  .pathinMark,
+  .pathinLogo {
     height: 40px;
     margin-right: 10px;
     width: 40px;
