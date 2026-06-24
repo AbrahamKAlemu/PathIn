@@ -7,7 +7,7 @@ import { ProfileSidebar } from "@/components/linkedin/profile-sidebar";
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#f3f2ef]">
-      <Header />
+      <Header notificationCount={9} />
       <div className="linkedin-grid pt-[30px]">
         <ProfileSidebar />
         <Feed />

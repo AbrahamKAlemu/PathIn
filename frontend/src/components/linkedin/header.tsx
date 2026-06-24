@@ -58,7 +58,7 @@ export function Header({
             const content = (
               <>
                 <Icon className="size-[23px]" name={item.icon} />
-                {item.id === "notifications" ? (
+                {item.id === "notifications" && notificationCount > 0 ? (
                   <span className="absolute left-[45px] top-[7px] min-w-[33px] rounded-full bg-[#d3112a] px-[5px] py-px text-center text-[14px] font-bold leading-[18px] text-white">
                     {notificationCount}
                   </span>

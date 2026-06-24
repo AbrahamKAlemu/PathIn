@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function WinstonProfilePage() {
   return (
     <main className="min-h-screen bg-[#f3f2ef]">
-      <Header active="profile" notificationCount={0} />
+      <Header active="profile" notificationCount={9} />
       <ProfilePage />
       <MessagingBar />
     </main>

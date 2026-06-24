@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function CareerTreePage() {
   return (
     <main className="min-h-screen bg-[#f3f2ef]">
-      <Header active={null} />
+      <Header active={null} notificationCount={9} />
       <CareerTree />
       <MessagingBar />
     </main>
