@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
+  Fragment,
   type DragEvent as ReactDragEvent,
   type FormEvent as ReactFormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -108,6 +109,10 @@ type BuildSuggestion = {
   reason: string;
 };
 
+type BuildDragItem =
+  | { kind: "route"; nodeId: string }
+  | { kind: "suggestion"; suggestionId: string };
+
 type CareerMapViewProps = {
   initialMap: CareerMapData;
   generationError?: string;
@@ -166,6 +171,7 @@ const FOCUS_EXIT_DURATION_MS = 160;
 const FOCUS_ENTER_DURATION_MS = 460;
 const REDUCED_FOCUS_EXIT_DURATION_MS = 70;
 const REDUCED_FOCUS_ENTER_DURATION_MS = 130;
+const BUILD_DRAG_DATA_TYPE = "application/x-pathin-build-item";
 
 const detailSections: Array<{ id: DetailSection; label: string }> = [
   { id: "overview", label: "Overview" },
@@ -1205,8 +1211,10 @@ export function CareerMapView({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [alternativeOptionsOpen, setAlternativeOptionsOpen] =
     useState(false);
-  const [draggedBuildNodeId, setDraggedBuildNodeId] =
-    useState<string | null>(null);
+  const [draggedBuildItem, setDraggedBuildItem] =
+    useState<BuildDragItem | null>(null);
+  const [buildDropIndex, setBuildDropIndex] =
+    useState<number | null>(null);
   const [nodeEditorId, setNodeEditorId] = useState<string | null>(null);
   const [nodeEditorLabel, setNodeEditorLabel] = useState("");
   const [nodeEditorSummary, setNodeEditorSummary] = useState("");
@@ -1249,6 +1257,7 @@ export function CareerMapView({
   const focusTransitionLockRef = useRef(false);
   const focusTransitionSequenceRef = useRef(0);
   const focusTransitionTimerRef = useRef<number | null>(null);
+  const customStepSequenceRef = useRef(0);
   const savedPanelRef = useRef<HTMLElement>(null);
   const explicitlySavedMapIdRef = useRef<string | null>(null);
   const lastExplorePathIdRef = useRef(
@@ -2410,8 +2419,11 @@ export function CareerMapView({
     );
   }
 
-  function reorderBuildNode(sourceNodeId: string, targetNodeId: string) {
-    if (!focusedPath || sourceNodeId === targetNodeId) {
+  function moveBuildNodeToIndex(
+    sourceNodeId: string,
+    requestedIndex: number,
+  ) {
+    if (!focusedPath) {
       return;
     }
     const pathId = focusedPath.id;
@@ -2429,24 +2441,19 @@ export function CareerMapView({
         ...(current[pathId] ?? originalPath.nodeIds),
       ];
       const sourceIndex = nodeIds.indexOf(sourceNodeId);
-      const originalTargetIndex = nodeIds.indexOf(targetNodeId);
-      if (sourceIndex < 1 || originalTargetIndex < 0) {
+      if (sourceIndex < 1) {
         return current;
       }
 
       nodeIds.splice(sourceIndex, 1);
-      let targetIndex = nodeIds.indexOf(targetNodeId);
-      if (targetNodeId === "current") {
-        targetIndex = 1;
-      } else if (targetNodeId === originalPath.destinationId) {
-        targetIndex = nodeIds.length - 1;
-      } else if (
-        sourceIndex < originalTargetIndex &&
-        targetIndex < nodeIds.length - 1
-      ) {
-        targetIndex += 1;
+      let targetIndex = requestedIndex;
+      if (sourceIndex < requestedIndex) {
+        targetIndex -= 1;
       }
-      targetIndex = Math.max(1, Math.min(targetIndex, nodeIds.length - 1));
+      targetIndex = Math.max(
+        1,
+        Math.min(targetIndex, nodeIds.length - 1),
+      );
       nodeIds.splice(targetIndex, 0, sourceNodeId);
       return { ...current, [pathId]: nodeIds };
     });
@@ -2456,26 +2463,74 @@ export function CareerMapView({
     );
   }
 
-  function handleBuildDragStart(
+  function startBuildDrag(
     event: ReactDragEvent<HTMLElement>,
-    nodeId: string,
+    item: BuildDragItem,
   ) {
-    setDraggedBuildNodeId(nodeId);
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", nodeId);
+    setDraggedBuildItem(item);
+    setBuildDropIndex(null);
+    event.dataTransfer.effectAllowed =
+      item.kind === "suggestion" ? "copyMove" : "move";
+    const serialized = JSON.stringify(item);
+    event.dataTransfer.setData(BUILD_DRAG_DATA_TYPE, serialized);
+    event.dataTransfer.setData("text/plain", serialized);
   }
 
-  function handleBuildDrop(
+  function finishBuildDrag() {
+    setDraggedBuildItem(null);
+    setBuildDropIndex(null);
+  }
+
+  function readBuildDragItem(
     event: ReactDragEvent<HTMLElement>,
-    targetNodeId: string,
+  ): BuildDragItem | null {
+    if (draggedBuildItem) {
+      return draggedBuildItem;
+    }
+
+    const serialized =
+      event.dataTransfer.getData(BUILD_DRAG_DATA_TYPE) ||
+      event.dataTransfer.getData("text/plain");
+    if (!serialized) {
+      return null;
+    }
+    try {
+      const item = JSON.parse(serialized) as Partial<BuildDragItem>;
+      if (item.kind === "route" && typeof item.nodeId === "string") {
+        return { kind: "route", nodeId: item.nodeId };
+      }
+      if (
+        item.kind === "suggestion" &&
+        typeof item.suggestionId === "string"
+      ) {
+        return {
+          kind: "suggestion",
+          suggestionId: item.suggestionId,
+        };
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  function handleBuildDropAtIndex(
+    event: ReactDragEvent<HTMLElement>,
+    targetIndex: number,
   ) {
     event.preventDefault();
-    const sourceNodeId =
-      draggedBuildNodeId || event.dataTransfer.getData("text/plain");
-    if (sourceNodeId) {
-      reorderBuildNode(sourceNodeId, targetNodeId);
+    const item = readBuildDragItem(event);
+    if (item?.kind === "route") {
+      moveBuildNodeToIndex(item.nodeId, targetIndex);
+    } else if (item?.kind === "suggestion") {
+      const suggestion = buildSuggestions.find(
+        (candidate) => candidate.id === item.suggestionId,
+      );
+      if (suggestion) {
+        addBuildSuggestion(suggestion, targetIndex);
+      }
     }
-    setDraggedBuildNodeId(null);
+    finishBuildDrag();
   }
 
   function removeBuildNode(nodeId: string) {
@@ -2519,7 +2574,10 @@ export function CareerMapView({
     setStatusMessage("This route was reset to the Flask-generated version.");
   }
 
-  function addBuildSuggestion(suggestion: BuildSuggestion) {
+  function addBuildSuggestion(
+    suggestion: BuildSuggestion,
+    requestedIndex?: number,
+  ) {
     if (!focusedPath) {
       return;
     }
@@ -2541,15 +2599,29 @@ export function CareerMapView({
         return current;
       }
       const destinationIndex = nodeIds.indexOf(originalPath.destinationId);
+      const insertionIndex =
+        requestedIndex === undefined
+          ? destinationIndex
+          : Math.max(
+              1,
+              Math.min(
+                requestedIndex,
+                destinationIndex >= 0
+                  ? destinationIndex
+                  : nodeIds.length,
+              ),
+            );
       nodeIds.splice(
-        destinationIndex >= 0 ? destinationIndex : nodeIds.length,
+        insertionIndex >= 0 ? insertionIndex : nodeIds.length,
         0,
         suggestion.node.id,
       );
       return { ...current, [focusedPath.id]: nodeIds };
     });
     setSelectedNodeId(suggestion.node.id);
-    setStatusMessage(`${suggestion.node.label} added to this route.`);
+    setStatusMessage(
+      `${suggestion.node.label} added to this route${requestedIndex === undefined ? "" : " at the selected position"}.`,
+    );
   }
 
   function openNodeEditor(nodeId: string) {
@@ -2597,7 +2669,8 @@ export function CareerMapView({
     if (!label || !summary) {
       return;
     }
-    const id = `custom-step-${Date.now()}`;
+    customStepSequenceRef.current += 1;
+    const id = `custom-step-${customStepSequenceRef.current}`;
     const destination = nodeById.get(focusedPath.destinationId);
     addBuildSuggestion({
       id,
@@ -3047,7 +3120,8 @@ export function CareerMapView({
                     <p>Edit this route</p>
                     <h3>{focusedPath.shortLabel}</h3>
                     <span>
-                      Drag steps to reorder them, or use the move buttons.
+                      Grab any unlocked step and drop it between two cards.
+                      Recommended cards can be dragged into the route too.
                     </span>
                   </div>
                   <div className={styles.buildEditorActions}>
@@ -3072,120 +3146,185 @@ export function CareerMapView({
                   </div>
                 </div>
 
-                <div className={styles.buildRouteTrack}>
-                  {focusedPath.nodeIds.map((nodeId, index) => {
-                    const node = nodeById.get(nodeId);
-                    if (!node) {
-                      return null;
-                    }
-                    const isStart = nodeId === "current";
-                    const isGoal = nodeId === focusedPath.destinationId;
-                    const isLocked = isStart || isGoal;
+                <div className={styles.buildRouteBoard}>
+                  <div className={styles.buildRouteDragGuide}>
+                    <span>
+                      <MiniIcon name="grip" />
+                    </span>
+                    <div>
+                      <strong>Grab, move, and connect</strong>
+                      <small>
+                        Blue insertion slots open while you drag. Start and
+                        goal stay locked.
+                      </small>
+                    </div>
+                  </div>
 
-                    return (
-                      <article
-                        className={styles.buildRouteStep}
-                        data-dragging={
-                          draggedBuildNodeId === nodeId ? "true" : "false"
-                        }
-                        data-locked={isLocked ? "true" : "false"}
-                        draggable={!isLocked}
-                        key={nodeId}
-                        onDragEnd={() => setDraggedBuildNodeId(null)}
-                        onDragOver={(event) => {
-                          event.preventDefault();
-                          event.dataTransfer.dropEffect = "move";
-                        }}
-                        onDragStart={(event) =>
-                          handleBuildDragStart(event, nodeId)
-                        }
-                        onDrop={(event) =>
-                          handleBuildDrop(event, nodeId)
-                        }
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={styles.buildDragHandle}
-                        >
-                          <MiniIcon
-                            name={
-                              isStart
-                                ? "current"
-                                : isGoal
-                                  ? "destination"
-                                  : "grip"
+                  <div
+                    className={styles.buildRouteTrack}
+                    data-drag-active={
+                      draggedBuildItem ? "true" : "false"
+                    }
+                  >
+                    {focusedPath.nodeIds.map((nodeId, index) => {
+                      const node = nodeById.get(nodeId);
+                      if (!node) {
+                        return null;
+                      }
+                      const isStart = nodeId === "current";
+                      const isGoal = nodeId === focusedPath.destinationId;
+                      const isLocked = isStart || isGoal;
+                      const isDraggedRouteNode =
+                        draggedBuildItem?.kind === "route" &&
+                        draggedBuildItem.nodeId === nodeId;
+
+                      return (
+                        <Fragment key={nodeId}>
+                          {index > 0 ? (
+                            <div
+                              aria-label={`Drop before ${node.label}`}
+                              className={styles.buildDropSlot}
+                              data-active={
+                                buildDropIndex === index ? "true" : "false"
+                              }
+                              data-drag-visible={
+                                draggedBuildItem ? "true" : "false"
+                              }
+                              onDragEnter={(event) => {
+                                event.preventDefault();
+                                setBuildDropIndex(index);
+                              }}
+                              onDragOver={(event) => {
+                                event.preventDefault();
+                                event.dataTransfer.dropEffect =
+                                  draggedBuildItem?.kind === "suggestion"
+                                    ? "copy"
+                                    : "move";
+                                if (buildDropIndex !== index) {
+                                  setBuildDropIndex(index);
+                                }
+                              }}
+                              onDrop={(event) =>
+                                handleBuildDropAtIndex(event, index)
+                              }
+                            >
+                              <span>
+                                <MiniIcon name="plus" />
+                              </span>
+                              <small>Drop here</small>
+                            </div>
+                          ) : null}
+
+                          <article
+                            aria-label={`${node.label} route card`}
+                            className={styles.buildRouteStep}
+                            data-dragging={
+                              isDraggedRouteNode ? "true" : "false"
                             }
-                          />
-                        </span>
-                        <button
-                          aria-current={
-                            selectedNodeId === nodeId ? "step" : undefined
-                          }
-                          aria-label={`Select ${node.label}`}
-                          className={styles.buildStepSelect}
-                          onClick={() =>
-                            selectAndFocusNode(nodeId, focusedPath.id)
-                          }
-                          type="button"
-                        >
-                          <small>
-                            {isStart
-                              ? "Start"
-                              : isGoal
-                                ? "Goal"
-                                : `Step ${index}`}
-                          </small>
-                          <strong>{node.label}</strong>
-                        </button>
-                        {nodeId !== "current" ? (
-                          <div className={styles.buildStepActions}>
-                            {!isLocked ? (
-                              <>
-                                <button
-                                  aria-label={`Move ${node.label} earlier`}
-                                  disabled={index <= 1}
-                                  onClick={() =>
-                                    moveBuildNode(nodeId, -1)
-                                  }
-                                  type="button"
-                                >
-                                  <MiniIcon name="arrow-left" />
-                                </button>
-                                <button
-                                  aria-label={`Move ${node.label} later`}
-                                  disabled={
-                                    index >= focusedPath.nodeIds.length - 2
-                                  }
-                                  onClick={() =>
-                                    moveBuildNode(nodeId, 1)
-                                  }
-                                  type="button"
-                                >
-                                  <MiniIcon name="arrow-right" />
-                                </button>
-                              </>
-                            ) : null}
+                            data-locked={isLocked ? "true" : "false"}
+                            draggable={!isLocked}
+                            onDragEnd={finishBuildDrag}
+                            onDragStart={(event) =>
+                              startBuildDrag(event, {
+                                kind: "route",
+                                nodeId,
+                              })
+                            }
+                          >
+                            <span
+                              aria-label={
+                                isLocked
+                                  ? `${node.label} is locked`
+                                  : `Grab ${node.label} to reorder`
+                              }
+                              className={styles.buildDragHandle}
+                              role="img"
+                            >
+                              <MiniIcon
+                                name={
+                                  isStart
+                                    ? "current"
+                                    : isGoal
+                                      ? "destination"
+                                      : "grip"
+                                }
+                              />
+                              <small>{isLocked ? "Locked" : "Grab"}</small>
+                            </span>
                             <button
-                              aria-label={`Edit ${node.label}`}
-                              onClick={() => openNodeEditor(nodeId)}
+                              aria-current={
+                                selectedNodeId === nodeId
+                                  ? "step"
+                                  : undefined
+                              }
+                              aria-label={`Select ${node.label}`}
+                              className={styles.buildStepSelect}
+                              onClick={() =>
+                                selectAndFocusNode(nodeId, focusedPath.id)
+                              }
                               type="button"
                             >
-                              <MiniIcon name="edit" />
+                              <small>
+                                {isStart
+                                  ? "Start"
+                                  : isGoal
+                                    ? "Goal"
+                                    : `Step ${index}`}
+                              </small>
+                              <strong>{node.label}</strong>
                             </button>
-                            {!isLocked ? (
-                              <button
-                                aria-label={`Remove ${node.label}`}
-                                onClick={() => removeBuildNode(nodeId)}
-                                type="button"
-                              >
-                                <MiniIcon name="trash" />
-                              </button>
+                            {nodeId !== "current" ? (
+                              <div className={styles.buildStepActions}>
+                                {!isLocked ? (
+                                  <>
+                                    <button
+                                      aria-label={`Move ${node.label} earlier`}
+                                      disabled={index <= 1}
+                                      onClick={() =>
+                                        moveBuildNode(nodeId, -1)
+                                      }
+                                      type="button"
+                                    >
+                                      <MiniIcon name="arrow-left" />
+                                    </button>
+                                    <button
+                                      aria-label={`Move ${node.label} later`}
+                                      disabled={
+                                        index >=
+                                        focusedPath.nodeIds.length - 2
+                                      }
+                                      onClick={() =>
+                                        moveBuildNode(nodeId, 1)
+                                      }
+                                      type="button"
+                                    >
+                                      <MiniIcon name="arrow-right" />
+                                    </button>
+                                  </>
+                                ) : null}
+                                <button
+                                  aria-label={`Edit ${node.label}`}
+                                  onClick={() => openNodeEditor(nodeId)}
+                                  type="button"
+                                >
+                                  <MiniIcon name="edit" />
+                                </button>
+                                {!isLocked ? (
+                                  <button
+                                    aria-label={`Remove ${node.label}`}
+                                    onClick={() => removeBuildNode(nodeId)}
+                                    type="button"
+                                  >
+                                    <MiniIcon name="trash" />
+                                  </button>
+                                ) : null}
+                              </div>
                             ) : null}
-                          </div>
-                        ) : null}
-                      </article>
-                    );
-                  })}
+                          </article>
+                        </Fragment>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {customStepOpen ? (
@@ -3234,18 +3373,39 @@ export function CareerMapView({
                   <div>
                     <p>Recommended nodes</p>
                     <span>
-                      Based on alternate generated routes and remaining skill
-                      gaps.
+                      Drag a card into any blue route slot. Add to end remains
+                      available for keyboard and touch users.
                     </span>
                   </div>
                   <div className={styles.buildSuggestionList}>
                     {buildSuggestions.length > 0 ? (
                       buildSuggestions.map((suggestion) => (
                         <article
+                          aria-label={`Recommended step ${suggestion.node.label}. Drag into route or add to end.`}
                           className={styles.buildSuggestion}
+                          data-dragging={
+                            draggedBuildItem?.kind === "suggestion" &&
+                            draggedBuildItem.suggestionId === suggestion.id
+                              ? "true"
+                              : "false"
+                          }
+                          draggable
                           key={suggestion.id}
+                          onDragEnd={finishBuildDrag}
+                          onDragStart={(event) =>
+                            startBuildDrag(event, {
+                              kind: "suggestion",
+                              suggestionId: suggestion.id,
+                            })
+                          }
                         >
-                          <span>{suggestion.reason}</span>
+                          <div className={styles.buildSuggestionGrab}>
+                            <MiniIcon name="grip" />
+                            <span>Drag into route</span>
+                          </div>
+                          <span className={styles.buildSuggestionReason}>
+                            {suggestion.reason}
+                          </span>
                           <strong>{suggestion.node.label}</strong>
                           <small>
                             {compactMapText(
@@ -3256,14 +3416,14 @@ export function CareerMapView({
                             )}
                           </small>
                           <button
-                            aria-label={`Add ${suggestion.node.label}`}
+                            aria-label={`Add ${suggestion.node.label} to end`}
                             onClick={() =>
                               addBuildSuggestion(suggestion)
                             }
                             type="button"
                           >
                             <MiniIcon name="plus" />
-                            Add
+                            Add to end
                           </button>
                         </article>
                       ))

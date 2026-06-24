@@ -429,19 +429,90 @@ describe("CareerMapView navigation", () => {
         name: "Select Machine Learning Fundamentals",
       })
       .closest("article");
-    const target = within(editor)
-      .getByRole("button", { name: "Select Data Scientist" })
-      .closest("article");
+    const target = within(editor).getByLabelText(
+      "Drop before Senior Data Scientist",
+    );
     expect(source).toHaveAttribute("draggable", "true");
+    expect(
+      within(editor).getByRole("img", {
+        name: "Grab Machine Learning Fundamentals to reorder",
+      }),
+    ).toBeInTheDocument();
 
     fireEvent.dragStart(source!, { dataTransfer });
     fireEvent.dragOver(target!, { dataTransfer });
+    expect(target).toHaveAttribute("data-active", "true");
     fireEvent.drop(target!, { dataTransfer });
 
     const reordered = stepLabels();
     expect(reordered.indexOf("Select Machine Learning Fundamentals")).toBe(
       reordered.indexOf("Select Data Scientist") + 1,
     );
+
+    const movedSource = within(editor)
+      .getByRole("button", {
+        name: "Select Machine Learning Fundamentals",
+      })
+      .closest("article");
+    const firstSlot = within(editor).getByLabelText(
+      "Drop before Applied data analysis",
+    );
+    fireEvent.dragStart(movedSource!, { dataTransfer });
+    fireEvent.dragOver(firstSlot, { dataTransfer });
+    fireEvent.drop(firstSlot, { dataTransfer });
+
+    expect(stepLabels().slice(0, 3)).toEqual([
+      "Select Your current standing",
+      "Select Machine Learning Fundamentals",
+      "Select Applied data analysis",
+    ]);
+  });
+
+  it("drags a recommended node into a chosen route position", () => {
+    renderCareerMap();
+    fireEvent.click(screen.getByRole("tab", { name: "Build My Path" }));
+
+    const editor = screen.getByRole("region", {
+      name: "Build path editor",
+    });
+    const recommendation = within(editor).getByLabelText(
+      "Recommended step Cloud Computing with AWS. Drag into route or add to end.",
+    );
+    const target = within(editor).getByLabelText(
+      "Drop before Applied data project",
+    );
+    const dataTransfer = {
+      dropEffect: "copy",
+      effectAllowed: "copyMove",
+      getData: vi.fn(() =>
+        JSON.stringify({
+          kind: "suggestion",
+          suggestionId: "existing-course-cloud",
+        }),
+      ),
+      setData: vi.fn(),
+    };
+
+    expect(recommendation).toHaveAttribute("draggable", "true");
+    expect(within(recommendation).getByText("Drag into route")).toBeVisible();
+
+    fireEvent.dragStart(recommendation, { dataTransfer });
+    expect(target).toHaveAttribute("data-drag-visible", "true");
+    fireEvent.dragOver(target, { dataTransfer });
+    expect(target).toHaveAttribute("data-active", "true");
+    fireEvent.drop(target, { dataTransfer });
+
+    const stepLabels = within(editor)
+      .getAllByRole("button", { name: /^Select / })
+      .map((button) => button.getAttribute("aria-label"));
+    expect(
+      stepLabels.indexOf("Select Cloud Computing with AWS"),
+    ).toBe(stepLabels.indexOf("Select Applied data project") - 1);
+    expect(
+      within(editor).queryByLabelText(
+        "Recommended step Cloud Computing with AWS. Drag into route or add to end.",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("adds recommended nodes and custom steps to the active route", () => {
@@ -453,7 +524,7 @@ describe("CareerMapView navigation", () => {
     });
     fireEvent.click(
       within(editor).getByRole("button", {
-        name: "Add Cloud Computing with AWS",
+        name: "Add Cloud Computing with AWS to end",
       }),
     );
     expect(
