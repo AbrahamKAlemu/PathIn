@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { Header } from "./header";
 
 describe("Header", () => {
-  it("links the Me avatar to Winston's profile and exposes zero notifications", () => {
+  it("links the Me avatar to Winston's profile and hides badge when notifications are zero", () => {
     render(<Header active="profile" notificationCount={0} />);
 
     expect(screen.getByRole("link", { name: "Me" })).toHaveAttribute(
@@ -15,11 +15,20 @@ describe("Header", () => {
     const notifications = screen.getByRole("button", {
       name: "Notifications",
     });
-    expect(within(notifications).getByText("0")).toBeInTheDocument();
+    expect(within(notifications).queryByText("0")).toBeNull();
 
     fireEvent.click(notifications);
     expect(screen.getByText("You have 0 notifications.")).toBeInTheDocument();
     expect(notifications).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("shows the notification count badge when notificationCount is greater than zero", () => {
+    render(<Header notificationCount={9} />);
+
+    const notifications = screen.getByRole("button", {
+      name: "Notifications",
+    });
+    expect(within(notifications).getByText("9")).toBeInTheDocument();
   });
 
   it("keeps Jobs separate from the Path[IN] Career Tree", () => {
