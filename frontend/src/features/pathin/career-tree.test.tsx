@@ -116,7 +116,7 @@ describe("CareerTree resume-first onboarding", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Upload your resume and add your LinkedIn profile export for recommendations grounded in both sources.",
+        "Upload your resume and optionally add a LinkedIn profile PDF for stronger recommendations.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Upload resume")).toHaveAttribute(
@@ -124,7 +124,7 @@ describe("CareerTree resume-first onboarding", () => {
       "file",
     );
     expect(
-      screen.getByLabelText("Upload LinkedIn profile export"),
+      screen.getByLabelText("Upload LinkedIn profile"),
     ).toHaveAttribute("type", "file");
     expect(
       screen.getByRole("button", { name: "Generate career path" }),
@@ -226,7 +226,7 @@ describe("CareerTree resume-first onboarding", () => {
       "Creating recommendations from your resume evidence",
     );
     expect(
-      screen.queryByLabelText("Upload LinkedIn profile export"),
+      screen.queryByLabelText("Upload LinkedIn profile"),
     ).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Upload resume")).not.toBeInTheDocument();
   });
@@ -252,7 +252,7 @@ describe("CareerTree resume-first onboarding", () => {
     });
     await screen.findByText("resume.txt");
 
-    fireEvent.change(screen.getByLabelText("Upload LinkedIn profile export"), {
+    fireEvent.change(screen.getByLabelText("Upload LinkedIn profile"), {
       target: {
         files: [
           new File(["linkedin content"], "linkedin-profile.txt", {

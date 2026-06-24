@@ -477,9 +477,7 @@ def test_resume_and_linkedin_evidence_unlock_user_selected_linkedin_north_star(
         "Technical Leadership",
         "Large-scale Distributed Systems",
     ]
-    assert "not claiming company-specific hiring fit" in dream[
-        "careerThesis"
-    ]
+    assert dream["careerThesis"].startswith("North Star selected by you.")
     recommendation = next(
         item
         for item in payload["rankedDestinations"]
@@ -712,7 +710,8 @@ def test_results_are_diverse_and_explainable(client: FlaskClient) -> None:
             signal["value"] in enabled_values
             for signal in item["topMatchingSignals"]
         )
-        assert item["topMatchingSignals"][0]["value"] in item["explanation"]
+        assert item["explanation"].startswith("Current evidence:")
+        assert len(item["explanation"]) < 160
         assert item["canonicalRole"]
         assert item["personalizedTitle"]
         assert item["careerThesis"]
@@ -730,7 +729,7 @@ def test_generated_routes_are_dynamic_and_address_identified_gaps(
         {
             "education": ["BS Computer Science"],
             "skills": ["Python", "Communication"],
-            "projects": ["Small data dashboard"],
+            "projects": ["Small data dashboard | Python, SQL, Tableau"],
             "interests": ["AI", "Data"],
         },
     )
@@ -780,6 +779,8 @@ def test_generated_routes_are_dynamic_and_address_identified_gaps(
                 assert "evidence project" not in node_by_id[node_id][
                     "label"
                 ].lower()
+                if node_by_id[node_id]["type"] == "experience":
+                    assert "|" not in node_by_id[node_id]["label"]
 
 
 def test_sparse_historical_transitions_remain_suppressed(

@@ -1511,12 +1511,11 @@ class RecommendationEngine:
             top_profile_signals,
             gaps,
             stage,
+            skill_matches,
         )
         explanation = self._explanation(
-            candidate,
-            top_profile_signals,
-            gaps,
             personalization,
+            gaps,
         )
         uncertainty = self._uncertainty(
             confidence,
@@ -1889,6 +1888,7 @@ class RecommendationEngine:
         top_signals: list[dict[str, Any]],
         gaps: list[str],
         stage: str,
+        skill_matches: list[str],
     ) -> dict[str, Any]:
         specialization = candidate["title"]
         specialization_evidence: list[dict[str, Any]] = []
@@ -1954,17 +1954,19 @@ class RecommendationEngine:
             "realistic_next_move": "next_move",
             "longer_term_path": "longer_term",
         }
-        evidence_copy = " and ".join(
-            f"'{item['value']}'" for item in combined_evidence[:2]
-        )
-        if not evidence_copy:
-            evidence_copy = "the limited evidence currently available"
+        current_strengths = skill_matches[:3]
+        if not current_strengths:
+            current_strengths = [
+                item["value"]
+                for item in combined_evidence
+                if len(item["value"]) <= 40
+            ][:2]
+        if not current_strengths:
+            current_strengths = [candidate["family"]]
         gap_copy = gaps[0] if gaps else "role-specific proof"
         career_thesis = (
-            f"{personalized_title} connects {evidence_copy} to a role focused "
-            f"on {target_problem or candidate['responsibilities'][0].lower()}. "
-            f"The direction becomes credible by proving {gap_copy} in a "
-            "reviewable project or responsibility."
+            f"Current strengths: {', '.join(current_strengths)}. "
+            f"Build next: {gap_copy}."
         )
         return {
             "canonicalRole": candidate["title"],
@@ -1975,6 +1977,7 @@ class RecommendationEngine:
             "careerHorizon": horizon_by_stage[stage],
             "careerPosition": position_by_stage[stage],
             "personalizationEvidence": combined_evidence[:6],
+            "currentStrengths": current_strengths,
             "careerThesis": career_thesis,
             "sourceBlend": self._source_blend_label(combined_evidence),
         }
@@ -2079,20 +2082,13 @@ class RecommendationEngine:
             dream["gaps"] = list(
                 dict.fromkeys([*senior_gaps, *dream["gaps"]])
             )[:6]
-            evidence_copy = " and ".join(
-                f"'{item['value']}'"
-                for item in dream["personalizationEvidence"][:2]
-            ) or "the uploaded software evidence"
             dream["careerThesis"] = (
-                f"{target['title']} is a user-selected North Star, supported "
-                f"directionally by {evidence_copy}. The engine is not claiming "
-                "company-specific hiring fit; the route focuses on proving "
-                f"{', '.join(dream['gaps'][:2])} at greater scope."
+                "North Star selected by you. Build next: "
+                f"{', '.join(dream['gaps'][:2])}."
             )
             dream["explanation"] = (
-                f"This aspiration is grounded in {dream['sourceBlend']}: "
-                f"{evidence_copy}. Reaching LinkedIn's senior engineering bar "
-                f"still requires direct evidence of {', '.join(dream['gaps'][:2])}."
+                "Current software evidence supports the direction. "
+                f"Next gaps: {', '.join(dream['gaps'][:2])}."
             )
             dream["uncertainty"] = (
                 "LinkedIn-specific hiring fit is not inferred from uploads. "
@@ -2113,33 +2109,15 @@ class RecommendationEngine:
 
     @staticmethod
     def _explanation(
-        candidate: dict[str, Any],
-        signals: list[dict[str, Any]],
-        gaps: list[str],
         personalization: dict[str, Any],
+        gaps: list[str],
     ) -> str:
-        signal_names = [item["value"] for item in signals[:2]]
-        signal_copy = (
-            " and ".join(f"'{value}'" for value in signal_names)
-            if signal_names
-            else "the limited uploaded evidence"
-        )
-        strengths = [
-            item["value"]
-            for item in personalization["personalizationEvidence"]
-            if item.get("category") == "skills"
-        ][:2]
-        strength_copy = (
-            " and ".join(strengths)
-            if strengths
-            else candidate["responsibilities"][0].lower()
+        strength_copy = ", ".join(
+            personalization["currentStrengths"][:3]
         )
         gap_copy = gaps[0] if gaps else "role-specific applied proof"
         return (
-            f"{personalization['personalizedTitle']} is grounded in "
-            f"{personalization['sourceBlend']}: {signal_copy}. That evidence "
-            f"supports {strength_copy}; the main proof still missing is "
-            f"{gap_copy}."
+            f"Current evidence: {strength_copy}. Next gap: {gap_copy}."
         )
 
     @staticmethod
@@ -2314,7 +2292,7 @@ class RecommendationEngine:
     def _destination_node(recommendation: dict[str, Any]) -> dict[str, Any]:
         market = recommendation.get("market")
         position_labels = {
-            "north_star": "Personalized North Star",
+            "north_star": "North Star",
             "ready_now": "Ready-now direction",
             "next_move": "Credible next move",
             "longer_term": "Longer-term direction",
@@ -2892,8 +2870,13 @@ class RecommendationEngine:
             flags=re.IGNORECASE,
         )
         cleaned = re.sub(r"^(a|an|the)\s+", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.split(
+            r"\s+\|\s+|\s+-\s+|:\s+",
+            cleaned,
+            maxsplit=1,
+        )[0].strip(" .,:;-")
         words = cleaned.split()
-        subject = " ".join(words[:7]).strip(" .,:;-")
+        subject = " ".join(words[:6]).strip(" .,:;-")
         if not subject:
             subject = fallback.strip()
         if subject:

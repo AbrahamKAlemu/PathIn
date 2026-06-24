@@ -534,8 +534,7 @@ export function CareerTree() {
         <header className={styles.uploadIntro}>
           <h1>Build your career path</h1>
           <p>
-            Upload your resume and add your LinkedIn profile export for
-            recommendations grounded in both sources.
+            Upload your resume and optionally add a LinkedIn profile PDF for stronger recommendations.
           </p>
         </header>
 
@@ -555,20 +554,19 @@ export function CareerTree() {
           <div className={styles.linkedinUploadSection}>
             <div className={styles.linkedinUploadHeading}>
               <div>
-                <strong>Add LinkedIn profile export</strong>
-                <span>Recommended</span>
+                <strong>Add LinkedIn profile</strong>
+                <span>Optional</span>
               </div>
               <p>
-                Corroborates roles and skills and unlocks your company-specific
-                North Star.
+                Upload a PDF or text export. LinkedIn URLs are not scraped.
               </p>
             </div>
             <EvidenceUpload
               compact
-              emptyLabel="LinkedIn PDF or data export"
+              emptyLabel="LinkedIn profile file"
               error={linkedinError}
               file={linkedinFile}
-              inputLabel="Upload LinkedIn profile export"
+              inputLabel="Upload LinkedIn profile"
               inputRef={linkedinInput}
               loading={parsingLinkedin}
               onDrop={selectLinkedin}

@@ -102,13 +102,6 @@ type FeedbackTarget = {
   type: "node" | "edge";
 };
 
-type IllustrativePeer = {
-  currentRole: string;
-  name: string;
-  note: string;
-  skills: string[];
-};
-
 const SAVED_STATE_KEY = "pathin-career-tree-state";
 const WEB_NODE_SIZE = 104;
 const WEB_COLUMN_GAP = 248;
@@ -119,10 +112,8 @@ const WEB_Y_PADDING = 110;
 
 const detailSections: Array<{ id: DetailSection; label: string }> = [
   { id: "overview", label: "Overview" },
-  { id: "fit", label: "Fit" },
   { id: "skills", label: "Skills" },
   { id: "connections", label: "Path" },
-  { id: "evidence", label: "Evidence" },
 ];
 
 const PROFILE_NODE_IDS = [
@@ -134,40 +125,6 @@ const PROFILE_NODE_IDS = [
 ] as const;
 
 const PROFILE_NODE_ID_SET = new Set<string>(PROFILE_NODE_IDS);
-
-function illustrativePeerForNode(node: CareerNode): IllustrativePeer {
-  const names = [
-    "Alex Morgan",
-    "Riley Chen",
-    "Maya Patel",
-    "Jordan Lee",
-    "Sofia Ramirez",
-  ];
-  const hash = [...node.id].reduce(
-    (total, character) => total + character.charCodeAt(0),
-    0,
-  );
-  const isRole =
-    node.type === "entry_role" ||
-    node.type === "role" ||
-    node.type === "destination";
-  const skills = [
-    ...node.transferableSkills,
-    ...node.skillsToBuild,
-    ...node.existingSkills,
-  ].filter(
-    (skill, index, values) => values.indexOf(skill) === index,
-  );
-
-  return {
-    currentRole: isRole ? node.label : `Working toward ${node.label}`,
-    name: names[hash % names.length],
-    note:
-      node.stepDetails?.why ??
-      `Built relevant evidence through ${node.stage.toLowerCase()} work before taking on broader responsibilities.`,
-    skills: skills.slice(0, 5),
-  };
-}
 
 function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
   const education =
@@ -791,6 +748,16 @@ export function CareerMapView({
   }, [activePathIds, dismissedNodeIds, pathById, pinnedNodeIds]);
 
   const selectedNode = nodeById.get(selectedNodeId) ?? nodeById.get("current")!;
+  const focusNodeSummary =
+    selectedNode.type === "destination"
+      ? [
+          ...selectedNode.transferableSkills,
+          ...selectedNode.existingSkills,
+        ]
+          .filter((skill, index, skills) => skills.indexOf(skill) === index)
+          .slice(0, 3)
+          .join(" · ") || selectedNode.stage
+      : selectedNode.summary;
   const focusedPath = useMemo(
     () =>
       activePaths.find((path) => path.id === focusedPathId) ?? activePaths[0],
@@ -1220,55 +1187,12 @@ export function CareerMapView({
     });
   }
 
-  async function requestMoreLikeThis() {
-    const targetId =
-      selectedNode.type === "destination"
-        ? selectedNode.id
-        : focusedPath?.destinationId;
-    if (!targetId) {
-      return;
-    }
-    setStatusMessage(
-      `Requesting more destinations related to ${nodeById.get(targetId)?.label ?? selectedNode.label}.`,
-    );
-    await onRegenerate("more_like_this", {
-      targetId,
-      pinnedNodeIds,
-      dismissedNodeIds,
-    });
-  }
-
-  async function requestSomethingDifferent() {
-    const targetId =
-      selectedNode.type === "destination"
-        ? selectedNode.id
-        : focusedPath?.destinationId;
-    if (!targetId) {
-      return;
-    }
-    setStatusMessage(
-      `Requesting a meaningfully different set from ${nodeById.get(targetId)?.label ?? selectedNode.label}.`,
-    );
-    await onRegenerate("something_different", {
-      targetId,
-      pinnedNodeIds,
-      dismissedNodeIds,
-    });
-  }
-
   async function buildSelectedDestination() {
     if (selectedNode.type !== "destination") {
       return;
     }
     setStatusMessage(`Building two routes toward ${selectedNode.label}.`);
     await onBuildToward(selectedNode.id);
-  }
-
-  function openFeedback(target: FeedbackTarget) {
-    setFeedbackTarget(target);
-    window.requestAnimationFrame(() => {
-      feedbackCloseRef.current?.focus();
-    });
   }
 
   function closeFeedback() {
@@ -1658,7 +1582,7 @@ export function CareerMapView({
                       </span>
                       <strong>{selectedNode.label}</strong>
                       <small>{positionLabel}</small>
-                      <p>{selectedNode.summary}</p>
+                      <p>{focusNodeSummary}</p>
                       <span className={styles.focusNodeAction}>
                         Open focused details
                         <MiniIcon name="arrow-right" />
@@ -1952,7 +1876,9 @@ export function CareerMapView({
               <MiniIcon name="arrow-down" />
               <span>
                 <small>Down</small>
-                {previousFocusNode?.label ?? "Earlier step"}
+                <strong>
+                  {previousFocusNode?.label ?? "Earlier step"}
+                </strong>
               </span>
             </button>
             <button
@@ -1968,7 +1894,7 @@ export function CareerMapView({
             >
               <span>
                 <small>Up</small>
-                {nextFocusNode?.label ?? "Later step"}
+                <strong>{nextFocusNode?.label ?? "Later step"}</strong>
               </span>
               <MiniIcon name="arrow-up" />
             </button>
@@ -1998,7 +1924,6 @@ export function CareerMapView({
               data-motion={detailMotion}
               key={`detail-content-${selectedNode.id}`}
             >
-              <IllustrativePeerCard node={selectedNode} />
               <NodeDetailSection
                 activePaths={[focusPathForDetails]}
                 edgeByKey={edgeByKey}
@@ -2036,14 +1961,6 @@ export function CareerMapView({
                     <MiniIcon name="destination" />
                     Build toward this
                   </button>
-                  <button onClick={requestMoreLikeThis} type="button">
-                    <MiniIcon name="sparkles" />
-                    More like this
-                  </button>
-                  <button onClick={requestSomethingDifferent} type="button">
-                    <MiniIcon name="branch" />
-                    Something different
-                  </button>
                 </>
               ) : (
                 <button onClick={requestAlternative} type="button">
@@ -2054,19 +1971,6 @@ export function CareerMapView({
               <button onClick={dismissSelectedNode} type="button">
                 <MiniIcon name="eye" />
                 Not for me
-              </button>
-              <button
-                onClick={() =>
-                  openFeedback({
-                    id: selectedNode.id,
-                    label: selectedNode.label,
-                    type: "node",
-                  })
-                }
-                type="button"
-              >
-                <MiniIcon name="info" />
-                Report issue
               </button>
             </div>
           )}
@@ -2147,7 +2051,7 @@ function CareerGoals({
     if (recommendation?.isDreamCareer) {
       return recommendation.aspirationSource === "user_selected"
         ? "User-selected North Star"
-        : "Personalized North Star";
+        : "North Star";
     }
     if (recommendation?.careerPosition === "ready_now") {
       return "Ready now";
@@ -2160,11 +2064,11 @@ function CareerGoals({
   const activeRecommendation = activeGoal.destination.recommendation;
 
   return (
-    <section aria-label="Possible career goals" className={styles.careerGoals}>
+    <section aria-label="Career directions" className={styles.careerGoals}>
       <div className={styles.careerGoalsHeading}>
         <span>
           <MiniIcon name="destination" />
-          Personalized career directions
+          Career directions
         </span>
         <small>
           Grounded in {dreamCareer?.sourceBlend ?? "your uploaded evidence"}
@@ -2497,71 +2401,55 @@ function NodeDetailSection({
     );
   }
 
+  const overviewSkills = [
+    ...node.transferableSkills,
+    ...node.existingSkills,
+  ]
+    .filter((skill, index, skills) => skills.indexOf(skill) === index)
+    .slice(0, 3);
+  const overviewFacts = node.recommendation
+    ? [
+        ["Timeline", node.stage],
+        ["Base role", node.recommendation.canonicalRole],
+        [
+          "Build next",
+          node.recommendation.gaps[0] ?? "Role-specific proof",
+        ],
+      ]
+    : node.stepDetails
+      ? [
+          ["Builds", node.stepDetails.gapAddressed],
+          ["Time", node.stepDetails.effort],
+          ["Proof", node.stepDetails.completionEvidence],
+        ]
+      : [
+          ["Stage", node.stage],
+          ["Start with", node.responsibilities[0]],
+        ];
+
   return (
     <div className={styles.detailSection}>
-      <p className={styles.detailSummary}>{node.summary}</p>
-      <div className={styles.detailQuickFacts}>
-        <div>
-          <small>Stage</small>
-          <strong>{node.stage}</strong>
-        </div>
-        <div>
+      {overviewSkills.length ? (
+        <div className={styles.overviewSignals}>
           <small>
-            {node.recommendation ? "Canonical role" : "Start with"}
+            {node.recommendation ? "Already in your profile" : "Uses"}
           </small>
-          <strong>
-            {node.recommendation?.canonicalRole ??
-              node.responsibilities[0]}
-          </strong>
-        </div>
-      </div>
-      {node.stepDetails ? (
-        <div className={styles.compactStepReason}>
-          <small>Why this step</small>
-          <p>{node.stepDetails.why}</p>
-          <span>{node.stepDetails.effort}</span>
-          {node.stepDetails.supportingEvidence?.[0] ? (
-            <small className={styles.stepEvidenceSource}>
-              Grounded in{" "}
-              {node.stepDetails.supportingEvidence[0].source}:{" "}
-              {node.stepDetails.supportingEvidence[0].value}
-            </small>
-          ) : null}
+          <div>
+            {overviewSkills.map((skill) => (
+              <span key={skill}>{skill}</span>
+            ))}
+          </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function IllustrativePeerCard({ node }: { node: CareerNode }) {
-  const peer = illustrativePeerForNode(node);
-  const initials = peer.name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2);
-
-  return (
-    <section
-      aria-label={`Illustrative peer matched to ${node.label}`}
-      className={styles.peerCard}
-    >
-      <div className={styles.peerIdentity}>
-        <span aria-hidden="true" className={styles.peerAvatar}>
-          {initials}
-        </span>
-        <div>
-          <small>Illustrative peer · fictional</small>
-          <strong>{peer.name}</strong>
-          <span>{peer.currentRole}</span>
-        </div>
-      </div>
-      <div aria-label="Illustrative peer skills" className={styles.peerSkills}>
-        {peer.skills.slice(0, 3).map((skill) => (
-          <span key={skill}>{skill}</span>
+      <div className={styles.detailQuickFacts}>
+        {overviewFacts.map(([label, value]) => (
+          <div key={label}>
+            <small>{label}</small>
+            <strong>{value}</strong>
+          </div>
         ))}
       </div>
-    </section>
+    </div>
   );
 }
 
