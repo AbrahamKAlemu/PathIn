@@ -6,6 +6,11 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from .career_service import ApiError, CareerService
 from .resume_parser import MAX_UPLOAD_BYTES
+from .suggestion_service import (
+    generate_suggestions,
+    get_roles,
+    get_scenario,
+)
 
 
 def _frontend_origins() -> list[str]:
@@ -109,6 +114,33 @@ def create_app(career_service: CareerService | None = None) -> Flask:
     @app.get("/api/v1/roles/<role_id>")
     def role_details(role_id: str):
         return jsonify(service.role_details(role_id))
+
+    @app.get("/api/v1/quiz/roles")
+    def quiz_roles():
+        return jsonify(get_roles())
+
+    @app.get("/api/v1/quiz/scenarios/<role_id>")
+    def quiz_scenario(role_id: str):
+        scenario = get_scenario(role_id)
+        if scenario is None:
+            raise ApiError(
+                "SCENARIO_NOT_FOUND",
+                "That career simulation is not available.",
+                status_code=404,
+                details={"roleId": role_id},
+            )
+        return jsonify(scenario)
+
+    @app.post("/api/v1/quiz/suggestions")
+    def quiz_suggestions():
+        try:
+            return jsonify(generate_suggestions(_json_payload()))
+        except ValueError as error:
+            raise ApiError(
+                "INVALID_SCENARIO_RESPONSE",
+                str(error),
+                status_code=400,
+            ) from error
 
     @app.errorhandler(ApiError)
     def handle_api_error(error: ApiError):

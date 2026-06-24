@@ -1,0 +1,184 @@
+{
+  "scenarios": [
+    {
+      "role_id": "software-engineer",
+      "role": "Software Engineer",
+      "industry": "Technology",
+      "shape": "building",
+      "setup": "Your mentor drops into the chair next to you and spins her laptop around. \"Okay, I've got one for you. Don't write any actual code, I just want to hear how you think. That's the part I actually care about.\"",
+      "opener": "Here's the thing. You've got a list of numbers and a target, let's say 10. You need to find two numbers in the list that add up to it. So if the list is 2, 7, 4, 1 and the target is 9, it's the 2 and the 7.",
+      "skip_offer": "Want to take a swing at it? Or if this isn't your thing, we can do something completely different. No pressure either way.",
+      "follow_ups": [
+        "So how would you actually find that pair? Just talk me through it however it comes out. I'm following your thinking, not grading it.",
+        "Before you start, anything you'd want to check first? Stuff you'd want to know about the list?",
+        "What if there are two different pairs that both hit the target? What's your gut say, and what would you do about it?",
+        "Now make the list huge. Like ten million numbers, and you're running this over and over. Does your way still hold up? What starts to bug you about it?",
+        "Give me a case where your solution falls apart. Something specific."
+      ],
+      "closer_reflection": "Forget right or wrong for a second. How did that actually feel to work through?",
+      "closer_rating": "If you had to slap a number on it, how much did you enjoy that? One to ten."
+    },
+    {
+      "role_id": "devops-engineer",
+      "role": "DevOps Engineer",
+      "industry": "Technology",
+      "shape": "troubleshooting",
+      "setup": "Her laptop buzzes. She glances at it, then looks back at you. \"Actually, hold on, this is better. Something's breaking in production right now. Forget tools and commands, just tell me how you'd think your way through it.\"",
+      "opener": "The site's gone slow. Customers are complaining, orders are failing, and it kicked off maybe ten minutes ago. Nobody knows why yet.",
+      "skip_offer": "Want to take this one? Some people love this kind of fire drill and some people hate it. Both are fine, so be honest if it's not for you.",
+      "follow_ups": [
+        "It's slow right now and you've got no idea why. What's the first thing you do?",
+        "Before you touch anything, what do you want to know? What are you asking people?",
+        "Turns out a teammate pushed an update right before it started. What do you do with that? And honestly, how does that moment feel to you?",
+        "Meanwhile people are watching and the company's losing money every minute it's down. Does that change how you work? Tell me the truth.",
+        "Say you get it fixed. What do you do so this exact thing can't sneak up on you again?"
+      ],
+      "closer_reflection": "Forget whether you'd have actually fixed it. How did that feel to work through?",
+      "closer_rating": "Put a number on it. How much did you enjoy that, one to ten?"
+    },
+    {
+      "role_id": "data-scientist",
+      "role": "Data Scientist",
+      "industry": "Technology",
+      "shape": "analytical",
+      "setup": "Your mentor turns her monitor toward you. There's a simple chart on it. \"Quick one. I want to see how you poke at numbers, not whether you know any stats. Just react to what you see.\"",
+      "opener": "A company sold way more ice cream last month. Same month, their website crashes also went up. Someone on the team is saying the crashes made people stress-buy ice cream.",
+      "skip_offer": "Want to dig into that? Or if numbers aren't your thing, we can do something else.",
+      "follow_ups": [
+        "What's your first reaction to that ice cream claim? Talk me through what's going on in your head.",
+        "Before you'd believe any of it, what would you want to know about where these numbers came from?",
+        "What else could explain both going up at the same time? Throw me whatever comes to mind.",
+        "Say I gave you the full pile of data to check this for real. Where do you even start?",
+        "What's a way you could fool yourself here? A spot where you'd reach the wrong answer and not realize it?"
+      ],
+      "closer_reflection": "Forget whether you cracked it. How did that feel to chew on?",
+      "closer_rating": "One to ten, how much did you enjoy that?"
+    },
+    {
+      "role_id": "financial-analyst",
+      "role": "Financial Analyst",
+      "industry": "Finance",
+      "shape": "analytical",
+      "setup": "Your mentor slides a one-page printout across the desk. A few rows of numbers. \"Here's how I spend half my day. Someone wants money, and I have to figure out if the math says yes. Have a look.\"",
+      "opener": "A store wants to stay open two extra hours every night. It'll cost them more in staff and electricity, but they figure they'll sell more too. They want to know if it's worth it.",
+      "skip_offer": "Want to work out whether they should? Or we can switch to something else if this isn't grabbing you.",
+      "follow_ups": [
+        "Where do you start? What's the first number you'd go looking for?",
+        "What would make this a clear yes for you? What would make it a clear no?",
+        "The owner swears the extra sales will be huge. How much do you just take their word for it?",
+        "Say the first month they try it, sales barely move. Do you call it a failure, or not yet? Why?",
+        "What's the number everyone forgets to count that could blow up this whole plan?"
+      ],
+      "closer_reflection": "Forget whether you got the 'right' answer. How did that feel to work through?",
+      "closer_rating": "One to ten, how much did you enjoy it?"
+    },
+    {
+      "role_id": "ux-designer",
+      "role": "UX Designer",
+      "industry": "Technology",
+      "shape": "building",
+      "setup": "Your mentor pulls up an app on her phone and hands it to you. \"Let me show you something that's been bugging me. You don't need any design training, just tell me what you notice.\"",
+      "opener": "This is a food app. To order the same meal you got last week, you have to tap through six different screens. People give up halfway and don't order at all.",
+      "skip_offer": "Want to take a crack at fixing it? Or if this isn't your thing, we can do something else.",
+      "follow_ups": [
+        "Before you fix anything, walk me through what it's like to be that hungry, annoyed person tapping through all six screens.",
+        "Okay, how would you fix it? What should it feel like instead?",
+        "You show your fix to a friend and they go, 'wait, where do I tap?' What do you do? And how does that land for you?",
+        "What would you want to find out about these frustrated users before you trust that your fix is actually right?",
+        "Ten different people try your new version. One still gets stuck. Who is it, and what tripped them up?"
+      ],
+      "closer_reflection": "Forget whether it's the 'right' design. How did that feel to work through?",
+      "closer_rating": "One to ten, how much did you enjoy it?"
+    },
+    {
+      "role_id": "product-manager",
+      "role": "Product Manager",
+      "industry": "Technology",
+      "shape": "decision-making",
+      "setup": "Your mentor clears the whiteboard and writes three things on it. \"My actual job is deciding what we build next. There's never enough time for everything. So I'll let you try the part everyone finds hard.\"",
+      "opener": "Your team can build one thing this month. One. People are begging for a dark mode. The app crashes for about five percent of users. And Sales says a big client will sign if you build one specific feature just for them.",
+      "skip_offer": "Want to make the call? Or if deciding under pressure isn't your thing, we can do something else.",
+      "follow_ups": [
+        "Which one do you build first? Walk me through how you landed there.",
+        "What would you want to know that you don't know yet, to feel good about that call?",
+        "You picked one. Now you have to tell the other two teams 'not this time.' How do you feel about being the person who says that?",
+        "Halfway through, the big client says they'll walk unless you switch to their thing right now. Do you change course? Why or why not?",
+        "A month later, how would you actually know you made the right call?"
+      ],
+      "closer_reflection": "Forget whether it's the call I'd have made. How did that feel to work through?",
+      "closer_rating": "One to ten, how much did you enjoy it?"
+    },
+    {
+      "role_id": "marketing-specialist",
+      "role": "Marketing Specialist",
+      "industry": "Retail",
+      "shape": "creative",
+      "setup": "Your mentor pins a plain product photo to the wall. A water bottle. \"Here's the game I play all day. We've got a thing to sell and a crowd of people who've never heard of it. You don't need any marketing training. Just go with your gut.\"",
+      "opener": "This water bottle is good but honestly kind of boring. There are a hundred others like it. Your job is to get teenagers to actually want this one.",
+      "skip_offer": "Want to take a swing at it? Or we can do something else if this isn't you.",
+      "follow_ups": [
+        "What's the first move? How do you even start getting them to care?",
+        "Who exactly are you picturing when you say that? Paint me the person.",
+        "Pitch me the bottle in a sentence or two. Whatever you'd put in front of them.",
+        "Your idea flops. The teenagers shrug. What do you think went wrong, and what do you try next?",
+        "What's a message that would totally backfire here? The kind of thing that makes people roll their eyes?"
+      ],
+      "closer_reflection": "Forget whether it'd actually sell. How did that feel to come up with?",
+      "closer_rating": "One to ten, how much did you enjoy it?"
+    },
+    {
+      "role_id": "sales-representative",
+      "role": "Sales Representative",
+      "industry": "Retail",
+      "shape": "people-facing",
+      "setup": "Your mentor pulls a chair around to your side of the desk, closer than feels normal. \"Alright. Selling isn't tricking people, it's getting someone to trust you enough to say yes. Let's run one. I'll be the customer.\"",
+      "opener": "You're selling laptops. A customer's been staring at one for ten minutes but won't commit. She finally says, 'It's nice, but it's too expensive.'",
+      "skip_offer": "Want to try to win her over? Or if this kind of back-and-forth isn't your thing, we'll do something else.",
+      "follow_ups": [
+        "She just said it's too expensive. What do you say back?",
+        "Before you push the sale, what do you want to figure out about her? What's she actually here for?",
+        "She softens a little but says, 'Let me think about it and come back.' What now?",
+        "Turns out she can't really afford this one. Do you sell her the cheaper model, or let her walk? Why?",
+        "What's a move here that would feel pushy or slimy? The kind of thing that kills the trust?"
+      ],
+      "closer_reflection": "Forget whether you'd have closed it. How did that feel to work through?",
+      "closer_rating": "One to ten, how much did you enjoy it?"
+    },
+    {
+      "role_id": "hr-coordinator",
+      "role": "HR Coordinator",
+      "industry": "Education",
+      "shape": "people-facing",
+      "setup": "Your mentor lowers her voice a little. \"Most of this job is people, not paperwork. Someone's about to walk in upset. Just tell me what you'd actually say and do.\"",
+      "opener": "Your coworker Jordan shuts your door and sits down, clearly upset. 'My manager called out my mistake in front of the whole team this morning. I'm humiliated.' Jordan isn't asking you to fix it. They just needed to tell someone.",
+      "skip_offer": "Want to take this one? Some people are drawn to these moments and some find them draining. Either's fine, just be straight with me.",
+      "follow_ups": [
+        "Jordan's sitting there waiting. What's the first thing out of your mouth?",
+        "Jordan calms down a bit, then says, 'Please don't make this a big thing. Don't report it or talk to my manager.' But part of you thinks the manager really shouldn't have done that in public. How do you handle that?",
+        "What do you want to understand here that you don't know yet?",
+        "Later you pass Jordan's manager in the hall. They have no clue any of this happened. Do you say anything? What?",
+        "A week from now, what tells you that you handled this well?"
+      ],
+      "closer_reflection": "Forget whether it's exactly what I'd have done. How did that feel to sit with?",
+      "closer_rating": "One to ten, how much did you enjoy working through it?"
+    },
+    {
+      "role_id": "customer-service-manager",
+      "role": "Customer Service Manager",
+      "industry": "Retail",
+      "shape": "people-facing",
+      "setup": "Your mentor puts a headset on the desk between you. \"I run the support team. This kind of thing hits us every day. You're up. How do you handle it?\"",
+      "opener": "A customer, Mr. Alvarez, is on the line and he's furious. His order was promised three days ago and never came. It's the second time. He's already been transferred twice. 'I am done with this company,' he says.",
+      "skip_offer": "Want to take this one? Some people thrive in the heat of a moment like this and some don't. Both are worth knowing, so be honest.",
+      "follow_ups": [
+        "He's angry and waiting. What are your first words to him?",
+        "He's not calming down. 'I don't want an apology, I want my money back AND the order, now.' You can't actually promise both on the spot. What do you say?",
+        "He goes quiet, then: 'Honestly, it's not even about the money. I look unreliable to my own family because of this.' Does anything change in how you respond?",
+        "The call ends. Turns out your own team dropped the ball on the original order. What do you do with that, and how do you bring it to them?",
+        "A day later, what tells you that you actually turned this around, not just ended the call?"
+      ],
+      "closer_reflection": "Forget whether it's exactly what I'd have said. How did that feel to work through?",
+      "closer_rating": "One to ten, how much did you enjoy it?"
+    }
+  ]
+}

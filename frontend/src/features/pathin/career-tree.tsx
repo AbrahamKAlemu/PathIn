@@ -14,6 +14,7 @@ import {
 
 import { getCurrentProfile } from "@/features/profile/profile-api";
 import type { CurrentProfile } from "@/features/profile/types";
+import type { QuizProfile } from "@/features/quiz/types";
 
 import { CareerMapView } from "./career-map-view";
 import styles from "./career-tree.module.css";
@@ -32,6 +33,11 @@ import {
   SAVED_MAP_ID_KEY,
   writeSavedMapSnapshot,
 } from "./saved-map-storage";
+import {
+  clearSimulationProfile,
+  readSimulationProfile,
+  simulationProfileToFields,
+} from "./sim-to-profile";
 import type {
   CareerMapData,
   ParsedProfile,
@@ -127,6 +133,39 @@ function hasEnabledProfileEvidence(profile: CurrentProfile | null) {
   );
 }
 
+function readyEvidenceStatus({
+  hasLinkedin,
+  hasResume,
+  hasSimulation,
+}: {
+  hasLinkedin: boolean;
+  hasResume: boolean;
+  hasSimulation: boolean;
+}) {
+  if (hasResume && hasLinkedin && hasSimulation) {
+    return "Resume, authorized profile, and career simulation evidence ready. Generate your career path.";
+  }
+  if (hasResume && hasLinkedin) {
+    return "Resume and authorized profile evidence ready. Generate your career path.";
+  }
+  if (hasResume && hasSimulation) {
+    return "Resume and career simulation evidence ready. Generate your career path.";
+  }
+  if (hasLinkedin && hasSimulation) {
+    return "Authorized profile and career simulation evidence ready. Generate your career path.";
+  }
+  if (hasResume) {
+    return "Resume ready. Generate your career path.";
+  }
+  if (hasLinkedin) {
+    return "Authorized profile evidence ready. Generate your career path.";
+  }
+  if (hasSimulation) {
+    return "Career simulation evidence ready. Generate your career path.";
+  }
+  return "";
+}
+
 export function CareerTree() {
   const [phase, setPhase] = useState<ExperiencePhase>("onboarding");
   const [careerMap, setCareerMap] = useState<CareerMapData | null>(null);
@@ -144,6 +183,9 @@ export function CareerTree() {
   const [connectedProfileLoading, setConnectedProfileLoading] = useState(true);
   const [connectedProfileError, setConnectedProfileError] = useState("");
   const [useConnectedProfile, setUseConnectedProfile] = useState(true);
+  const [simulationProfile, setSimulationProfile] =
+    useState<QuizProfile | null>(null);
+  const [useSimulationEvidence, setUseSimulationEvidence] = useState(false);
   const [generationError, setGenerationError] = useState("");
   const [loadingStage, setLoadingStage] = useState(0);
   const [savedMapAvailable, setSavedMapAvailable] = useState(false);
@@ -183,6 +225,13 @@ export function CareerTree() {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
+      const storedSimulation = readSimulationProfile();
+      const openedFromSimulation =
+        new URLSearchParams(window.location.search).get("from") === "sim";
+      setSimulationProfile(storedSimulation);
+      setUseSimulationEvidence(
+        Boolean(storedSimulation && openedFromSimulation),
+      );
       setSavedMapAvailable(
         Boolean(
           readSavedMapSnapshot() ||
@@ -210,11 +259,19 @@ export function CareerTree() {
     parsedLinkedin ||
       (useConnectedProfile && hasEnabledProfileEvidence(connectedProfile)),
   );
+  const hasSimulationEvidence = Boolean(
+    simulationProfile && useSimulationEvidence,
+  );
   const canGenerate =
-    (hasResumeEvidence || hasLinkedinEvidence) &&
+    (hasResumeEvidence || hasLinkedinEvidence || hasSimulationEvidence) &&
     !parsingResume &&
     !parsingLinkedin &&
     phase === "onboarding";
+  const evidenceStatus = readyEvidenceStatus({
+    hasLinkedin: hasLinkedinEvidence,
+    hasResume: hasResumeEvidence,
+    hasSimulation: hasSimulationEvidence,
+  });
 
   async function selectResume(file: File | null) {
     if (!file) {
@@ -370,6 +427,9 @@ export function CareerTree() {
         parsedResume?.fields,
         connectedFields,
         parsedLinkedin?.fields,
+        hasSimulationEvidence
+          ? simulationProfileToFields(simulationProfile)
+          : null,
       ].filter(
         (
           fieldSet,
@@ -620,12 +680,20 @@ export function CareerTree() {
     setPhase("onboarding");
   }
 
+  function removeSimulationEvidence() {
+    clearSimulationProfile();
+    setSimulationProfile(null);
+    setUseSimulationEvidence(false);
+    setGenerationError("");
+  }
+
   if (phase === "generating") {
     return (
       <GenerationScreen
         currentStage={loadingStage}
         hasLinkedin={hasLinkedinEvidence}
         hasResume={hasResumeEvidence}
+        hasSimulation={hasSimulationEvidence}
         stages={loadingStages}
       />
     );
@@ -683,6 +751,28 @@ export function CareerTree() {
             onToggle={() => setUseConnectedProfile((current) => !current)}
             profile={connectedProfile}
           />
+
+          {simulationProfile ? (
+            <SimulationEvidenceCard
+              enabled={useSimulationEvidence}
+              onRemove={removeSimulationEvidence}
+              onToggle={() =>
+                setUseSimulationEvidence((current) => !current)
+              }
+              profile={simulationProfile}
+            />
+          ) : (
+            <section className={styles.simulationEntry}>
+              <div>
+                <strong>Want to test a role first?</strong>
+                <span>
+                  Try a short work scenario, then add the result as optional
+                  evidence.
+                </span>
+              </div>
+              <Link href="/quiz">Try career simulation</Link>
+            </section>
+          )}
 
           <ResumeUpload
             error={uploadError}
@@ -745,17 +835,12 @@ export function CareerTree() {
           ? "Reading the selected resume."
           : parsingLinkedin
             ? "Reading the selected LinkedIn profile export."
-          : hasResumeEvidence
-            ? hasLinkedinEvidence
-              ? "Resume and authorized profile evidence ready. Generate your career path."
-              : "Resume ready. Generate your career path."
-            : hasLinkedinEvidence
-              ? "Authorized profile evidence ready. Generate your career path."
-              : connectedProfileLoading
+            : evidenceStatus ||
+              (connectedProfileLoading
                 ? "Checking your connected profile."
                 : uploadError ||
                   linkedinError ||
-                  "Use your connected profile or add a resume to begin."}
+                  "Use your connected profile, a simulation, or a resume to begin.")}
       </p>
     </form>
   );
@@ -838,6 +923,46 @@ function ConnectedProfileCard({
           <Link href="/in/winstoniskandar">Open profile</Link>
         </div>
       )}
+    </section>
+  );
+}
+
+function SimulationEvidenceCard({
+  enabled,
+  onRemove,
+  onToggle,
+  profile,
+}: {
+  enabled: boolean;
+  onRemove: () => void;
+  onToggle: () => void;
+  profile: QuizProfile;
+}) {
+  return (
+    <section
+      className={styles.simulationEvidence}
+      data-enabled={enabled ? "true" : "false"}
+    >
+      <div className={styles.simulationEvidenceMark} aria-hidden="true">
+        in
+      </div>
+      <div>
+        <strong>Career simulation: {profile.best_fit.role}</strong>
+        <p>
+          {profile.roles_explored.length}{" "}
+          {profile.roles_explored.length === 1 ? "role" : "roles"} explored ·
+          optional inferred evidence
+        </p>
+      </div>
+      <div className={styles.simulationEvidenceActions}>
+        <Link href="/quiz">Try another</Link>
+        <button aria-pressed={enabled} onClick={onToggle} type="button">
+          {enabled ? "Using simulation" : "Use simulation"}
+        </button>
+        <button onClick={onRemove} type="button">
+          Remove
+        </button>
+      </div>
     </section>
   );
 }
@@ -1015,18 +1140,28 @@ function GenerationScreen({
   currentStage,
   hasLinkedin,
   hasResume,
+  hasSimulation,
   stages,
 }: {
   currentStage: number;
   hasLinkedin: boolean;
   hasResume: boolean;
+  hasSimulation: boolean;
   stages: string[];
 }) {
-  const evidenceLabel = hasResume
-    ? hasLinkedin
-      ? "your resume and LinkedIn evidence"
-      : "your resume"
-    : "your LinkedIn profile";
+  const linkedinLabel =
+    hasLinkedin && !hasResume && !hasSimulation
+      ? "your LinkedIn profile"
+      : "LinkedIn evidence";
+  const sources = [
+    hasResume ? "your resume" : "",
+    hasLinkedin ? linkedinLabel : "",
+    hasSimulation ? "career simulation signals" : "",
+  ].filter(Boolean);
+  const evidenceLabel =
+    sources.length > 1
+      ? `${sources.slice(0, -1).join(", ")} and ${sources.at(-1)}`
+      : sources[0] ?? "your selected evidence";
 
   return (
     <section

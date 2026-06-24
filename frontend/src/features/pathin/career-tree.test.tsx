@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCareerMap } from "./career-map-data";
 import { CareerTree } from "./career-tree";
 import { SAVED_MAP_SNAPSHOT_KEY } from "./saved-map-storage";
+import {
+  SIMULATION_PROFILE_KEY,
+} from "./sim-to-profile";
 
 const tesseractMocks = vi.hoisted(() => ({
   createWorker: vi.fn(),
@@ -552,6 +555,79 @@ describe("CareerTree evidence-first onboarding", () => {
       .toEqual(["resume"]);
     expect(generationBody.profile.fields.skills.map((field) => field.source))
       .toEqual(["resume"]);
+  });
+
+  it("adds simulation signals only after the user enables them", async () => {
+    window.localStorage.setItem(
+      SIMULATION_PROFILE_KEY,
+      JSON.stringify({
+        schema_version: 1,
+        generated_at: new Date().toISOString(),
+        best_fit: {
+          industry: "Technology",
+          role: "Software Engineer",
+          role_id: "software-engineer",
+          readiness: "gain-experience",
+          why: "Strong current signal",
+          confidence: "high",
+          fit_score: 82,
+        },
+        strengths: ["testing edge cases"],
+        gaps: ["build a reviewable software project"],
+        roles_explored: [
+          {
+            role_id: "software-engineer",
+            role: "Software Engineer",
+            industry: "Technology",
+            sessions_seen: 1,
+            fit_score: 82,
+            last_rating: 8,
+            last_skip_count: 0,
+            confidence: "high",
+          },
+        ],
+      }),
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
+      .mockImplementationOnce(() => new Promise<Response>(() => undefined));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<CareerTree />);
+
+    expect(
+      await screen.findByText("Career simulation: Software Engineer"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Use simulation" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Generate career path" }),
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    const generationBody = JSON.parse(
+      String(fetchMock.mock.calls[1][1]?.body),
+    ) as {
+      profile: {
+        fields: {
+          interests: Array<{ source: string; value: string }>;
+          skills: Array<{ source: string; value: string }>;
+        };
+      };
+    };
+    expect(generationBody.profile.fields.interests).toContainEqual(
+      expect.objectContaining({
+        source: "inferred",
+        value: "Software Engineer",
+      }),
+    );
+    expect(generationBody.profile.fields.skills).toContainEqual(
+      expect.objectContaining({
+        source: "inferred",
+        value: "testing edge cases",
+      }),
+    );
   });
 
   it("opens a saved browser snapshot directly from onboarding", async () => {
