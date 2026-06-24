@@ -236,6 +236,62 @@ describe("CareerMapView navigation", () => {
     ).toBeInTheDocument();
   });
 
+  it("animates direct preview clicks when skipping between nodes", async () => {
+    renderCareerMap();
+
+    const navigator = screen.getByRole("region", {
+      name: "Focused career bubble navigator",
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Focus Applied data analysis, two steps ahead/,
+      }),
+    );
+
+    expect(navigator).toHaveAttribute("aria-busy", "true");
+    expect(navigator).toHaveAttribute("data-transition-direction", "next");
+    expect(navigator).toHaveAttribute("data-transition-phase", "exit");
+    expect(
+      screen.getByRole("button", {
+        name: /Your current standing, focused node/,
+      }),
+    ).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(navigator).toHaveAttribute("data-transition-phase", "enter"),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Applied data analysis, focused node/,
+      }),
+    ).toBeInTheDocument();
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Focus Your current standing, two steps back/,
+      }),
+    );
+    expect(navigator).toHaveAttribute(
+      "data-transition-direction",
+      "previous",
+    );
+    expect(navigator).toHaveAttribute("data-transition-phase", "exit");
+
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+    expect(
+      screen.getByRole("button", {
+        name: /Your current standing, focused node/,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("switches horizontally between generated routes at the same depth", async () => {
     renderCareerMap();
 

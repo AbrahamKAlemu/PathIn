@@ -1447,18 +1447,12 @@ export function CareerMapView({
     });
   }
 
-  function navigate(direction: Direction, openDetails = false) {
+  function transitionToNode(
+    target: CareerNode,
+    direction: Direction,
+    openDetails = false,
+  ) {
     if (focusTransitionLockRef.current) {
-      return;
-    }
-
-    const target = direction === "next" ? nextFocusNode : previousFocusNode;
-    if (!target) {
-      setStatusMessage(
-        direction === "next"
-          ? "This scenario currently ends here. Future recommendations are reserved above."
-          : "You are back at the profile starting point.",
-      );
       return;
     }
 
@@ -1504,6 +1498,20 @@ export function CareerMapView({
         setFocusTransition(null);
       }, enterDuration);
     }, exitDuration);
+  }
+
+  function navigate(direction: Direction, openDetails = false) {
+    const target = direction === "next" ? nextFocusNode : previousFocusNode;
+    if (!target) {
+      setStatusMessage(
+        direction === "next"
+          ? "This scenario currently ends here. Future recommendations are reserved above."
+          : "You are back at the profile starting point.",
+      );
+      return;
+    }
+
+    transitionToNode(target, direction, openDetails);
   }
 
   function switchHorizontalRoute(
@@ -1591,11 +1599,15 @@ export function CareerMapView({
   }
 
   function focusPreview(node: CareerNode) {
-    cancelFocusTransition();
-    selectNode(node.id, false, focusedPath?.id);
-    window.requestAnimationFrame(() => {
-      focusedNodeRef.current?.focus({ preventScroll: true });
-    });
+    const targetIndex = focusSequence.indexOf(node.id);
+    if (targetIndex < 0 || targetIndex === focusIndex) {
+      return;
+    }
+
+    transitionToNode(
+      node,
+      targetIndex > focusIndex ? "next" : "previous",
+    );
   }
 
   function returnToCurrent() {
