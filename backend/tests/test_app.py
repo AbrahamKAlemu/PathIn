@@ -608,7 +608,7 @@ def test_profile_merge_prefers_corrections_deduplicates_and_flags_conflicts(
     assert payload["conflicts"][0]["category"] == "roles"
 
 
-def test_resume_and_linkedin_evidence_unlock_user_selected_linkedin_north_star(
+def test_resume_and_linkedin_evidence_does_not_invent_senior_north_star(
     client: FlaskClient,
 ) -> None:
     def field(value: str, source: str) -> dict[str, Any]:
@@ -662,26 +662,23 @@ def test_resume_and_linkedin_evidence_unlock_user_selected_linkedin_north_star(
         "linkedin",
     }
     dream = payload["dreamCareer"]
-    assert dream["personalizedDreamTitle"] == (
+    assert dream["personalizedDreamTitle"] != (
         "Senior Software Engineer at LinkedIn"
     )
-    assert dream["canonicalRole"] == "Software Engineer"
-    assert dream["aspirationSource"] == "user_selected"
-    assert dream["sourceBlend"] == "resume and LinkedIn evidence"
-    assert dream["careerHorizon"] == "3 to 7 years"
-    assert dream["criticalGaps"][:3] == [
+    assert dream["aspirationSource"] == "inferred"
+    assert "LinkedIn-specific hiring fit" not in dream["uncertainty"]
+    assert not {
         "System Design",
         "Technical Leadership",
         "Large-scale Distributed Systems",
-    ]
-    assert dream["careerThesis"].startswith("North Star selected by you.")
+    } <= set(dream["criticalGaps"])
     recommendation = next(
         item
         for item in payload["rankedDestinations"]
         if item["isDreamCareer"]
     )
     assert recommendation["title"] == dream["personalizedDreamTitle"]
-    assert recommendation["aspirationSource"] == "user_selected"
+    assert recommendation["aspirationSource"] == "inferred"
     route_ids = payload["buildPathIdsByDestination"][
         dream["destinationId"]
     ]
@@ -696,11 +693,44 @@ def test_resume_and_linkedin_evidence_unlock_user_selected_linkedin_north_star(
         for node in payload["nodes"]
         if node["id"] in route_nodes
     }
-    assert "System Design" in route_labels
     assert any(
         "next.js scheduling app" in label.lower()
         for label in route_labels
     )
+
+
+def test_explicit_role_goal_can_select_a_north_star(
+    client: FlaskClient,
+) -> None:
+    payload = _explore(
+        client,
+        {
+            "education": ["BS Computer Science"],
+            "roles": ["Software Engineer Intern"],
+            "responsibilities": [
+                "Built React applications and REST APIs",
+            ],
+            "projects": ["Deployed a Next.js scheduling app"],
+            "skills": [
+                "JavaScript",
+                "React",
+                "Python",
+                "Git",
+            ],
+            "goals": ["Senior Software Engineer at LinkedIn"],
+        },
+        count=5,
+    )
+
+    dream = payload["dreamCareer"]
+    assert dream["canonicalRole"] == "Software Engineer"
+    assert dream["aspirationSource"] == "user_selected"
+    assert dream["careerThesis"].startswith(
+        "North Star selected from your stated goal:"
+    )
+    assert "Senior Software Engineer at LinkedIn" in dream["careerThesis"]
+    assert "seniority" in dream["uncertainty"]
+    assert "hiring outcomes are not inferred" in dream["uncertainty"]
 
 
 def test_disabled_fields_do_not_influence_recommendations(

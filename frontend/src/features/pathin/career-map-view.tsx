@@ -768,10 +768,11 @@ function calculateWebLayout(paths: CareerPath[]): WebLayout {
     WEB_X_PADDING * 2 + (pathCount - 1) * WEB_COLUMN_GAP + WEB_NODE_SIZE,
   );
   const currentX = width / 2;
-  const currentY = WEB_Y_PADDING + futureDepth * WEB_FUTURE_ROW_GAP;
+  const currentY =
+    WEB_Y_PADDING + PROFILE_NODE_IDS.length * WEB_HISTORY_ROW_GAP;
   const height =
     currentY +
-    PROFILE_NODE_IDS.length * WEB_HISTORY_ROW_GAP +
+    futureDepth * WEB_FUTURE_ROW_GAP +
     WEB_Y_PADDING +
     WEB_NODE_SIZE;
   const current: WebPlacement = {
@@ -795,7 +796,7 @@ function calculateWebLayout(paths: CareerPath[]): WebLayout {
       id: path.id,
       label: path.shortLabel,
       x: columnX,
-      y: 42,
+      y: currentY + 62,
     });
 
     let source = current;
@@ -805,7 +806,7 @@ function calculateWebLayout(paths: CareerPath[]): WebLayout {
         nodeId,
         pathId: path.id,
         x: columnX,
-        y: currentY - (stepIndex + 1) * WEB_FUTURE_ROW_GAP,
+        y: currentY + (stepIndex + 1) * WEB_FUTURE_ROW_GAP,
       };
       placements.push(placement);
       connections.push({
@@ -817,22 +818,31 @@ function calculateWebLayout(paths: CareerPath[]): WebLayout {
     });
   });
 
-  let historySource = current;
-  [...PROFILE_NODE_IDS].reverse().forEach((nodeId, index) => {
+  let historySource: WebPlacement | null = null;
+  for (const [index, nodeId] of PROFILE_NODE_IDS.entries()) {
     const placement: WebPlacement = {
       key: `web-history-${nodeId}`,
       nodeId,
       x: currentX,
-      y: currentY + (index + 1) * WEB_HISTORY_ROW_GAP,
+      y: WEB_Y_PADDING + index * WEB_HISTORY_ROW_GAP,
     };
     placements.push(placement);
-    connections.push({
-      key: `web-history-edge-${historySource.nodeId}-${nodeId}`,
-      source: historySource,
-      target: placement,
-    });
+    if (historySource) {
+      connections.push({
+        key: `web-history-edge-${historySource.nodeId}-${nodeId}`,
+        source: historySource,
+        target: placement,
+      });
+    }
     historySource = placement;
-  });
+  }
+  if (historySource) {
+    connections.push({
+      key: `web-history-edge-${historySource.nodeId}-${current.nodeId}`,
+      source: historySource,
+      target: current,
+    });
+  }
 
   return {
     width,
@@ -1070,7 +1080,7 @@ export function CareerMapView({
       nodeIds: focusSequence,
       description:
         focusedPath?.description ??
-        "A bottom-to-top route from profile history to possible careers.",
+        "A profile-to-future route from imported evidence to possible careers.",
       strategy: focusedPath?.strategy ?? "Profile foundation",
     }),
     [focusSequence, focusedPath],
@@ -1193,6 +1203,14 @@ export function CareerMapView({
 
   function focusPreview(node: CareerNode) {
     selectNode(node.id, false, focusedPath?.id);
+    window.requestAnimationFrame(() => {
+      focusedNodeRef.current?.focus({ preventScroll: true });
+    });
+  }
+
+  function returnToCurrent() {
+    selectNode("current", false, focusedPath?.id);
+    setStatusMessage("Returned to your current standing.");
     window.requestAnimationFrame(() => {
       focusedNodeRef.current?.focus({ preventScroll: true });
     });
@@ -1471,7 +1489,7 @@ export function CareerMapView({
             alt="PathIn"
             width={52}
             height={52}
-            className={styles.pathinMark}
+            className={styles.pathinLogo}
           />
           <div>
             <div className={styles.featureTitleLine}>
@@ -1647,23 +1665,36 @@ export function CareerMapView({
                   Build My Path
                 </button>
               </div>
-              <div className={styles.viewControls} aria-label="Career map view">
-                <button
-                  aria-pressed={viewMode === "focus"}
-                  onClick={() => setViewMode("focus")}
-                  type="button"
-                >
-                  <MiniIcon name="current" />
-                  Focus
-                </button>
-                <button
-                  aria-pressed={viewMode === "web"}
-                  onClick={showWebView}
-                  type="button"
-                >
-                  <MiniIcon name="branch" />
-                  Web
-                </button>
+              <div className={styles.mapToolbarActions}>
+                {selectedNode.id !== "current" ? (
+                  <button
+                    aria-label="Return focus to current standing"
+                    className={styles.returnToCurrent}
+                    onClick={returnToCurrent}
+                    type="button"
+                  >
+                    <MiniIcon name="current" />
+                    Return to current
+                  </button>
+                ) : null}
+                <div className={styles.viewControls} aria-label="Career map view">
+                  <button
+                    aria-pressed={viewMode === "focus"}
+                    onClick={() => setViewMode("focus")}
+                    type="button"
+                  >
+                    <MiniIcon name="current" />
+                    Focus
+                  </button>
+                  <button
+                    aria-pressed={viewMode === "web"}
+                    onClick={showWebView}
+                    type="button"
+                  >
+                    <MiniIcon name="branch" />
+                    Web
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1677,12 +1708,12 @@ export function CareerMapView({
                 <h2>
                   {viewMode === "focus"
                     ? "Move through one vertical career path"
-                    : "Move around every active path"}
+                    : "Follow every route from top to bottom"}
                 </h2>
                 <p>
                   {viewMode === "focus"
                     ? "The two smaller nodes above and below preview the connected route around the focused node."
-                    : "Drag, scroll, or zoom the connected web. Select any bubble for its full details."}
+                    : "Profile evidence starts above your current standing, then each possible route continues downward through practical steps to a destination."}
                 </p>
               </div>
 
@@ -1745,41 +1776,42 @@ export function CareerMapView({
                     </>
                   ) : null}
 
-                  <div
-                    className={styles.focusPreviewStack}
-                    data-direction="future"
-                  >
-                    <FocusPreview
-                      distance={2}
-                      emptyLabel="No second later step"
-                      node={futurePreviewNodes[0]}
-                      onSelect={focusPreview}
-                      relation="Two steps ahead"
-                    />
-                    <FocusPreviewConnector direction="future" />
-                    <FocusPreview
-                      distance={1}
-                      emptyLabel="End of current route"
-                      node={futurePreviewNodes[1]}
-                      onSelect={focusPreview}
-                      relation="Next step"
-                    />
-                    <button
-                      aria-label={
-                        nextFocusNode
-                          ? `Move focus up to ${nextFocusNode.label}`
-                          : "No later step on this route"
-                      }
-                      className={styles.focusMoveButton}
-                      data-direction="next"
-                      disabled={!nextFocusNode}
-                      onClick={() => navigate("next")}
-                      type="button"
+                  {nextFocusNode ? (
+                    <div
+                      className={styles.focusPreviewStack}
+                      data-direction="future"
                     >
-                      <MiniIcon name="arrow-up" />
-                      <span>Move focus up</span>
-                    </button>
-                  </div>
+                      {futurePreviewNodes[0] ? (
+                        <FocusPreview
+                          distance={2}
+                          node={futurePreviewNodes[0]}
+                          onSelect={focusPreview}
+                          relation="Two steps ahead"
+                        />
+                      ) : null}
+                      {futurePreviewNodes[0] && futurePreviewNodes[1] ? (
+                        <FocusPreviewConnector direction="future" />
+                      ) : null}
+                      {futurePreviewNodes[1] ? (
+                        <FocusPreview
+                          distance={1}
+                          node={futurePreviewNodes[1]}
+                          onSelect={focusPreview}
+                          relation="Next step"
+                        />
+                      ) : null}
+                      <button
+                        aria-label={`Move focus up to ${nextFocusNode.label}`}
+                        className={styles.focusMoveButton}
+                        data-direction="next"
+                        onClick={() => navigate("next")}
+                        type="button"
+                      >
+                        <MiniIcon name="arrow-up" />
+                        <span>Move focus up</span>
+                      </button>
+                    </div>
+                  ) : null}
 
                   <div className={styles.focusCenterRow}>
                     <span
@@ -1827,41 +1859,42 @@ export function CareerMapView({
                     </span>
                   </div>
 
-                  <div
-                    className={styles.focusPreviewStack}
-                    data-direction="history"
-                  >
-                    <button
-                      aria-label={
-                        previousFocusNode
-                          ? `Move focus down to ${previousFocusNode.label}`
-                          : "No earlier profile step"
-                      }
-                      className={styles.focusMoveButton}
-                      data-direction="previous"
-                      disabled={!previousFocusNode}
-                      onClick={() => navigate("previous")}
-                      type="button"
+                  {previousFocusNode ? (
+                    <div
+                      className={styles.focusPreviewStack}
+                      data-direction="history"
                     >
-                      <span>Move focus down</span>
-                      <MiniIcon name="arrow-down" />
-                    </button>
-                    <FocusPreview
-                      distance={1}
-                      emptyLabel="Profile starting point"
-                      node={historyPreviewNodes[0]}
-                      onSelect={focusPreview}
-                      relation="Previous step"
-                    />
-                    <FocusPreviewConnector direction="history" />
-                    <FocusPreview
-                      distance={2}
-                      emptyLabel="No second earlier step"
-                      node={historyPreviewNodes[1]}
-                      onSelect={focusPreview}
-                      relation="Two steps back"
-                    />
-                  </div>
+                      <button
+                        aria-label={`Move focus down to ${previousFocusNode.label}`}
+                        className={styles.focusMoveButton}
+                        data-direction="previous"
+                        onClick={() => navigate("previous")}
+                        type="button"
+                      >
+                        <span>Move focus down</span>
+                        <MiniIcon name="arrow-down" />
+                      </button>
+                      {historyPreviewNodes[0] ? (
+                        <FocusPreview
+                          distance={1}
+                          node={historyPreviewNodes[0]}
+                          onSelect={focusPreview}
+                          relation="Previous step"
+                        />
+                      ) : null}
+                      {historyPreviewNodes[0] && historyPreviewNodes[1] ? (
+                        <FocusPreviewConnector direction="history" />
+                      ) : null}
+                      {historyPreviewNodes[1] ? (
+                        <FocusPreview
+                          distance={2}
+                          node={historyPreviewNodes[1]}
+                          onSelect={focusPreview}
+                          relation="Two steps back"
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </section>
             ) : (
@@ -2057,7 +2090,7 @@ export function CareerMapView({
             <p>
               {viewMode === "focus"
                 ? "Two compact previews show what comes next above the focused node and what came before below it. Click a preview or use the vertical arrows to recenter the map."
-                : "Possible futures branch upward from your current standing while profile context continues below it. Drag, scroll, zoom, and select any bubble to inspect the full route."}
+                : "Profile evidence flows downward into your current standing, then each possible future continues through practical steps to a destination. Drag, scroll, zoom, and select any bubble to inspect the full route."}
             </p>
             <Link href="/" className={styles.backToFeed}>
               <MiniIcon name="arrow-left" />
@@ -2351,31 +2384,15 @@ function CareerGoals({
 
 function FocusPreview({
   distance,
-  emptyLabel,
   node,
   onSelect,
   relation,
 }: {
   distance: 1 | 2;
-  emptyLabel: string;
-  node: CareerNode | null;
+  node: CareerNode;
   onSelect: (node: CareerNode) => void;
   relation: string;
 }) {
-  if (!node) {
-    return (
-      <span
-        className={styles.focusPreview}
-        data-distance={distance}
-        data-empty="true"
-      >
-        <span>{relation}</span>
-        <strong>{emptyLabel}</strong>
-        <small>No connected node</small>
-      </span>
-    );
-  }
-
   return (
     <button
       aria-label={`Focus ${node.label}, ${relation.toLowerCase()}`}
