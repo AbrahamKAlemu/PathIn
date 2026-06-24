@@ -2026,7 +2026,8 @@ export function CareerMapView({
                         aria-label={`Move focus up to ${nextFocusNode.label}`}
                         className={styles.focusMoveButton}
                         data-active={
-                          focusTransition?.direction === "next"
+                          focusTransition?.direction === "next" &&
+                          focusTransition.phase === "exit"
                             ? "true"
                             : "false"
                         }
@@ -2100,7 +2101,8 @@ export function CareerMapView({
                         aria-label={`Move focus down to ${previousFocusNode.label}`}
                         className={styles.focusMoveButton}
                         data-active={
-                          focusTransition?.direction === "previous"
+                          focusTransition?.direction === "previous" &&
+                          focusTransition.phase === "exit"
                             ? "true"
                             : "false"
                         }
@@ -2371,7 +2373,8 @@ export function CareerMapView({
               }
               data-direction="previous"
               data-active={
-                focusTransition?.direction === "previous"
+                focusTransition?.direction === "previous" &&
+                focusTransition.phase === "exit"
                   ? "true"
                   : "false"
               }
@@ -2395,7 +2398,8 @@ export function CareerMapView({
               }
               data-direction="next"
               data-active={
-                focusTransition?.direction === "next"
+                focusTransition?.direction === "next" &&
+                focusTransition.phase === "exit"
                   ? "true"
                   : "false"
               }

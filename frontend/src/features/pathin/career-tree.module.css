@@ -2627,7 +2627,7 @@
 
 .focusMoveButton[data-active="true"],
 .focusMoveButton[data-active="true"]:disabled {
-  animation: pathinArrowButtonPress 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pathinArrowButtonPress 180ms cubic-bezier(0.22, 1, 0.36, 1);
   background: var(--blue-dark);
   box-shadow:
     0 5px 16px rgba(10, 102, 194, 0.38),
@@ -2637,7 +2637,7 @@
 }
 
 .focusMoveButton[data-active="true"]::after {
-  animation: pathinBubbleRing 520ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pathinBubbleRing 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .focusMoveButton svg {
@@ -2646,11 +2646,11 @@
 }
 
 .focusMoveButton[data-active="true"][data-direction="next"] svg {
-  animation: pathinArrowLaunchUp 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pathinArrowLaunchUp 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .focusMoveButton[data-active="true"][data-direction="previous"] svg {
-  animation: pathinArrowLaunchDown 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pathinArrowLaunchDown 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .focusMoveButton[data-direction="next"]:hover:not(:disabled) svg,
@@ -4067,11 +4067,11 @@
 }
 
 .previousNext button[data-active="true"][data-direction="previous"] svg {
-  animation: pathinArrowLaunchDown 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pathinArrowLaunchDown 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .previousNext button[data-active="true"][data-direction="next"] svg {
-  animation: pathinArrowLaunchUp 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pathinArrowLaunchUp 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .previousNext button[data-direction="previous"]:hover:not(:disabled) svg,
