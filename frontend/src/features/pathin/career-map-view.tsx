@@ -1466,10 +1466,13 @@ export function CareerMapView({
     >
       <section className={styles.featureHeader}>
         <div className={styles.featureIdentity}>
-          <div className={styles.pathinMark} aria-hidden="true">
-            <span>in</span>
-            <MiniIcon className={styles.pathinMarkSpark} name="sparkles" />
-          </div>
+          <Image
+            src="/pathin-logo.png"
+            alt="PathIn"
+            width={52}
+            height={52}
+            className={styles.pathinMark}
+          />
           <div>
             <div className={styles.featureTitleLine}>
               <h1>Path[IN]</h1>
