@@ -591,6 +591,60 @@ function conciseSignal(value: string) {
   return normalized.length > 38 ? `${normalized.slice(0, 35)}...` : normalized;
 }
 
+function MapLegend({ onClose }: { onClose: () => void }) {
+  const nodeItems: Array<{ kind: string; label: string }> = [
+    { kind: "current", label: "Your current standing" },
+    { kind: "destination", label: "Career destination" },
+    { kind: "role", label: "Role or position" },
+    { kind: "experience", label: "Experience or activity" },
+    { kind: "skill", label: "Skill" },
+    { kind: "course", label: "Course or certification" },
+  ];
+
+  return (
+    <div
+      aria-label="Map legend"
+      className={styles.legendPanel}
+      role="dialog"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
+    >
+      <section className={styles.legendSection}>
+        <p className={styles.legendHeading}>Nodes</p>
+        <ul className={styles.legendList}>
+          {nodeItems.map(({ kind, label }) => (
+            <li className={styles.legendRow} key={kind}>
+              <i aria-hidden data-kind={kind} />
+              <span>{label}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className={styles.legendSection}>
+        <p className={styles.legendHeading}>Connections</p>
+        <ul className={styles.legendList}>
+          <li className={styles.legendRow}>
+            <span aria-hidden className={styles.edgeSolid} />
+            <span>Observed career transition</span>
+          </li>
+          <li className={styles.legendRow}>
+            <span aria-hidden className={styles.edgeDashed} />
+            <span>Alternative route</span>
+          </li>
+          <li className={styles.legendRow}>
+            <span aria-hidden className={styles.edgeDotted} />
+            <span>Limited historical evidence</span>
+          </li>
+        </ul>
+      </section>
+      <p className={styles.legendDisclaimer}>
+        Paths show possibilities, not guarantees.
+      </p>
+    </div>
+  );
+}
+
 function MiniIcon({
   name,
   className = "",
@@ -1129,6 +1183,7 @@ export function CareerMapView({
   const [customStepOpen, setCustomStepOpen] = useState(false);
   const [customStepLabel, setCustomStepLabel] = useState("");
   const [customStepSummary, setCustomStepSummary] = useState("");
+  const [legendOpen, setLegendOpen] = useState(false);
   const [detailMotion, setDetailMotion] =
     useState<DetailMotion>("select");
   const [focusTransition, setFocusTransition] =
@@ -1171,6 +1226,7 @@ export function CareerMapView({
   );
   const lastBuildPathByDestinationRef = useRef<Record<string, string>>({});
   const webViewportRef = useRef<HTMLDivElement>(null);
+  const legendRef = useRef<HTMLDivElement>(null);
   const webDragState = useRef<{
     pointerId: number;
     x: number;
@@ -1178,6 +1234,17 @@ export function CareerMapView({
     scrollLeft: number;
     scrollTop: number;
   } | null>(null);
+
+  useEffect(() => {
+    if (!legendOpen) return;
+    function handlePointerDown(e: MouseEvent) {
+      if (legendRef.current && !legendRef.current.contains(e.target as Node)) {
+        setLegendOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [legendOpen]);
 
   useEffect(() => {
     return () => {
@@ -2856,6 +2923,24 @@ export function CareerMapView({
                     <MiniIcon name="branch" />
                     Web
                   </button>
+                </div>
+                <div className={styles.legendWrapper} ref={legendRef}>
+                  <button
+                    aria-expanded={legendOpen}
+                    aria-haspopup="dialog"
+                    className={styles.legendButton}
+                    onClick={() => setLegendOpen((open) => !open)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setLegendOpen(false);
+                    }}
+                    type="button"
+                  >
+                    <MiniIcon name="list" />
+                    Legend
+                  </button>
+                  {legendOpen && (
+                    <MapLegend onClose={() => setLegendOpen(false)} />
+                  )}
                 </div>
               </div>
             </div>

@@ -69,7 +69,7 @@ export function Header({
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="linkedin-nav ml-auto grid h-full w-[667px] grid-cols-8">
+        <nav aria-label="Primary" className="linkedin-nav ml-auto grid h-full w-[667px]" style={{ gridTemplateColumns: "repeat(6, minmax(0, 1fr)) 20px repeat(2, minmax(0, 1fr))" }}>
           {navigation.map((item) => {
             const isActive = item.id === active;
             const content = (
@@ -123,7 +123,7 @@ export function Header({
 
           <Link
             aria-label="Me"
-            className={`relative flex h-full flex-col items-center justify-center gap-[2px] border-r border-[#dedede] pb-[10px] ${
+            className={`relative flex h-full flex-col items-center justify-center gap-[2px] pb-[10px] ${
               active === "profile" ? "text-[#181818]" : "text-[#666]"
             }`}
             href="/in/winstoniskandar"
@@ -147,6 +147,10 @@ export function Header({
               <span className="absolute bottom-0 h-[2px] w-full bg-[#191919]" />
             ) : null}
           </Link>
+
+          <div aria-hidden="true" className="flex items-center justify-center">
+            <div className="h-8 w-px bg-[#dedede]" />
+          </div>
 
           <button
             aria-expanded={openPanel === "For Business"}
