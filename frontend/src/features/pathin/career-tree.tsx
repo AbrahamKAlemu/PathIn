@@ -12,11 +12,14 @@ import {
   useState,
 } from "react";
 
+import { simProfileToFields } from "./sim-to-profile";
 import { getCurrentProfile } from "@/features/profile/profile-api";
 import type { CurrentProfile } from "@/features/profile/types";
-
 import { CareerMapView } from "./career-map-view";
 import styles from "./career-tree.module.css";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Avatar } from "@/components/linkedin/avatar";
+import { DEFAULT_CURRENT_PROFILE } from "@/features/profile/profile-data";
 import {
   buildCareerMap,
   generateCareerMap,
@@ -40,7 +43,6 @@ import type {
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const SUPPORTED_FILE_EXTENSIONS = [".pdf", ".docx", ".txt"];
 const SAVED_MAP_ID_KEY = "pathin-generated-map-id";
-
 const profileCategories: ProfileCategory[] = [
   "education",
   "coursework",
@@ -65,7 +67,7 @@ const loadingStages = [
   "Building your career path",
 ];
 
-type ExperiencePhase = "onboarding" | "generating" | "map";
+type ExperiencePhase = "choice" | "onboarding" | "generating" | "map";
 
 function categoryRecord<T>(
   createValue: (category: ProfileCategory) => T,
@@ -107,7 +109,12 @@ function cloneProfileFields(
 }
 
 export function CareerTree() {
-  const [phase, setPhase] = useState<ExperiencePhase>("onboarding");
+  const searchParams = useSearchParams();
+  const autoGenRef = useRef(false);
+  const [showResumeDrop, setShowResumeDrop] = useState(false);
+  const router = useRouter();
+  const [phase, setPhase] = useState<ExperiencePhase>("choice");
+  const [choiceOpen, setChoiceOpen] = useState(false);
   const [careerMap, setCareerMap] = useState<CareerMapData | null>(null);
   const [resume, setResume] = useState<File | null>(null);
   const [parsedResume, setParsedResume] = useState<ParsedProfile | null>(null);
@@ -159,22 +166,22 @@ export function CareerTree() {
   }, []);
 
   useEffect(() => {
-    if (phase !== "generating") {
-      return;
-    }
-    const interval = window.setInterval(() => {
-      setLoadingStage((current) =>
-        Math.min(current + 1, loadingStages.length - 1),
-      );
-    }, 760);
-    return () => window.clearInterval(interval);
-  }, [phase]);
+    if (autoGenRef.current) return;
+    if (searchParams.get("from") !== "sim") return;
+    if (connectedProfileLoading) return;
+    autoGenRef.current = true;
+    void generate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectedProfileLoading, searchParams]);
 
   const canGenerate =
-    Boolean(resume && parsedResume) &&
+    Boolean(
+      (resume && parsedResume) ||
+        (connectedProfile?.pathinEvidence && useConnectedProfile),
+    ) &&
     !parsingResume &&
     !parsingLinkedin &&
-    phase === "onboarding";
+    (phase === "onboarding" || phase === "choice");
 
   async function selectResume(file: File | null) {
     if (!file) {
@@ -315,6 +322,7 @@ export function CareerTree() {
   }
 
   function buildSubmission(): ProfileSubmission {
+
     const connectedFields =
       connectedProfile?.pathinEvidence && useConnectedProfile
         ? categoryRecord((category) =>
@@ -325,6 +333,7 @@ export function CareerTree() {
         : null;
     const fields = cloneProfileFields(
       [
+        simProfileToFields(),   // <-- add this line
         parsedResume?.fields,
         connectedFields,
         parsedLinkedin?.fields,
@@ -559,6 +568,121 @@ export function CareerTree() {
       linkedinInput.current.value = "";
     }
     setPhase("onboarding");
+  }
+
+// ============================================================================
+// REPLACE your existing `if (phase === "choice") { ... }` block in
+// career-tree.tsx with this one.
+//
+// Needs two imports at the top of career-tree.tsx (add if not already there):
+//   import { Avatar } from "@/components/linkedin/avatar";
+//   import { DEFAULT_CURRENT_PROFILE } from "@/features/profile/profile-data";
+//
+// Also add one state near the other useState calls:
+//   const [showResumeDrop, setShowResumeDrop] = useState(false);
+//
+// Styling/animation lives in career-tree.module.css (see CHOICE_CSS.css).
+// ============================================================================
+
+  if (phase === "choice") {
+    return (
+      <section className={styles.choiceScene}>
+        {/* Floating YOU node with Winston's avatar */}
+        <div className={styles.youNode}>
+          <Avatar
+            alt={DEFAULT_CURRENT_PROFILE.name}
+            src={DEFAULT_CURRENT_PROFILE.profilePhoto}
+            className="size-[96px] border-[3px] border-white shadow-md"
+          />
+          <span className={styles.youLabel}>{DEFAULT_CURRENT_PROFILE.name}</span>
+        </div>
+
+        {/* connector from YOU down to the choices */}
+        <div
+          className={`${styles.connector} ${choiceOpen ? styles.connectorOpen : ""}`}
+        />
+
+        {!choiceOpen ? (
+          <button
+            type="button"
+            onClick={() => setChoiceOpen(true)}
+            aria-label="Add a path"
+            className={styles.plusButton}
+          >
+            +
+          </button>
+        ) : (
+          <div className={styles.choiceRow}>
+            {/* Simulate careers */}
+            <button
+              type="button"
+              onClick={() => router.push("/quiz")}
+              className={`${styles.choiceCard} ${styles.choiceCardPrimary}`}
+            >
+              <span className={styles.choiceTitle}>Simulate careers</span>
+              <span className={styles.choiceSub}>Try roles, discover a path</span>
+            </button>
+
+            {/* Use my profile */}
+            <button
+              type="button"
+              onClick={() => setShowResumeDrop(true)}
+              className={styles.choiceCard}
+            >
+              <span className={styles.choiceTitlePrimary}>Use my profile</span>
+              <span className={styles.choiceSubMuted}>
+                Add a resume, or use your profile as-is
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Inline resume drop-zone, revealed when "Use my profile" is tapped */}
+        {showResumeDrop ? (
+          <div className={styles.dropWrap}>
+            <label
+              className={styles.dropZone}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                const file = event.dataTransfer.files?.[0] ?? null;
+                if (file) selectResume(file);
+              }}
+            >
+              <input
+                type="file"
+                accept=".pdf,.docx,.txt"
+                className="hidden"
+                onChange={(event) => selectResume(event.target.files?.[0] ?? null)}
+              />
+              <span className={styles.dropTitle}>
+                {resume ? resume.name : "Drop a resume or click to upload"}
+              </span>
+              <span className={styles.dropSub}>
+                {parsingResume
+                  ? "Reading your resume…"
+                  : "PDF, DOCX, or TXT — optional"}
+              </span>
+            </label>
+
+            {uploadError ? (
+              <p className={styles.dropError}>{uploadError}</p>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() => generate()}
+              disabled={parsingResume}
+              className={styles.generateButton}
+            >
+              {resume
+                ? "Generate from my resume"
+                : "Continue with my profile"}
+            </button>
+          </div>
+        ) : null}
+      </section>
+    );
   }
 
   if (phase === "generating") {

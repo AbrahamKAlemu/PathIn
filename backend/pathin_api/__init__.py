@@ -3,6 +3,7 @@ import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from werkzeug.exceptions import RequestEntityTooLarge
+from .suggestion_service import get_roles, get_scenario, generate_suggestions
 
 from .career_service import ApiError, CareerService
 from .resume_parser import MAX_UPLOAD_BYTES
@@ -121,6 +122,19 @@ def create_app(career_service: CareerService | None = None) -> Flask:
             details={"maxBytes": MAX_UPLOAD_BYTES},
         )
         return jsonify(error.to_dict()), error.status_code
+
+    @app.get("/api/v1/quiz/roles")
+    def quiz_roles():
+        return jsonify(get_roles())
+
+    @app.get("/api/v1/quiz/scenario/<role_id>")
+    def quiz_scenario(role_id: str):
+        return jsonify(get_scenario(role_id))
+
+    @app.post("/api/v1/quiz/suggestions")
+    def quiz_suggestions():
+        return jsonify(generate_suggestions(_json_payload()))
+
 
     return app
 
