@@ -1,2903 +1,822 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
-  useMemo,
+  type ChangeEvent,
+  type DragEvent,
+  type FormEvent,
+  type RefObject,
+  useEffect,
   useRef,
   useState,
 } from "react";
 
-import type {
-  CareerEdge,
-  CareerMapData,
-  CareerMode,
-  CareerNode,
-  CareerPath,
-  DetailSection,
-} from "./types";
+import { CareerMapView } from "./career-map-view";
 import styles from "./career-tree.module.css";
+import {
+  buildCareerMap,
+  generateCareerMap,
+  normalizeProfile,
+  parseProfileFile,
+  PathInApiError,
+  regenerateCareerMap,
+  reopenCareerMap,
+  saveCareerMap,
+  submitCareerFeedback,
+  type RegenerationAction,
+} from "./pathin-api";
+import type {
+  CareerMapData,
+  ParsedProfile,
+  ParsedProfileField,
+  ProfileCategory,
+  ProfileSubmission,
+} from "./types";
 
-type Direction = "previous" | "next";
-type CareerView = "focus" | "web";
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const SUPPORTED_FILE_EXTENSIONS = [".pdf", ".docx", ".txt"];
+const SAVED_MAP_ID_KEY = "pathin-generated-map-id";
 
-type WebPlacement = {
-  key: string;
-  nodeId: string;
-  pathId?: string;
-  x: number;
-  y: number;
-};
-
-type WebConnection = {
-  key: string;
-  source: WebPlacement;
-  target: WebPlacement;
-};
-
-type WebLayout = {
-  width: number;
-  height: number;
-  current: WebPlacement;
-  placements: WebPlacement[];
-  connections: WebConnection[];
-  pathLabels: Array<{ id: string; label: string; x: number; y: number }>;
-};
-
-type CareerGoalOption = {
-  destination: CareerNode;
-  path: CareerPath;
-};
-
-type SavedCareerState = {
-  mapId: string;
-  dataVersion: string;
-  modelVersion: string;
-  promptVersion: string;
-  mode: CareerMode;
-  viewMode?: CareerView;
-  destinationId: string;
-  focusedPathId?: string;
-  selectedNodeId: string;
-  detailSection: DetailSection;
-  detailsOpen: boolean;
-  explorePathIds: string[];
-  pinnedNodeIds: string[];
-  dismissedNodeIds: string[];
-  enabledSignals: Record<string, boolean>;
-  profileDraft: ProfileDraft;
-  profileProvenance: ProfileProvenance;
-  webZoom?: number;
-};
-
-type FeedbackTarget = {
-  id: string;
-  label: string;
-  type: "node" | "edge";
-};
-
-type ProfileDraft = {
-  education: string;
-  experience: string;
-  skills: string;
-  interests: string;
-  location: string;
-  goals: string;
-};
-
-type ProfileField = keyof ProfileDraft;
-type ProfileProvenance = Record<ProfileField, string>;
-
-type IllustrativePeer = {
-  currentRole: string;
-  name: string;
-  note: string;
-  skills: string[];
-};
-
-const SAVED_STATE_KEY = "pathin-career-tree-state";
-const WEB_NODE_SIZE = 104;
-const WEB_COLUMN_GAP = 248;
-const WEB_FUTURE_ROW_GAP = 164;
-const WEB_HISTORY_ROW_GAP = 142;
-const WEB_X_PADDING = 150;
-const WEB_Y_PADDING = 110;
-
-const detailSections: Array<{ id: DetailSection; label: string }> = [
-  { id: "overview", label: "Overview" },
-  { id: "fit", label: "Fit" },
-  { id: "skills", label: "Skills" },
-  { id: "connections", label: "Path" },
-  { id: "evidence", label: "Evidence" },
+const profileCategories: ProfileCategory[] = [
+  "education",
+  "coursework",
+  "roles",
+  "responsibilities",
+  "dates",
+  "projects",
+  "skills",
+  "certifications",
+  "industries",
+  "achievements",
+  "interests",
+  "locations",
+  "goals",
+  "workStyles",
 ];
 
-const profileSignals: Array<{ id: ProfileField; label: string }> = [
-  {
-    id: "education",
-    label: "Education",
-  },
-  {
-    id: "experience",
-    label: "Experience",
-  },
-  {
-    id: "skills",
-    label: "Skills",
-  },
-  {
-    id: "interests",
-    label: "Interests",
-  },
-  {
-    id: "location",
-    label: "Location",
-  },
-  {
-    id: "goals",
-    label: "Goals",
-  },
+const loadingStages = [
+  "Reading your experience",
+  "Identifying your strongest skills",
+  "Matching potential careers",
+  "Building your career path",
 ];
 
-const profileFieldLabels: Record<ProfileField, string> = {
-  education: "Education and coursework",
-  experience: "Work, projects, activities, and volunteering",
-  skills: "Skills",
-  interests: "Interests",
-  location: "Location preferences",
-  goals: "Career goals",
-};
+type ExperiencePhase = "onboarding" | "generating" | "map";
 
-const PROFILE_NODE_IDS = [
-  "profile-interests",
-  "profile-skills",
-  "profile-education",
-  "profile-prior-experience",
-  "profile-current-experience",
-] as const;
-
-const PROFILE_NODE_ID_SET = new Set<string>(PROFILE_NODE_IDS);
-
-const illustrativePeerGroups = {
-  engineering: {
-    currentRole: "Software Engineer",
-    name: "Alex Morgan",
-    note: "Built a technical foundation first, then tested adjacent roles through small projects.",
-    skills: ["Programming", "Systems thinking", "Technical communication"],
-  },
-  cloud: {
-    currentRole: "DevOps Engineer",
-    name: "Riley Chen",
-    note: "Started in software engineering and added cloud delivery and reliability skills.",
-    skills: ["AWS", "DevOps", "Infrastructure as code"],
-  },
-  data: {
-    currentRole: "Data Scientist",
-    name: "Maya Patel",
-    note: "Turned quantitative coursework into applied analysis projects before entering data work.",
-    skills: ["Python", "Data analysis", "Model evaluation"],
-  },
-  product: {
-    currentRole: "Product Manager",
-    name: "Jordan Lee",
-    note: "Used technical project experience to build discovery, prioritization, and product judgment.",
-    skills: ["User research", "Prioritization", "Product metrics"],
-  },
-  design: {
-    currentRole: "Product Designer",
-    name: "Sofia Ramirez",
-    note: "Combined technical context with research and interaction design through portfolio work.",
-    skills: ["User research", "Interaction design", "Prototyping"],
-  },
-} satisfies Record<string, IllustrativePeer>;
-
-const illustrativePeerGroupByNodeId: Record<
-  string,
-  keyof typeof illustrativePeerGroups
-> = {
-  "course-cloud": "cloud",
-  "course-ml": "data",
-  "course-product": "product",
-  "course-ux": "design",
-  "data-entry": "data",
-  "data-project": "data",
-  "data-senior": "data",
-  "devops-mid": "cloud",
-  "product-entry": "product",
-  "product-mid": "product",
-  "product-project": "product",
-  "skill-data-analysis": "data",
-  "skill-product-discovery": "product",
-  "skill-user-research": "design",
-  "technical-lead-project": "product",
-  "ux-entry": "design",
-  "ux-mid": "design",
-  "ux-project": "design",
-};
-
-function illustrativePeerForNode(node: CareerNode): IllustrativePeer {
-  const group =
-    illustrativePeerGroups[
-      illustrativePeerGroupByNodeId[node.id] ?? "engineering"
-    ];
-  const isRole =
-    node.type === "entry_role" ||
-    node.type === "role" ||
-    node.type === "destination";
-
-  return {
-    ...group,
-    currentRole: isRole ? node.label : group.currentRole,
-  };
-}
-
-function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
-  const education =
-    initialMap.profile.education.join(", ") || "Education from your profile";
-  const currentExperience =
-    initialMap.profile.experience[0] || "Current experience";
-  const priorExperience =
-    initialMap.profile.experience[1] || "Earlier experience";
-  const skills =
-    initialMap.profile.skills.join(", ") || "Skills from your profile";
-  const interests =
-    initialMap.profile.interests.join(", ") || "Career interests";
-
-  return [
-    {
-      id: "profile-interests",
-      type: "skill",
-      label: "AI + product interests",
-      eyebrow: "Direction signal",
-      summary: interests,
-      stage: "Career interests",
-      workSetting: "Confirmed Path[IN] interests",
-      whyItFits: [
-        "AI, product, and career discovery create room to compare technical, analytical, and user-centered paths.",
-      ],
-      responsibilities: [
-        "Use these interests to rank routes without treating them as fixed commitments.",
-        "Update or disable any interest that no longer reflects the user.",
-      ],
-      existingSkills: initialMap.profile.skills,
-      transferableSkills: ["Curiosity across disciplines", "Career exploration"],
-      skillsToBuild: ["Goal definition", "Role comparison"],
-      preview:
-        "This node captures the themes Winston has chosen to explore, not a prediction about the career he must pursue.",
-      challenges: [
-        "Broad interests can produce too many reasonable options without a short-term experiment.",
-      ],
-      sourceRecord: {
-        id: "profile-interests",
-        kind: "profile",
-        label: "Confirmed Path[IN] interests",
-      },
+function categoryRecord<T>(
+  createValue: (category: ProfileCategory) => T,
+): Record<ProfileCategory, T> {
+  return profileCategories.reduce(
+    (record, category) => {
+      record[category] = createValue(category);
+      return record;
     },
-    {
-      id: "profile-skills",
-      type: "skill",
-      label: "Technical foundation",
-      eyebrow: "Transferable strengths",
-      summary: skills,
-      stage: "Current skill signals",
-      workSetting: "Imported LinkedIn profile",
-      whyItFits: [
-        "Software problem solving and quantitative reasoning transfer into data, product, design, and engineering work.",
-      ],
-      responsibilities: [
-        "Confirm which skills are backed by projects or work samples.",
-        "Identify which strengths can reduce the cost of testing an adjacent path.",
-      ],
-      existingSkills: initialMap.profile.skills,
-      transferableSkills: [
-        "Structured analysis",
-        "Technical communication",
-        "Problem decomposition",
-      ],
-      skillsToBuild: ["Evidence through projects", "Role-specific vocabulary"],
-      preview:
-        "These profile signals are reusable foundations. They do not require Winston to remain in one technical role family.",
-      challenges: [
-        "Self-reported skills become more credible when connected to specific outcomes and artifacts.",
-      ],
-      sourceRecord: {
-        id: "profile-skills",
-        kind: "profile",
-        label: "Imported LinkedIn skills",
-      },
-    },
-    {
-      id: "profile-education",
-      type: "course",
-      label: "Stanford CS + Mathematics",
-      eyebrow: "Education",
-      summary: education,
-      stage: "Technical and quantitative foundation",
-      workSetting: "Stanford University",
-      whyItFits: [
-        "Computer science supports software and systems work while mathematics supports analytical and data-intensive paths.",
-      ],
-      responsibilities: [
-        "Connect relevant coursework to concrete projects and role requirements.",
-        "Use both disciplines when comparing technical and cross-functional careers.",
-      ],
-      existingSkills: ["Computer science", "Mathematics"],
-      transferableSkills: ["Quantitative reasoning", "Technical learning"],
-      skillsToBuild: ["Applied evidence", "Domain context"],
-      preview: education,
-      challenges: [
-        "A degree provides a foundation but does not by itself demonstrate role-specific work.",
-      ],
-      sourceRecord: {
-        id: "profile-education",
-        kind: "profile",
-        label: "Imported LinkedIn education",
-      },
-    },
-    {
-      id: "profile-prior-experience",
-      type: "experience",
-      label: priorExperience,
-      eyebrow: "Prior experience",
-      summary:
-        `Imported profile entry: ${priorExperience}. Add the role, dates, work performed, and outcomes through Profile inputs.`,
-      stage: "Earlier professional signal",
-      workSetting: priorExperience,
-      whyItFits: [
-        "Prior professional exposure can provide evidence of rigor, collaboration, and operating in a demanding environment.",
-      ],
-      responsibilities: [
-        "Document the actual role and responsibilities.",
-        "Connect specific outcomes to transferable skills.",
-      ],
-      existingSkills: initialMap.profile.skills,
-      transferableSkills: ["Professional communication", "Analytical judgment"],
-      skillsToBuild: ["Specific accomplishment evidence"],
-      preview:
-        "Path[IN] keeps this node factual until Winston adds more detail to the imported profile entry.",
-      challenges: [
-        "The current profile does not include enough detail to infer a title or achievement safely.",
-      ],
-      sourceRecord: {
-        id: "profile-prior-experience",
-        kind: "profile",
-        label: "Imported LinkedIn experience",
-      },
-    },
-    {
-      id: "profile-current-experience",
-      type: "experience",
-      label: currentExperience,
-      eyebrow: "Current experience",
-      summary:
-        `Imported profile entry: ${currentExperience}. This is the nearest work context beneath Winston's combined current standing.`,
-      stage: "Current professional signal",
-      workSetting: currentExperience,
-      whyItFits: [
-        "Startup experience can create technical execution, ownership, and cross-functional learning signals.",
-      ],
-      responsibilities: [
-        "Add the actual role, scope, dates, and measurable outcomes.",
-        "Identify projects that could support data, product, design, or engineering routes.",
-      ],
-      existingSkills: initialMap.profile.skills,
-      transferableSkills: [
-        "Ownership",
-        "Technical execution",
-        "Cross-functional communication",
-      ],
-      skillsToBuild: ["Outcome documentation", "Role-specific evidence"],
-      preview:
-        "This node connects Winston's current company context to the career experiments shown above.",
-      challenges: [
-        "The imported profile entry does not provide enough detail to infer responsibilities or seniority.",
-      ],
-      sourceRecord: {
-        id: "profile-current-experience",
-        kind: "profile",
-        label: "Imported LinkedIn experience",
-      },
-    },
-  ];
+    {} as Record<ProfileCategory, T>,
+  );
 }
 
-function conciseSignal(value: string) {
-  const normalized = value.trim();
-  if (!normalized) {
-    return "Not provided";
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`;
   }
-  return normalized.length > 38 ? `${normalized.slice(0, 35)}...` : normalized;
-}
-
-function MiniIcon({
-  name,
-  className = "",
-}: {
-  name:
-    | "arrow-down"
-    | "arrow-left"
-    | "arrow-right"
-    | "arrow-up"
-    | "bookmark"
-    | "branch"
-    | "briefcase"
-    | "check"
-    | "chevron-down"
-    | "close"
-    | "course"
-    | "current"
-    | "destination"
-    | "expand"
-    | "eye"
-    | "history"
-    | "info"
-    | "list"
-    | "map"
-    | "minus"
-    | "pin"
-    | "plus"
-    | "refresh"
-    | "sparkles";
-  className?: string;
-}) {
-  const common = {
-    "aria-hidden": true,
-    className,
-    fill: "none",
-    stroke: "currentColor",
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    strokeWidth: 1.9,
-    viewBox: "0 0 24 24",
-  };
-
-  switch (name) {
-    case "arrow-down":
-      return (
-        <svg {...common}>
-          <path d="m6 10 6 6 6-6" />
-          <path d="M12 4v12" />
-        </svg>
-      );
-    case "arrow-left":
-      return (
-        <svg {...common}>
-          <path d="m15 18-6-6 6-6" />
-          <path d="M9 12h10" />
-        </svg>
-      );
-    case "arrow-right":
-      return (
-        <svg {...common}>
-          <path d="m9 18 6-6-6-6" />
-          <path d="M5 12h10" />
-        </svg>
-      );
-    case "arrow-up":
-      return (
-        <svg {...common}>
-          <path d="m6 14 6-6 6 6" />
-          <path d="M12 20V8" />
-        </svg>
-      );
-    case "bookmark":
-      return (
-        <svg {...common}>
-          <path d="M6.5 4.5A1.5 1.5 0 0 1 8 3h8a1.5 1.5 0 0 1 1.5 1.5V21L12 17.7 6.5 21V4.5Z" />
-        </svg>
-      );
-    case "branch":
-      return (
-        <svg {...common}>
-          <circle cx="6" cy="5" r="2" />
-          <circle cx="18" cy="6" r="2" />
-          <circle cx="18" cy="18" r="2" />
-          <path d="M8 5h2a4 4 0 0 1 4 4v5a4 4 0 0 0 4 4" />
-          <path d="M8 5h4a6 6 0 0 1 6 1" />
-        </svg>
-      );
-    case "briefcase":
-      return (
-        <svg {...common}>
-          <rect x="3" y="7" width="18" height="13" rx="2" />
-          <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18" />
-        </svg>
-      );
-    case "check":
-      return (
-        <svg {...common}>
-          <path d="m5 12 4 4L19 6" />
-        </svg>
-      );
-    case "chevron-down":
-      return (
-        <svg {...common}>
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      );
-    case "close":
-      return (
-        <svg {...common}>
-          <path d="m6 6 12 12M18 6 6 18" />
-        </svg>
-      );
-    case "course":
-      return (
-        <svg {...common}>
-          <path d="m3 7 9-4 9 4-9 4-9-4Z" />
-          <path d="M6 9.5V15c2.8 2.7 9.2 2.7 12 0V9.5M21 7v6" />
-        </svg>
-      );
-    case "current":
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="8" r="4" />
-          <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
-        </svg>
-      );
-    case "destination":
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="8" />
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 2V0M22 12h2M12 22v2M2 12H0" />
-        </svg>
-      );
-    case "expand":
-      return (
-        <svg {...common}>
-          <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
-        </svg>
-      );
-    case "eye":
-      return (
-        <svg {...common}>
-          <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
-          <circle cx="12" cy="12" r="2.5" />
-        </svg>
-      );
-    case "history":
-      return (
-        <svg {...common}>
-          <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-          <path d="M3 3v5h5M12 7v5l3 2" />
-        </svg>
-      );
-    case "info":
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 11v6M12 7.2h.01" />
-        </svg>
-      );
-    case "list":
-      return (
-        <svg {...common}>
-          <path d="M9 6h11M9 12h11M9 18h11" />
-          <circle cx="4.5" cy="6" r="1" />
-          <circle cx="4.5" cy="12" r="1" />
-          <circle cx="4.5" cy="18" r="1" />
-        </svg>
-      );
-    case "map":
-      return (
-        <svg {...common}>
-          <path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Z" />
-          <path d="M9 3v16M15 5v16" />
-        </svg>
-      );
-    case "minus":
-      return (
-        <svg {...common}>
-          <path d="M5 12h14" />
-        </svg>
-      );
-    case "pin":
-      return (
-        <svg {...common}>
-          <path d="m9 3 6 6M8 8l8-4-4 8 4 4-5 1-4 4v-7l-3-3 4-3Z" />
-        </svg>
-      );
-    case "plus":
-      return (
-        <svg {...common}>
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      );
-    case "refresh":
-      return (
-        <svg {...common}>
-          <path d="M20 7v5h-5M4 17v-5h5" />
-          <path d="M18.5 9A7 7 0 0 0 6 6l-2 2M5.5 15A7 7 0 0 0 18 18l2-2" />
-        </svg>
-      );
-    case "sparkles":
-      return (
-        <svg {...common}>
-          <path d="m12 2 1.4 4.6L18 8l-4.6 1.4L12 14l-1.4-4.6L6 8l4.6-1.4L12 2Z" />
-          <path d="m19 14 .8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14ZM5 13l.7 2.3L8 16l-2.3.7L5 19l-.7-2.3L2 16l2.3-.7L5 13Z" />
-        </svg>
-      );
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatCurrency(value: number) {
-  if (!value) {
-    return "Not available";
-  }
-
-  return `$${Math.round(value / 1000)}K`;
+function cloneParsedFields(
+  profiles: ParsedProfile[],
+): Record<ProfileCategory, ParsedProfileField[]> {
+  return categoryRecord((category) =>
+    profiles.flatMap((profile) =>
+      (profile.fields[category] ?? []).map((field) => ({
+        ...field,
+        originalSource: field.originalSource ?? field.source,
+        importBatch: `${field.originalSource ?? field.source}-upload`,
+        enabled: true,
+      })),
+    ),
+  );
 }
 
-function nodeIcon(node: CareerNode) {
-  if (node.type === "current") {
-    return "current";
-  }
-  if (node.type === "course") {
-    return "course";
-  }
-  if (node.type === "skill") {
-    return "sparkles";
-  }
-  if (node.type === "destination") {
-    return "destination";
-  }
-  return "briefcase";
-}
+export function CareerTree() {
+  const [phase, setPhase] = useState<ExperiencePhase>("onboarding");
+  const [careerMap, setCareerMap] = useState<CareerMapData | null>(null);
+  const [resume, setResume] = useState<File | null>(null);
+  const [parsedResume, setParsedResume] = useState<ParsedProfile | null>(null);
+  const [parsingResume, setParsingResume] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [linkedinFile, setLinkedinFile] = useState<File | null>(null);
+  const [parsedLinkedin, setParsedLinkedin] =
+    useState<ParsedProfile | null>(null);
+  const [parsingLinkedin, setParsingLinkedin] = useState(false);
+  const [linkedinError, setLinkedinError] = useState("");
+  const [generationError, setGenerationError] = useState("");
+  const [loadingStage, setLoadingStage] = useState(0);
+  const [lastSubmission, setLastSubmission] =
+    useState<ProfileSubmission | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const linkedinInput = useRef<HTMLInputElement>(null);
 
-function edgeKey(source: string, target: string) {
-  return `${source}::${target}`;
-}
-
-function calculateWebLayout(paths: CareerPath[]): WebLayout {
-  const pathCount = Math.max(paths.length, 1);
-  const futureDepth = Math.max(
-    ...paths.map((path) => Math.max(path.nodeIds.length - 1, 1)),
-    1,
-  );
-  const width = Math.max(
-    980,
-    WEB_X_PADDING * 2 + (pathCount - 1) * WEB_COLUMN_GAP + WEB_NODE_SIZE,
-  );
-  const currentX = width / 2;
-  const currentY = WEB_Y_PADDING + futureDepth * WEB_FUTURE_ROW_GAP;
-  const height =
-    currentY +
-    PROFILE_NODE_IDS.length * WEB_HISTORY_ROW_GAP +
-    WEB_Y_PADDING +
-    WEB_NODE_SIZE;
-  const current: WebPlacement = {
-    key: "web-current",
-    nodeId: "current",
-    x: currentX,
-    y: currentY,
-  };
-  const placements: WebPlacement[] = [current];
-  const connections: WebConnection[] = [];
-  const pathLabels: WebLayout["pathLabels"] = [];
-
-  paths.forEach((path, pathIndex) => {
-    const columnX =
-      pathCount === 1
-        ? currentX
-        : WEB_X_PADDING +
-          WEB_NODE_SIZE / 2 +
-          pathIndex * WEB_COLUMN_GAP;
-    pathLabels.push({
-      id: path.id,
-      label: path.shortLabel,
-      x: columnX,
-      y: 42,
-    });
-
-    let source = current;
-    path.nodeIds.slice(1).forEach((nodeId, stepIndex) => {
-      const placement: WebPlacement = {
-        key: `web-${path.id}-${nodeId}`,
-        nodeId,
-        pathId: path.id,
-        x: columnX,
-        y: currentY - (stepIndex + 1) * WEB_FUTURE_ROW_GAP,
-      };
-      placements.push(placement);
-      connections.push({
-        key: `web-edge-${path.id}-${source.nodeId}-${nodeId}-${stepIndex}`,
-        source,
-        target: placement,
-      });
-      source = placement;
-    });
-  });
-
-  let historySource = current;
-  [...PROFILE_NODE_IDS].reverse().forEach((nodeId, index) => {
-    const placement: WebPlacement = {
-      key: `web-history-${nodeId}`,
-      nodeId,
-      x: currentX,
-      y: currentY + (index + 1) * WEB_HISTORY_ROW_GAP,
-    };
-    placements.push(placement);
-    connections.push({
-      key: `web-history-edge-${historySource.nodeId}-${nodeId}`,
-      source: historySource,
-      target: placement,
-    });
-    historySource = placement;
-  });
-
-  return {
-    width,
-    height,
-    current,
-    placements,
-    connections,
-    pathLabels,
-  };
-}
-
-function signalCopy(
-  enabledSignals: Record<string, boolean>,
-): string {
-  const enabled = profileSignals.filter((signal) => enabledSignals[signal.id]);
-  return `${enabled.length} of ${profileSignals.length} profile signal groups enabled`;
-}
-
-export function CareerTree({ initialMap }: { initialMap: CareerMapData }) {
-  const profileNodes = useMemo(
-    () => createProfileNodes(initialMap),
-    [initialMap],
-  );
-  const nodeById = useMemo(
-    () =>
-      new Map(
-        [...initialMap.nodes, ...profileNodes].map((node) => [node.id, node]),
-      ),
-    [initialMap.nodes, profileNodes],
-  );
-  const edgeByKey = useMemo(
-    () =>
-      new Map(
-        initialMap.edges.map((edge) => [
-          edgeKey(edge.source, edge.target),
-          edge,
-        ]),
-      ),
-    [initialMap.edges],
-  );
-  const pathById = useMemo(
-    () => new Map(initialMap.paths.map((path) => [path.id, path])),
-    [initialMap.paths],
-  );
-
-  const [mode, setMode] = useState<CareerMode>("explore");
-  const [viewMode, setViewMode] = useState<CareerView>("focus");
-  const [destinationId, setDestinationId] = useState(
-    initialMap.destinationIds[0],
-  );
-  const [explorePathIds, setExplorePathIds] = useState(
-    initialMap.explorePathIds,
-  );
-  const [focusedPathId, setFocusedPathId] = useState(
-    initialMap.explorePathIds[0],
-  );
-  const [selectedNodeId, setSelectedNodeId] = useState("current");
-  const [detailSection, setDetailSection] =
-    useState<DetailSection>("overview");
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [webZoom, setWebZoom] = useState(0.9);
-  const [pinnedNodeIds, setPinnedNodeIds] = useState<string[]>([]);
-  const [dismissedNodeIds, setDismissedNodeIds] = useState<string[]>([]);
-  const [lastDismissedNodeId, setLastDismissedNodeId] = useState<string | null>(
-    null,
-  );
-  const [lastDismissedPathIds, setLastDismissedPathIds] = useState<string[]>([]);
-  const [saved, setSaved] = useState(false);
-  const [feedbackTarget, setFeedbackTarget] =
-    useState<FeedbackTarget | null>(null);
-  const [profileEditorOpen, setProfileEditorOpen] = useState(false);
-  const [profileDraft, setProfileDraft] = useState<ProfileDraft>({
-    education: initialMap.profile.education.join(", "),
-    experience: initialMap.profile.experience.join(", "),
-    skills: initialMap.profile.skills.join(", "),
-    interests: initialMap.profile.interests.join(", "),
-    location: initialMap.profile.location,
-    goals: "Explore technical careers before choosing one destination",
-  });
-  const [profileForm, setProfileForm] = useState<ProfileDraft>({
-    education: initialMap.profile.education.join(", "),
-    experience: initialMap.profile.experience.join(", "),
-    skills: initialMap.profile.skills.join(", "),
-    interests: initialMap.profile.interests.join(", "),
-    location: initialMap.profile.location,
-    goals: "Explore technical careers before choosing one destination",
-  });
-  const [profileProvenance, setProfileProvenance] =
-    useState<ProfileProvenance>({
-      education: "Imported from LinkedIn profile",
-      experience: "Imported from LinkedIn profile",
-      skills: "Imported from LinkedIn profile",
-      interests: "Confirmed for Path[IN]",
-      location: "Imported from LinkedIn profile",
-      goals: "Added for this prototype",
-    });
-  const [statusMessage, setStatusMessage] = useState(
-    "Current standing is focused. Use the connected previews above and below or open the complete path web.",
-  );
-  const [enabledSignals, setEnabledSignals] = useState<Record<string, boolean>>(
-    Object.fromEntries(profileSignals.map((signal) => [signal.id, true])),
-  );
-
-  const feedbackCloseRef = useRef<HTMLButtonElement>(null);
-  const profileFirstFieldRef = useRef<HTMLTextAreaElement>(null);
-  const focusedNodeRef = useRef<HTMLButtonElement>(null);
-  const webViewportRef = useRef<HTMLDivElement>(null);
-  const webDragState = useRef<{
-    pointerId: number;
-    x: number;
-    y: number;
-    scrollLeft: number;
-    scrollTop: number;
-  } | null>(null);
-
-  const activePathIds = useMemo(() => {
-    if (mode === "explore") {
-      return explorePathIds;
+  useEffect(() => {
+    if (phase !== "generating") {
+      return;
     }
-    return initialMap.buildPathIdsByDestination[destinationId] ?? [];
-  }, [
-    destinationId,
-    explorePathIds,
-    initialMap.buildPathIdsByDestination,
-    mode,
-  ]);
+    const interval = window.setInterval(() => {
+      setLoadingStage((current) =>
+        Math.min(current + 1, loadingStages.length - 1),
+      );
+    }, 760);
+    return () => window.clearInterval(interval);
+  }, [phase]);
 
-  const activePaths = useMemo(() => {
-    return activePathIds
-      .map((pathId) => pathById.get(pathId))
-      .filter((path): path is CareerPath => Boolean(path))
-      .map((path) => {
-        return {
-          ...path,
-          nodeIds: path.nodeIds.filter(
-            (nodeId) =>
-              !dismissedNodeIds.includes(nodeId) ||
-              pinnedNodeIds.includes(nodeId) ||
-              nodeId === "current" ||
-              nodeId === path.destinationId,
-          ),
-        };
-      });
-  }, [activePathIds, dismissedNodeIds, pathById, pinnedNodeIds]);
+  const canGenerate =
+    Boolean(resume && parsedResume) &&
+    !parsingResume &&
+    !parsingLinkedin &&
+    phase === "onboarding";
 
-  const selectedNode = nodeById.get(selectedNodeId) ?? nodeById.get("current")!;
-  const focusedPath = useMemo(
-    () =>
-      activePaths.find((path) => path.id === focusedPathId) ?? activePaths[0],
-    [activePaths, focusedPathId],
-  );
-  const goalOptions = useMemo<CareerGoalOption[]>(() => {
-    return initialMap.destinationIds.flatMap((goalId) => {
-      const destination = nodeById.get(goalId);
-      if (!destination) {
-        return [];
+  async function selectResume(file: File | null) {
+    if (!file) {
+      return;
+    }
+
+    setUploadError("");
+    setGenerationError("");
+    const extension = `.${file.name.split(".").pop()?.toLowerCase() ?? ""}`;
+    if (!SUPPORTED_FILE_EXTENSIONS.includes(extension)) {
+      setUploadError("Choose a PDF, DOCX, or TXT resume.");
+      if (fileInput.current) {
+        fileInput.current.value = "";
       }
-
-      const candidatePathIds =
-        mode === "build"
-          ? initialMap.buildPathIdsByDestination[goalId] ?? []
-          : initialMap.explorePathIds;
-      const path =
-        (focusedPath?.destinationId === goalId ? focusedPath : undefined) ??
-        activePaths.find((candidate) => candidate.destinationId === goalId) ??
-        candidatePathIds
-          .map((pathId) => pathById.get(pathId))
-          .find((candidate) => candidate?.destinationId === goalId) ??
-        initialMap.paths.find(
-          (candidate) => candidate.destinationId === goalId,
-        );
-
-      return path ? [{ destination, path }] : [];
-    });
-  }, [
-    activePaths,
-    focusedPath,
-    initialMap.buildPathIdsByDestination,
-    initialMap.destinationIds,
-    initialMap.explorePathIds,
-    initialMap.paths,
-    mode,
-    nodeById,
-    pathById,
-  ]);
-  const activeGoal =
-    goalOptions.find(
-      (goal) =>
-        goal.destination.id ===
-        (focusedPath?.destinationId ?? destinationId),
-    ) ?? goalOptions[0];
-  const alternativeGoals = goalOptions.filter(
-    (goal) => goal.destination.id !== activeGoal?.destination.id,
-  );
-  const focusSequence = useMemo(
-    () => [
-      ...PROFILE_NODE_IDS,
-      "current",
-      ...(focusedPath?.nodeIds.slice(1) ?? []),
-    ],
-    [focusedPath],
-  );
-  const focusIndex = focusSequence.indexOf(selectedNode.id);
-  const previousFocusNode =
-    focusIndex > 0
-      ? nodeById.get(focusSequence[focusIndex - 1]) ?? null
-      : null;
-  const nextFocusNode =
-    focusIndex >= 0 && focusIndex < focusSequence.length - 1
-      ? nodeById.get(focusSequence[focusIndex + 1]) ?? null
-      : null;
-  const positionLabel =
-    PROFILE_NODE_ID_SET.has(selectedNode.id)
-      ? "Profile foundation"
-      : selectedNode.id === "current"
-        ? "Current standing"
-        : focusedPath
-          ? `Step ${Math.max(1, focusedPath.nodeIds.indexOf(selectedNode.id))} on ${focusedPath.shortLabel}`
-          : selectedNode.stage;
-  const focusPathForDetails = useMemo<CareerPath>(
-    () => ({
-      id: `vertical-focus-${focusedPath?.id ?? "profile"}`,
-      label: focusedPath?.label ?? "Profile-to-career route",
-      shortLabel: focusedPath?.shortLabel ?? "Focus route",
-      destinationId:
-        focusedPath?.destinationId ??
-        focusSequence[focusSequence.length - 1] ??
-        "current",
-      nodeIds: focusSequence,
-      description:
-        focusedPath?.description ??
-        "A bottom-to-top route from profile history to possible careers.",
-      strategy: focusedPath?.strategy ?? "Profile foundation",
-    }),
-    [focusSequence, focusedPath],
-  );
-  const isProfileNode = PROFILE_NODE_ID_SET.has(selectedNode.id);
-  const futurePreviewNodes = useMemo<Array<CareerNode | null>>(
-    () =>
-      [focusIndex + 2, focusIndex + 1].map((index) => {
-        if (focusIndex < 0 || index >= focusSequence.length) {
-          return null;
-        }
-        return nodeById.get(focusSequence[index]) ?? null;
-      }),
-    [focusIndex, focusSequence, nodeById],
-  );
-  const historyPreviewNodes = useMemo<Array<CareerNode | null>>(
-    () =>
-      [focusIndex - 1, focusIndex - 2].map((index) => {
-        if (focusIndex < 0 || index < 0) {
-          return null;
-        }
-        return nodeById.get(focusSequence[index]) ?? null;
-      }),
-    [focusIndex, focusSequence, nodeById],
-  );
-  const webLayout = useMemo(
-    () => calculateWebLayout(activePaths),
-    [activePaths],
-  );
-
-  function selectNode(
-    nodeId: string,
-    openDetails = true,
-    pathId?: string,
-  ) {
-    if (!nodeById.has(nodeId)) {
       return;
     }
-
-    const matchingPath = activePaths.find((path) => path.id === pathId);
-    if (matchingPath) {
-      setFocusedPathId(matchingPath.id);
-    }
-    setSelectedNodeId(nodeId);
-    setDetailsOpen(openDetails);
-    setStatusMessage(`${nodeById.get(nodeId)?.label} selected.`);
-  }
-
-  function selectAndFocusNode(nodeId: string, pathId?: string) {
-    selectNode(nodeId, true, pathId);
-    window.requestAnimationFrame(() => {
-      focusedNodeRef.current?.focus({ preventScroll: true });
-    });
-  }
-
-  function selectGoal(goal: CareerGoalOption) {
-    setDestinationId(goal.destination.id);
-    if (mode === "explore" && !explorePathIds.includes(goal.path.id)) {
-      setExplorePathIds((current) => {
-        const matchingIndex = current.findIndex(
-          (pathId) =>
-            pathById.get(pathId)?.destinationId === goal.destination.id,
-        );
-        if (matchingIndex < 0) {
-          return [...current, goal.path.id];
-        }
-
-        const next = [...current];
-        next[matchingIndex] = goal.path.id;
-        return next;
-      });
-    }
-    setFocusedPathId(goal.path.id);
-    setSelectedNodeId(goal.destination.id);
-    setDetailsOpen(false);
-    setStatusMessage(
-      `${goal.destination.label} selected as the career goal. Showing ${goal.path.label.toLowerCase()}.`,
-    );
-    window.requestAnimationFrame(() => {
-      focusedNodeRef.current?.focus({ preventScroll: true });
-    });
-  }
-
-  function navigate(direction: Direction, openDetails = false) {
-    const target = direction === "next" ? nextFocusNode : previousFocusNode;
-    if (!target) {
-      setStatusMessage(
-        direction === "next"
-          ? "This scenario currently ends here. Future recommendations are reserved above."
-          : "You are back at the profile starting point.",
-      );
-      return;
-    }
-    selectNode(target.id, openDetails, focusedPath?.id);
-    if (!openDetails) {
-      window.requestAnimationFrame(() => {
-        focusedNodeRef.current?.focus({ preventScroll: true });
-      });
-    }
-  }
-
-  function handleNodeKeyDown(
-    event: ReactKeyboardEvent<HTMLButtonElement>,
-  ) {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      setDetailsOpen(true);
-      return;
-    }
-
-    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-      event.preventDefault();
-      const direction =
-        event.key === "ArrowUp" ? "next" : "previous";
-      navigate(direction);
-    }
-  }
-
-  function focusPreview(node: CareerNode) {
-    selectNode(node.id, false, focusedPath?.id);
-    window.requestAnimationFrame(() => {
-      focusedNodeRef.current?.focus({ preventScroll: true });
-    });
-  }
-
-  function centerWebView(behavior: ScrollBehavior = "smooth") {
-    const viewport = webViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-    viewport.scrollTo({
-      left: Math.max(
-        0,
-        webLayout.current.x * webZoom - viewport.clientWidth / 2,
-      ),
-      top: Math.max(
-        0,
-        webLayout.current.y * webZoom - viewport.clientHeight / 2,
-      ),
-      behavior,
-    });
-  }
-
-  function showWebView() {
-    setViewMode("web");
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => centerWebView("auto"));
-    });
-  }
-
-  function handleWebPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    const target = event.target as HTMLElement;
-    if (target.closest("button, a")) {
-      return;
-    }
-    const viewport = webViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-    webDragState.current = {
-      pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      scrollLeft: viewport.scrollLeft,
-      scrollTop: viewport.scrollTop,
-    };
-    viewport.setPointerCapture(event.pointerId);
-    viewport.dataset.dragging = "true";
-  }
-
-  function handleWebPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    const drag = webDragState.current;
-    const viewport = webViewportRef.current;
-    if (!drag || !viewport || drag.pointerId !== event.pointerId) {
-      return;
-    }
-    viewport.scrollLeft = drag.scrollLeft - (event.clientX - drag.x);
-    viewport.scrollTop = drag.scrollTop - (event.clientY - drag.y);
-  }
-
-  function handleWebPointerEnd(event: ReactPointerEvent<HTMLDivElement>) {
-    const viewport = webViewportRef.current;
-    if (viewport?.hasPointerCapture(event.pointerId)) {
-      viewport.releasePointerCapture(event.pointerId);
-    }
-    if (viewport) {
-      delete viewport.dataset.dragging;
-    }
-    webDragState.current = null;
-  }
-
-  function togglePinned() {
-    setPinnedNodeIds((current) => {
-      if (current.includes(selectedNode.id)) {
-        setStatusMessage(`${selectedNode.label} unpinned.`);
-        return current.filter((id) => id !== selectedNode.id);
+    if (file.size === 0) {
+      setUploadError("The selected resume is empty.");
+      if (fileInput.current) {
+        fileInput.current.value = "";
       }
-      setStatusMessage(`${selectedNode.label} pinned for regeneration.`);
-      return [...current, selectedNode.id];
-    });
-  }
-
-  function dismissSelectedNode() {
-    if (selectedNode.type === "current" || pinnedNodeIds.includes(selectedNode.id)) {
-      setStatusMessage(
-        pinnedNodeIds.includes(selectedNode.id)
-          ? "Unpin this step before dismissing it."
-          : "The current standing remains visible as the start of every route.",
-      );
+      return;
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      setUploadError("The selected resume exceeds the 5 MB limit.");
+      if (fileInput.current) {
+        fileInput.current.value = "";
+      }
       return;
     }
 
-    if (selectedNode.type === "destination") {
-      if (mode !== "explore") {
-        setStatusMessage(
-          "This is the selected Build My Path destination. Choose another destination from the selector first.",
-        );
-        return;
-      }
-      const pathIds = activePaths
-        .filter((path) => path.destinationId === selectedNode.id)
-        .map((path) => path.id);
-      if (explorePathIds.length - pathIds.length < 1) {
-        setStatusMessage(
-          "Keep at least one destination visible before requesting more options.",
-        );
-        return;
-      }
-      const remainingPathIds = explorePathIds.filter(
-        (pathId) => !pathIds.includes(pathId),
-      );
-      setExplorePathIds(remainingPathIds);
-      setFocusedPathId(remainingPathIds[0]);
-      setLastDismissedPathIds(pathIds);
-      setLastDismissedNodeId(selectedNode.id);
-      selectNode("current", false);
-      setSaved(false);
-      setStatusMessage(
-        `${selectedNode.label} hidden. Use Undo or Regenerate to bring destination options back.`,
-      );
-      return;
-    }
-
-    setDismissedNodeIds((current) => [...current, selectedNode.id]);
-    setLastDismissedPathIds([]);
-    setLastDismissedNodeId(selectedNode.id);
-    setDetailsOpen(false);
-    selectNode("current", false);
-    setStatusMessage(
-      `${selectedNode.label} hidden from this scenario.`,
-    );
-  }
-
-  function undoDismissal() {
-    if (!lastDismissedNodeId) {
-      return;
-    }
-    const restored = nodeById.get(lastDismissedNodeId);
-    if (lastDismissedPathIds.length > 0) {
-      setExplorePathIds((current) =>
-        initialMap.paths
-          .map((path) => path.id)
-          .filter(
-          (pathId) =>
-            current.includes(pathId) || lastDismissedPathIds.includes(pathId),
-          ),
-      );
-    }
-    setDismissedNodeIds((current) =>
-      current.filter((id) => id !== lastDismissedNodeId),
-    );
-    setLastDismissedNodeId(null);
-    setLastDismissedPathIds([]);
-    setStatusMessage(`${restored?.label ?? "Step"} restored.`);
-  }
-
-  function regenerate() {
-    const regeneratedExplorePathIds = explorePathIds.map((pathId) => {
-      const currentPath = pathById.get(pathId);
-      if (!currentPath) {
-        return pathId;
-      }
-      if (
-        currentPath.nodeIds.some((nodeId) => pinnedNodeIds.includes(nodeId))
-      ) {
-        return pathId;
-      }
-      const alternatives =
-        initialMap.buildPathIdsByDestination[currentPath.destinationId] ?? [];
-      return (
-        alternatives.find((candidateId) => candidateId !== pathId) ?? pathId
-      );
-    });
-    setExplorePathIds(regeneratedExplorePathIds);
-    setDismissedNodeIds([]);
-    setLastDismissedNodeId(null);
-    setLastDismissedPathIds([]);
-    setSaved(false);
-    setSelectedNodeId("current");
-    setFocusedPathId(
-      mode === "explore"
-        ? regeneratedExplorePathIds[0]
-        : initialMap.buildPathIdsByDestination[destinationId]?.[0] ?? "",
-    );
-    setDetailsOpen(false);
-    setStatusMessage(
-      `Scenarios regenerated using ${signalCopy(enabledSignals)}. Pinned steps were preserved.`,
-    );
-  }
-
-  function saveMap() {
-    const state: SavedCareerState = {
-      mapId: initialMap.id,
-      dataVersion: initialMap.generation.dataVersion,
-      modelVersion: initialMap.generation.modelVersion,
-      promptVersion: initialMap.generation.promptVersion,
-      mode,
-      viewMode,
-      destinationId,
-      focusedPathId: focusedPath?.id,
-      selectedNodeId,
-      detailSection,
-      detailsOpen,
-      explorePathIds,
-      pinnedNodeIds,
-      dismissedNodeIds,
-      enabledSignals,
-      profileDraft,
-      profileProvenance,
-      webZoom,
-    };
-    window.localStorage.setItem(SAVED_STATE_KEY, JSON.stringify(state));
-    setSaved(true);
-    setStatusMessage("Path saved in this browser.");
-  }
-
-  function reopenSavedMap() {
-    const stored = window.localStorage.getItem(SAVED_STATE_KEY);
-    if (!stored) {
-      setStatusMessage("No saved Path[IN] map was found in this browser.");
-      return;
-    }
+    const previousResume = resume;
+    const previousParsedResume = parsedResume;
+    setResume(file);
+    setParsedResume(null);
+    setParsingResume(true);
 
     try {
-      const state = JSON.parse(stored) as SavedCareerState;
-      const validMode = state.mode === "explore" || state.mode === "build";
-      const restoredViewMode =
-        state.viewMode === "web" || state.viewMode === "focus"
-          ? state.viewMode
-          : "focus";
-      const validDestination = initialMap.destinationIds.includes(
-        state.destinationId,
-      );
-      const validSelectedNode = nodeById.has(state.selectedNodeId);
-      const validExplorePaths = (state.explorePathIds ?? []).filter((pathId) =>
-        pathById.has(pathId),
-      );
-      const validPinnedNodes = (state.pinnedNodeIds ?? []).filter((nodeId) =>
-        nodeById.has(nodeId),
-      );
-      const validDismissedNodes = (state.dismissedNodeIds ?? []).filter(
-        (nodeId) => nodeById.has(nodeId),
-      );
-      const validDetailSection = detailSections.some(
-        (section) => section.id === state.detailSection,
-      );
-      const validVersion =
-        state.dataVersion === initialMap.generation.dataVersion &&
-        state.modelVersion === initialMap.generation.modelVersion &&
-        state.promptVersion === initialMap.generation.promptVersion;
-      const validProfile =
-        state.profileDraft &&
-        profileSignals.every(
-          (signal) => typeof state.profileDraft[signal.id] === "string",
-        );
-
-      if (
-        !validVersion ||
-        !validMode ||
-        !validDestination ||
-        !validSelectedNode ||
-        !validDetailSection ||
-        !validProfile ||
-        validExplorePaths.length === 0
-      ) {
-        throw new Error("Saved map no longer matches this data version.");
+      const parsed = await parseProfileFile(file, "resume");
+      if (parsed.summary.fieldCount === 0) {
+        throw new Error("We could not find usable experience in this resume.");
       }
-
-      const savedActivePathIds =
-        state.mode === "explore"
-          ? validExplorePaths
-          : initialMap.buildPathIdsByDestination[state.destinationId] ?? [];
-      const savedFocusedPath =
-        savedActivePathIds
-          .map((pathId) => pathById.get(pathId))
-          .find((path) => path?.id === state.focusedPathId) ??
-        pathById.get(savedActivePathIds[0]);
-      const restoredSelectedNodeId =
-        PROFILE_NODE_ID_SET.has(state.selectedNodeId) ||
-        state.selectedNodeId === "current" ||
-        savedFocusedPath?.nodeIds.includes(state.selectedNodeId)
-          ? state.selectedNodeId
-          : "current";
-
-      setMode(state.mode);
-      setViewMode(restoredViewMode);
-      setDestinationId(state.destinationId);
-      setFocusedPathId(savedFocusedPath?.id ?? savedActivePathIds[0] ?? "");
-      setSelectedNodeId(restoredSelectedNodeId);
-      setDetailSection(state.detailSection);
-      setExplorePathIds(validExplorePaths);
-      setPinnedNodeIds(validPinnedNodes);
-      setDismissedNodeIds(validDismissedNodes);
-      setEnabledSignals({
-        ...Object.fromEntries(
-          profileSignals.map((signal) => [signal.id, true]),
-        ),
-        ...state.enabledSignals,
-      });
-      setProfileDraft(state.profileDraft);
-      setProfileForm(state.profileDraft);
-      setProfileProvenance(
-        state.profileProvenance ?? {
-          education: "Saved profile snapshot",
-          experience: "Saved profile snapshot",
-          skills: "Saved profile snapshot",
-          interests: "Saved profile snapshot",
-          location: "Saved profile snapshot",
-          goals: "Saved profile snapshot",
-        },
+      setParsedResume(parsed);
+    } catch (error) {
+      setResume(previousResume);
+      setParsedResume(previousParsedResume);
+      setUploadError(
+        error instanceof Error
+          ? error.message
+          : "Path[IN] could not read this resume.",
       );
-      setDetailsOpen(Boolean(state.detailsOpen));
-      setWebZoom(Math.max(0.6, Math.min(1.2, state.webZoom ?? 0.9)));
-      setSaved(true);
-      setStatusMessage("Your saved Path[IN] scenario was reopened.");
-      window.requestAnimationFrame(() => {
-        if (restoredViewMode === "web") {
-          window.requestAnimationFrame(() => centerWebView("auto"));
-        } else {
-          focusedNodeRef.current?.focus({ preventScroll: true });
-        }
-      });
-    } catch {
-      window.localStorage.removeItem(SAVED_STATE_KEY);
-      setSaved(false);
-      setStatusMessage(
-        "The saved map was outdated, so Path[IN] removed it. Save a new map to reopen it later.",
-      );
+      if (fileInput.current) {
+        fileInput.current.value = "";
+      }
+    } finally {
+      setParsingResume(false);
     }
   }
 
-  function closeDetails() {
-    setDetailsOpen(false);
-    window.requestAnimationFrame(() => {
-      focusedNodeRef.current?.focus({ preventScroll: true });
-    });
+  function removeResume() {
+    setResume(null);
+    setParsedResume(null);
+    setUploadError("");
+    setGenerationError("");
+    if (fileInput.current) {
+      fileInput.current.value = "";
+    }
   }
 
-  function requestAlternative() {
-    if (pinnedNodeIds.includes(selectedNode.id)) {
-      setStatusMessage(
-        "Unpin this step before replacing its route with an alternative.",
-      );
+  async function selectLinkedin(file: File | null) {
+    if (!file) {
       return;
     }
 
-    const currentPath =
-      focusedPath ??
-      activePaths.find((path) => path.nodeIds.includes(selectedNode.id));
-    if (!currentPath) {
-      setStatusMessage("No route alternative is available from this step.");
+    setLinkedinError("");
+    setGenerationError("");
+    const extension = `.${file.name.split(".").pop()?.toLowerCase() ?? ""}`;
+    if (!SUPPORTED_FILE_EXTENSIONS.includes(extension)) {
+      setLinkedinError("Choose a PDF, DOCX, or TXT LinkedIn export.");
+      if (linkedinInput.current) {
+        linkedinInput.current.value = "";
+      }
+      return;
+    }
+    if (file.size === 0) {
+      setLinkedinError("The selected LinkedIn export is empty.");
+      if (linkedinInput.current) {
+        linkedinInput.current.value = "";
+      }
+      return;
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      setLinkedinError("The selected LinkedIn export exceeds 5 MB.");
+      if (linkedinInput.current) {
+        linkedinInput.current.value = "";
+      }
       return;
     }
 
-    const alternatives =
-      initialMap.buildPathIdsByDestination[currentPath.destinationId] ?? [];
-    const alternativeId = alternatives.find(
-      (pathId) => pathId !== currentPath.id,
-    );
-    const alternative = alternativeId ? pathById.get(alternativeId) : undefined;
-    if (!alternative) {
-      setStatusMessage("No route alternative is available for this destination.");
-      return;
-    }
+    const previousFile = linkedinFile;
+    const previousParsed = parsedLinkedin;
+    setLinkedinFile(file);
+    setParsedLinkedin(null);
+    setParsingLinkedin(true);
 
-    const pinnedOutsideAlternative = pinnedNodeIds.some(
-      (nodeId) =>
-        currentPath.nodeIds.includes(nodeId) &&
-        !alternative.nodeIds.includes(nodeId),
-    );
-    if (pinnedOutsideAlternative) {
-      setStatusMessage(
-        "This route contains another pinned step. Unpin it before replacing the route.",
-      );
-      return;
-    }
-
-    if (mode === "explore") {
-      setExplorePathIds((current) =>
-        current.map((pathId) =>
-          pathId === currentPath.id ? alternative.id : pathId,
-        ),
-      );
-      setFocusedPathId(alternative.id);
-      setDismissedNodeIds([]);
-      setSelectedNodeId("current");
-      setDetailsOpen(false);
-      setSaved(false);
-      setStatusMessage(
-        `${alternative.label} replaced ${currentPath.label}. Pinned steps were preserved.`,
-      );
-      return;
-    }
-
-    setFocusedPathId(alternative.id);
-    setSelectedNodeId("current");
-    setDetailsOpen(false);
-    setSaved(false);
-    setStatusMessage(
-      `${alternative.label} is now the selected route. Current standing remains focused.`,
-    );
-  }
-
-  function buildSelectedDestination() {
-    if (selectedNode.type !== "destination") {
-      return;
-    }
-    setDestinationId(selectedNode.id);
-    setMode("build");
-    setFocusedPathId(
-      initialMap.buildPathIdsByDestination[selectedNode.id]?.[0] ?? "",
-    );
-    setSelectedNodeId("current");
-    setDetailsOpen(false);
-    setSaved(false);
-    setStatusMessage(`Building two routes toward ${selectedNode.label}.`);
-  }
-
-  function openProfileEditor() {
-    setProfileForm(profileDraft);
-    setProfileEditorOpen(true);
-    window.requestAnimationFrame(() => {
-      profileFirstFieldRef.current?.focus();
-    });
-  }
-
-  function closeProfileEditor() {
-    setProfileEditorOpen(false);
-    window.requestAnimationFrame(() => {
-      document
-        .querySelector<HTMLButtonElement>(
-          `.${styles.editProfileButton}`,
-        )
-        ?.focus();
-    });
-  }
-
-  function saveProfileEdits() {
-    const changedFields = profileSignals
-      .map((signal) => signal.id)
-      .filter((field) => profileForm[field] !== profileDraft[field]);
-    setProfileDraft(profileForm);
-    setProfileProvenance((current) => ({
-      ...current,
-      ...Object.fromEntries(
-        changedFields.map((field) => [field, "Added or edited by you"]),
-      ),
-    }));
-    setSaved(false);
-    setProfileEditorOpen(false);
-    setStatusMessage(
-      "Profile snapshot updated. Regenerate to apply the edited fields to route selection.",
-    );
-  }
-
-  function openFeedback(target: FeedbackTarget) {
-    setFeedbackTarget(target);
-    window.requestAnimationFrame(() => {
-      feedbackCloseRef.current?.focus();
-    });
-  }
-
-  function closeFeedback() {
-    setFeedbackTarget(null);
-    window.requestAnimationFrame(() => {
-      focusedNodeRef.current?.focus({ preventScroll: true });
-    });
-  }
-
-  function submitFeedback(category: string) {
-    if (!feedbackTarget) {
-      return;
-    }
-    const feedbackKey = "pathin-career-tree-feedback";
-    const existing = window.localStorage.getItem(feedbackKey);
-    let entries: unknown[] = [];
     try {
-      const parsed = existing ? JSON.parse(existing) : [];
-      entries = Array.isArray(parsed) ? parsed : [];
-    } catch {
-      entries = [];
-    }
-    entries.push({
-      mapId: initialMap.id,
-      target: feedbackTarget,
-      category,
-      generation: initialMap.generation,
-      createdAt: new Date().toISOString(),
-    });
-    window.localStorage.setItem(feedbackKey, JSON.stringify(entries.slice(-20)));
-    setStatusMessage(
-      `Feedback recorded for ${feedbackTarget.label}. Thank you for helping review this recommendation.`,
-    );
-    closeFeedback();
-  }
-
-  function toggleSignal(signalId: string) {
-    setEnabledSignals((current) => ({
-      ...current,
-      [signalId]: !current[signalId],
-    }));
-    setSaved(false);
-  }
-
-  return (
-    <div
-      className={styles.page}
-      onKeyDown={(event) => {
-        if (event.key !== "Escape") {
-          return;
-        }
-        if (profileEditorOpen) {
-          event.preventDefault();
-          closeProfileEditor();
-        } else if (feedbackTarget) {
-          event.preventDefault();
-          closeFeedback();
-        } else if (detailsOpen) {
-          event.preventDefault();
-          closeDetails();
-        }
-      }}
-    >
-      <section className={styles.featureHeader}>
-        <div className={styles.featureIdentity}>
-          <div className={styles.pathinMark} aria-hidden="true">
-            <span>in</span>
-            <MiniIcon className={styles.pathinMarkSpark} name="sparkles" />
-          </div>
-          <div>
-            <div className={styles.featureTitleLine}>
-              <h1>Path[IN]</h1>
-              <span className={styles.betaBadge}>Beta</span>
-            </div>
-            <p>
-              Explore possible career routes from your LinkedIn profile.
-            </p>
-          </div>
-        </div>
-        <div className={styles.headerActions}>
-          <button
-            className={styles.secondaryButton}
-            onClick={openProfileEditor}
-            type="button"
-          >
-            <MiniIcon name="current" />
-            Profile inputs
-          </button>
-          <button
-            className={`${styles.secondaryButton} ${styles.utilityHeaderAction}`}
-            onClick={reopenSavedMap}
-            type="button"
-          >
-            <MiniIcon name="history" />
-            Reopen saved
-          </button>
-          <button
-            className={`${styles.secondaryButton} ${styles.utilityHeaderAction}`}
-            onClick={regenerate}
-            type="button"
-          >
-            <MiniIcon name="refresh" />
-            Regenerate
-          </button>
-          <button
-            className={saved ? styles.savedButton : styles.primaryButton}
-            onClick={saveMap}
-            type="button"
-          >
-            <MiniIcon name={saved ? "check" : "bookmark"} />
-            {saved ? "Saved" : "Save path"}
-          </button>
-        </div>
-      </section>
-
-      <div className={styles.workspace}>
-        <aside className={styles.profileRail}>
-          <section className={styles.profileCard}>
-            <div className={styles.profileCover} />
-            <Image
-              alt="Winston Iskandar"
-              className={styles.profileAvatar}
-              height={96}
-              src="/linkedin/profile.png"
-              width={96}
-            />
-            <div className={styles.profileBody}>
-              <p className={styles.profileOverline}>Current profile</p>
-              <h2>{initialMap.profile.name}</h2>
-              <p className={styles.profileHeadline}>
-                {conciseSignal(profileDraft.experience) ||
-                  initialMap.profile.headline}
-              </p>
-              <p className={styles.profileLocation}>
-                {profileDraft.location || "No location preference"}
-              </p>
-              <button
-                className={styles.editProfileButton}
-                onClick={openProfileEditor}
-                type="button"
-              >
-                Edit profile signals
-              </button>
-            </div>
-          </section>
-
-          <section className={styles.signalCard}>
-            <div className={styles.railHeading}>
-              <div>
-                <p className={styles.railEyebrow}>Used for this map</p>
-                <h2>Profile signals</h2>
-              </div>
-              <MiniIcon name="info" />
-            </div>
-            <div className={styles.signalList}>
-              {profileSignals.map((signal) => {
-                const enabled = enabledSignals[signal.id];
-                return (
-                  <button
-                    aria-pressed={enabled}
-                    className={styles.signalRow}
-                    key={signal.id}
-                    onClick={() => toggleSignal(signal.id)}
-                    type="button"
-                  >
-                    <span>
-                      <strong>{signal.label}</strong>
-                      <small>{conciseSignal(profileDraft[signal.id])}</small>
-                    </span>
-                    <span
-                      className={styles.switch}
-                      data-enabled={enabled ? "true" : "false"}
-                    >
-                      <span />
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className={styles.signalNote}>
-              You control which information is used. Turning a signal off takes
-              effect the next time you regenerate.
-            </p>
-          </section>
-
-          <section className={styles.dataCard}>
-            <div className={styles.dataCardHeader}>
-              <MiniIcon name="branch" />
-              <div>
-                <p className={styles.railEyebrow}>Evidence source</p>
-                <h2>PIT career data</h2>
-              </div>
-              <span
-                className={styles.sourceStatus}
-                data-live={initialMap.source.status === "live"}
-              >
-                {initialMap.source.status === "live" ? "Live" : "Snapshot"}
-              </span>
-            </div>
-            <div className={styles.dataStats}>
-              <span>
-                <strong>
-                  {initialMap.source.memberCount.toLocaleString("en-US")}
-                </strong>
-                members
-              </span>
-              <span>
-                <strong>
-                  {initialMap.source.jobCount.toLocaleString("en-US")}
-                </strong>
-                jobs
-              </span>
-              <span>
-                <strong>
-                  {initialMap.source.courseCount.toLocaleString("en-US")}
-                </strong>
-                courses
-              </span>
-            </div>
-            <p>
-              {initialMap.source.cohortCount} members form the technical
-              education cohort. Exact transitions appear only when at least 20
-              matching profiles support them.
-            </p>
-            <a
-              href={initialMap.source.url}
-              rel="noreferrer"
-              target="_blank"
-            >
-              Review the synthetic dataset
-              <MiniIcon name="arrow-right" />
-            </a>
-          </section>
-        </aside>
-
-        <main className={styles.mapColumn}>
-          <section className={styles.mapCard}>
-            <div className={styles.mapToolbar}>
-              <div className={styles.modeTabs} role="tablist" aria-label="Path mode">
-                <button
-                  aria-selected={mode === "explore"}
-                  className={styles.modeTab}
-                  onClick={() => {
-                    setMode("explore");
-                    setFocusedPathId(explorePathIds[0] ?? "");
-                    setSelectedNodeId("current");
-                    setDetailsOpen(false);
-                    setStatusMessage(
-                      "Explore mode selected. Current standing is focused.",
-                    );
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  <MiniIcon name="sparkles" />
-                  Explore
-                </button>
-                <button
-                  aria-selected={mode === "build"}
-                  className={styles.modeTab}
-                  onClick={() => {
-                    setMode("build");
-                    setFocusedPathId(
-                      initialMap.buildPathIdsByDestination[destinationId]?.[0] ??
-                        "",
-                    );
-                    setSelectedNodeId("current");
-                    setDetailsOpen(false);
-                    setStatusMessage(
-                      "Build My Path mode selected. Current standing is focused.",
-                    );
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  <MiniIcon name="destination" />
-                  Build My Path
-                </button>
-              </div>
-              <div className={styles.viewControls} aria-label="Career map view">
-                <button
-                  aria-pressed={viewMode === "focus"}
-                  onClick={() => setViewMode("focus")}
-                  type="button"
-                >
-                  <MiniIcon name="current" />
-                  Focus
-                </button>
-                <button
-                  aria-pressed={viewMode === "web"}
-                  onClick={showWebView}
-                  type="button"
-                >
-                  <MiniIcon name="branch" />
-                  Web
-                </button>
-              </div>
-            </div>
-
-            <div className={styles.mapContext}>
-              <div>
-                <p className={styles.mapEyebrow}>
-                  {viewMode === "focus"
-                    ? "Interactive bubble focus"
-                    : "Complete path web"}
-                </p>
-                <h2>
-                  {viewMode === "focus"
-                    ? "Move through one vertical career path"
-                    : "Move around every active path"}
-                </h2>
-                <p>
-                  {viewMode === "focus"
-                    ? "The two smaller nodes above and below preview the connected route around the focused node."
-                    : "Drag, scroll, or zoom the connected web. Select any bubble for its full details."}
-                </p>
-              </div>
-
-              {mode === "build" ? (
-                <label className={styles.destinationSelect}>
-                  <span>Destination</span>
-                  <span className={styles.selectWrap}>
-                    <select
-                      onChange={(event) => {
-                        const nextDestinationId = event.target.value;
-                        setDestinationId(nextDestinationId);
-                        setFocusedPathId(
-                          initialMap.buildPathIdsByDestination[
-                            nextDestinationId
-                          ]?.[0] ?? "",
-                        );
-                        setSelectedNodeId("current");
-                        setDetailsOpen(false);
-                        setStatusMessage(
-                          `Building routes toward ${nodeById.get(nextDestinationId)?.label}.`,
-                        );
-                      }}
-                      value={destinationId}
-                    >
-                      {initialMap.destinationIds.map((id) => (
-                        <option key={id} value={id}>
-                          {nodeById.get(id)?.label}
-                        </option>
-                      ))}
-                    </select>
-                    <MiniIcon name="chevron-down" />
-                  </span>
-                </label>
-              ) : (
-                <div className={styles.scenarioStatus}>
-                  <span>Scenario branch</span>
-                  <strong>{focusedPath?.shortLabel ?? "Career route"}</strong>
-                  <small>
-                    Side branch controls are reserved scaffolding.
-                  </small>
-                </div>
-              )}
-            </div>
-
-            {viewMode === "focus" ? (
-              <section
-                aria-label="Focused career bubble navigator"
-                className={styles.focusStage}
-              >
-                <div className={styles.focusNavigator}>
-                  {activeGoal ? (
-                    <>
-                      <CareerGoals
-                        activeGoal={activeGoal}
-                        alternativeGoals={alternativeGoals}
-                        onSelect={selectGoal}
-                      />
-                      <FocusPreviewConnector direction="future" />
-                    </>
-                  ) : null}
-
-                  <div
-                    className={styles.focusPreviewStack}
-                    data-direction="future"
-                  >
-                    <FocusPreview
-                      distance={2}
-                      emptyLabel="No second later step"
-                      node={futurePreviewNodes[0]}
-                      onSelect={focusPreview}
-                      relation="Two steps ahead"
-                    />
-                    <FocusPreviewConnector direction="future" />
-                    <FocusPreview
-                      distance={1}
-                      emptyLabel="End of current route"
-                      node={futurePreviewNodes[1]}
-                      onSelect={focusPreview}
-                      relation="Next step"
-                    />
-                    <button
-                      aria-label={
-                        nextFocusNode
-                          ? `Move focus up to ${nextFocusNode.label}`
-                          : "No later step on this route"
-                      }
-                      className={styles.focusMoveButton}
-                      disabled={!nextFocusNode}
-                      onClick={() => navigate("next")}
-                      type="button"
-                    >
-                      <MiniIcon name="arrow-up" />
-                      <span>Move focus up</span>
-                    </button>
-                  </div>
-
-                  <div className={styles.focusCenterRow}>
-                    <span
-                      aria-hidden="true"
-                      className={styles.lateralScaffold}
-                    >
-                      <MiniIcon name="arrow-left" />
-                    </span>
-
-                    <button
-                      aria-label={`${selectedNode.label}, focused node. Open details.`}
-                      className={styles.focusNode}
-                      data-kind={selectedNode.type}
-                      onClick={() => setDetailsOpen(true)}
-                      onKeyDown={handleNodeKeyDown}
-                      ref={focusedNodeRef}
-                      type="button"
-                    >
-                      <span className={styles.focusNodeTopline}>
-                        <span className={styles.focusNodeIcon}>
-                          <MiniIcon name={nodeIcon(selectedNode)} />
-                        </span>
-                        <span>{selectedNode.eyebrow}</span>
-                        {pinnedNodeIds.includes(selectedNode.id) ? (
-                          <MiniIcon
-                            className={styles.focusNodePin}
-                            name="pin"
-                          />
-                        ) : null}
-                      </span>
-                      <strong>{selectedNode.label}</strong>
-                      <small>{positionLabel}</small>
-                      <p>{selectedNode.summary}</p>
-                      <span className={styles.focusNodeAction}>
-                        Open focused details
-                        <MiniIcon name="arrow-right" />
-                      </span>
-                    </button>
-
-                    <span
-                      aria-hidden="true"
-                      className={styles.lateralScaffold}
-                    >
-                      <MiniIcon name="arrow-right" />
-                    </span>
-                  </div>
-
-                  <div
-                    className={styles.focusPreviewStack}
-                    data-direction="history"
-                  >
-                    <button
-                      aria-label={
-                        previousFocusNode
-                          ? `Move focus down to ${previousFocusNode.label}`
-                          : "No earlier profile step"
-                      }
-                      className={styles.focusMoveButton}
-                      disabled={!previousFocusNode}
-                      onClick={() => navigate("previous")}
-                      type="button"
-                    >
-                      <span>Move focus down</span>
-                      <MiniIcon name="arrow-down" />
-                    </button>
-                    <FocusPreview
-                      distance={1}
-                      emptyLabel="Profile starting point"
-                      node={historyPreviewNodes[0]}
-                      onSelect={focusPreview}
-                      relation="Previous step"
-                    />
-                    <FocusPreviewConnector direction="history" />
-                    <FocusPreview
-                      distance={2}
-                      emptyLabel="No second earlier step"
-                      node={historyPreviewNodes[1]}
-                      onSelect={focusPreview}
-                      relation="Two steps back"
-                    />
-                  </div>
-                </div>
-              </section>
-            ) : (
-              <section
-                aria-label="Complete connected career path web"
-                className={styles.webStage}
-              >
-                <div className={styles.webToolbar}>
-                  <span>
-                    <MiniIcon name="branch" />
-                    {activePaths.length} routes · {webLayout.placements.length}{" "}
-                    visible bubbles
-                  </span>
-                  <div>
-                    <button
-                      aria-label="Zoom out of path web"
-                      disabled={webZoom <= 0.6}
-                      onClick={() =>
-                        setWebZoom((current) =>
-                          Math.max(0.6, current - 0.1),
-                        )
-                      }
-                      type="button"
-                    >
-                      <MiniIcon name="minus" />
-                    </button>
-                    <strong>{Math.round(webZoom * 100)}%</strong>
-                    <button
-                      aria-label="Zoom in to path web"
-                      disabled={webZoom >= 1.2}
-                      onClick={() =>
-                        setWebZoom((current) =>
-                          Math.min(1.2, current + 0.1),
-                        )
-                      }
-                      type="button"
-                    >
-                      <MiniIcon name="plus" />
-                    </button>
-                    <button
-                      aria-label="Center path web on current standing"
-                      onClick={() => centerWebView()}
-                      type="button"
-                    >
-                      <MiniIcon name="current" />
-                    </button>
-                  </div>
-                </div>
-
-                <div
-                  className={styles.webViewport}
-                  onPointerCancel={handleWebPointerEnd}
-                  onPointerDown={handleWebPointerDown}
-                  onPointerMove={handleWebPointerMove}
-                  onPointerUp={handleWebPointerEnd}
-                  ref={webViewportRef}
-                  role="region"
-                  tabIndex={0}
-                >
-                  <div
-                    className={styles.webSizer}
-                    style={{
-                      height: webLayout.height * webZoom,
-                      width: webLayout.width * webZoom,
-                    }}
-                  >
-                    <div
-                      className={styles.webCanvas}
-                      style={{
-                        height: webLayout.height,
-                        transform: `scale(${webZoom})`,
-                        width: webLayout.width,
-                      }}
-                    >
-                      <svg
-                        aria-hidden="true"
-                        className={styles.webConnections}
-                        height={webLayout.height}
-                        viewBox={`0 0 ${webLayout.width} ${webLayout.height}`}
-                        width={webLayout.width}
-                      >
-                        <defs>
-                          <marker
-                            id="pathin-web-arrow"
-                            markerHeight="8"
-                            markerWidth="8"
-                            orient="auto"
-                            refX="6"
-                            refY="3"
-                            viewBox="0 0 7 6"
-                          >
-                            <path d="M0 0 7 3 0 6Z" />
-                          </marker>
-                        </defs>
-                        {webLayout.connections.map((connection) => {
-                          const middleY =
-                            (connection.source.y + connection.target.y) / 2;
-                          const curve = `M ${connection.source.x} ${connection.source.y} C ${connection.source.x} ${middleY}, ${connection.target.x} ${middleY}, ${connection.target.x} ${connection.target.y}`;
-                          return (
-                            <path
-                              d={curve}
-                              key={connection.key}
-                              markerEnd="url(#pathin-web-arrow)"
-                            />
-                          );
-                        })}
-                      </svg>
-
-                      {webLayout.pathLabels.map((pathLabel) => (
-                        <span
-                          className={styles.webPathLabel}
-                          key={pathLabel.id}
-                          style={{
-                            left: pathLabel.x,
-                            top: pathLabel.y,
-                          }}
-                        >
-                          {pathLabel.label}
-                        </span>
-                      ))}
-
-                      {webLayout.placements.map((placement) => {
-                        const node = nodeById.get(placement.nodeId);
-                        if (!node) {
-                          return null;
-                        }
-                        return (
-                          <button
-                            aria-label={`${node.label}, ${node.eyebrow}. Open details.`}
-                            className={styles.webNode}
-                            data-kind={node.type}
-                            data-selected={
-                              selectedNode.id === node.id ? "true" : "false"
-                            }
-                            key={placement.key}
-                            onClick={() =>
-                              selectNode(node.id, true, placement.pathId)
-                            }
-                            style={{
-                              left: placement.x - WEB_NODE_SIZE / 2,
-                              top: placement.y - WEB_NODE_SIZE / 2,
-                            }}
-                            type="button"
-                          >
-                            <span>
-                              <MiniIcon name={nodeIcon(node)} />
-                            </span>
-                            <strong>{node.label}</strong>
-                            <small>{node.eyebrow}</small>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            <div className={styles.mapFooter}>
-              <span>
-                <MiniIcon name="info" />
-                {viewMode === "focus"
-                  ? "Click a compact preview or use the arrows to move the focused node one step."
-                  : "Drag or scroll the web, zoom as needed, and click any connected bubble."}
-              </span>
-              <span>
-                Data refreshed {initialMap.source.fetchedAt.slice(0, 10)}
-              </span>
-            </div>
-          </section>
-
-          {lastDismissedNodeId ? (
-            <div className={styles.undoBanner} role="status">
-              <span>
-                {nodeById.get(lastDismissedNodeId)?.label} was hidden from the
-                scenario.
-              </span>
-              <button onClick={undoDismissal} type="button">
-                Undo
-              </button>
-            </div>
-          ) : null}
-
-          <section className={styles.pathSummaryCard}>
-            <div>
-              <p className={styles.railEyebrow}>How to read this</p>
-              <h2>
-                {viewMode === "focus"
-                  ? "Focus one node without losing the map"
-                  : "See every active route together"}
-              </h2>
-            </div>
-            <p>
-              {viewMode === "focus"
-                ? "Two compact previews show what comes next above the focused node and what came before below it. Click a preview or use the vertical arrows to recenter the map."
-                : "Possible futures branch upward from your current standing while profile context continues below it. Drag, scroll, zoom, and select any bubble to inspect the full route."}
-            </p>
-            <Link href="/" className={styles.backToFeed}>
-              <MiniIcon name="arrow-left" />
-              Back to feed
-            </Link>
-          </section>
-        </main>
-
-        <aside
-          aria-label="Selected career step details"
-          className={styles.detailPanel}
-          data-open={detailsOpen ? "true" : "false"}
-        >
-          <div className={styles.detailHeader}>
-            <div>
-              <p>{selectedNode.eyebrow}</p>
-              <h2>{selectedNode.label}</h2>
-              <span>{positionLabel}</span>
-            </div>
-            <button
-              aria-label="Close details"
-              className={styles.mobileClose}
-              onClick={closeDetails}
-              type="button"
-            >
-              <MiniIcon name="close" />
-            </button>
-          </div>
-
-          <div className={styles.previousNext}>
-            <button
-              disabled={!previousFocusNode}
-              onClick={() => navigate("previous", true)}
-              type="button"
-            >
-              <MiniIcon name="arrow-down" />
-              <span>
-                <small>Down</small>
-                {previousFocusNode?.label ?? "Earlier step"}
-              </span>
-            </button>
-            <button
-              disabled={!nextFocusNode}
-              onClick={() => navigate("next", true)}
-              type="button"
-            >
-              <span>
-                <small>Up</small>
-                {nextFocusNode?.label ?? "Later step"}
-              </span>
-              <MiniIcon name="arrow-up" />
-            </button>
-          </div>
-
-          <nav
-            aria-label="Detail sections"
-            className={styles.detailTabs}
-          >
-            {detailSections.map((section) => (
-              <button
-                aria-current={
-                  detailSection === section.id ? "page" : undefined
-                }
-                key={section.id}
-                onClick={() => setDetailSection(section.id)}
-                type="button"
-              >
-                {section.label}
-              </button>
-            ))}
-          </nav>
-
-          <div className={styles.detailContent}>
-            <IllustrativePeerCard node={selectedNode} />
-            <NodeDetailSection
-              activePaths={[focusPathForDetails]}
-              edgeByKey={edgeByKey}
-              node={selectedNode}
-              nodeById={nodeById}
-              onSelectNode={selectAndFocusNode}
-              section={detailSection}
-              source={initialMap.source}
-            />
-          </div>
-
-          {isProfileNode ? (
-            <div className={styles.scaffoldDetailActions}>
-              <span>
-                <MiniIcon name="current" />
-                Imported profile context. Winston controls this information.
-              </span>
-              <button onClick={openProfileEditor} type="button">
-                Edit profile
-              </button>
-            </div>
-          ) : (
-            <div className={styles.detailActions}>
-              <button
-                aria-pressed={pinnedNodeIds.includes(selectedNode.id)}
-                onClick={togglePinned}
-                type="button"
-              >
-                <MiniIcon name="pin" />
-                {pinnedNodeIds.includes(selectedNode.id)
-                  ? "Unpin step"
-                  : "Pin step"}
-              </button>
-              {selectedNode.type === "destination" ? (
-                <button onClick={buildSelectedDestination} type="button">
-                  <MiniIcon name="destination" />
-                  Build toward this
-                </button>
-              ) : (
-                <button onClick={requestAlternative} type="button">
-                  <MiniIcon name="branch" />
-                  Show alternative
-                </button>
-              )}
-              <button onClick={dismissSelectedNode} type="button">
-                <MiniIcon name="eye" />
-                Not for me
-              </button>
-              <button
-                onClick={() =>
-                  openFeedback({
-                    id: selectedNode.id,
-                    label: selectedNode.label,
-                    type: "node",
-                  })
-                }
-                type="button"
-              >
-                <MiniIcon name="info" />
-                Report issue
-              </button>
-            </div>
-          )}
-        </aside>
-      </div>
-
-      {feedbackTarget ? (
-        <div className={styles.feedbackBackdrop}>
-          <section
-            aria-labelledby="pathin-feedback-title"
-            aria-modal="true"
-            className={styles.feedbackDialog}
-            role="dialog"
-          >
-            <div className={styles.feedbackHeading}>
-              <div>
-                <p>Recommendation feedback</p>
-                <h2 id="pathin-feedback-title">What should Path[IN] review?</h2>
-              </div>
-              <button
-                aria-label="Close feedback dialog"
-                onClick={closeFeedback}
-                ref={feedbackCloseRef}
-                type="button"
-              >
-                <MiniIcon name="close" />
-              </button>
-            </div>
-            <p className={styles.feedbackTarget}>
-              Reporting: <strong>{feedbackTarget.label}</strong>
-            </p>
-            <div className={styles.feedbackChoices}>
-              <button onClick={() => submitFeedback("helpful")} type="button">
-                Helpful
-              </button>
-              <button
-                onClick={() => submitFeedback("not_helpful")}
-                type="button"
-              >
-                Not helpful
-              </button>
-              <button onClick={() => submitFeedback("incorrect")} type="button">
-                Incorrect or misleading
-              </button>
-              <button onClick={() => submitFeedback("biased")} type="button">
-                Biased or unsafe
-              </button>
-            </div>
-            <p className={styles.feedbackPrivacy}>
-              This prototype stores feedback only in this browser with the map
-              and data-version identifiers. It does not include raw PIT member
-              histories.
-            </p>
-          </section>
-        </div>
-      ) : null}
-
-      {profileEditorOpen ? (
-        <div className={styles.feedbackBackdrop}>
-          <section
-            aria-labelledby="pathin-profile-title"
-            aria-modal="true"
-            className={styles.profileDialog}
-            role="dialog"
-          >
-            <div className={styles.feedbackHeading}>
-              <div>
-                <p>Profile controls</p>
-                <h2 id="pathin-profile-title">
-                  Review what Path[IN] can use
-                </h2>
-              </div>
-              <button
-                aria-label="Close profile editor"
-                onClick={closeProfileEditor}
-                type="button"
-              >
-                <MiniIcon name="close" />
-              </button>
-            </div>
-            <p className={styles.profileEditorIntro}>
-              Edit imported information, add manual context, or leave formal
-              experience blank. The switches on the page control whether each
-              category is analyzed.
-            </p>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                saveProfileEdits();
-              }}
-            >
-              <div className={styles.profileFields}>
-                {profileSignals.map((signal, index) => (
-                  <label key={signal.id}>
-                    <span>
-                      <strong>{profileFieldLabels[signal.id]}</strong>
-                      <small>{profileProvenance[signal.id]}</small>
-                    </span>
-                    <textarea
-                      onChange={(event) =>
-                        setProfileForm((current) => ({
-                          ...current,
-                          [signal.id]: event.target.value,
-                        }))
-                      }
-                      placeholder={
-                        signal.id === "experience"
-                          ? "Projects, clubs, volunteering, caregiving, or work"
-                          : `Add ${signal.label.toLowerCase()}`
-                      }
-                      ref={index === 0 ? profileFirstFieldRef : undefined}
-                      rows={signal.id === "experience" ? 3 : 2}
-                      value={profileForm[signal.id]}
-                    />
-                  </label>
-                ))}
-              </div>
-              <div className={styles.profileSafetyNote}>
-                <MiniIcon name="info" />
-                <p>
-                  Path[IN] does not ask for demographic attributes. Review
-                  inferred or imported fields before regenerating.
-                </p>
-              </div>
-              <div className={styles.profileEditorActions}>
-                <button onClick={closeProfileEditor} type="button">
-                  Cancel
-                </button>
-                <button type="submit">Save changes</button>
-              </div>
-            </form>
-          </section>
-        </div>
-      ) : null}
-
-      <p aria-live="polite" className={styles.srStatus}>
-        {statusMessage}
-      </p>
-    </div>
-  );
-}
-
-function CareerGoals({
-  activeGoal,
-  alternativeGoals,
-  onSelect,
-}: {
-  activeGoal: CareerGoalOption;
-  alternativeGoals: CareerGoalOption[];
-  onSelect: (goal: CareerGoalOption) => void;
-}) {
-  return (
-    <section aria-label="Possible career goals" className={styles.careerGoals}>
-      <div className={styles.careerGoalsHeading}>
-        <span>
-          <MiniIcon name="destination" />
-          Possible career goals
-        </span>
-        <small>Choose a destination to inspect its recommended path</small>
-      </div>
-
-      <div className={styles.careerGoalAlternatives}>
-        {alternativeGoals.map((goal) => (
-          <button
-            aria-label={`Switch to ${goal.destination.label} goal using ${goal.path.label}`}
-            className={styles.careerGoalAlternative}
-            key={goal.destination.id}
-            onClick={() => onSelect(goal)}
-            type="button"
-          >
-            <span>Possible goal</span>
-            <strong>{goal.destination.label}</strong>
-          </button>
-        ))}
-      </div>
-
-      <button
-        aria-current="true"
-        aria-label={`Focus selected goal ${activeGoal.destination.label}`}
-        className={styles.careerGoalActive}
-        onClick={() => onSelect(activeGoal)}
-        type="button"
-      >
-        <span>
-          <MiniIcon name="sparkles" />
-          Recommended goal
-        </span>
-        <strong>{activeGoal.destination.label}</strong>
-        <small>{activeGoal.path.label}</small>
-      </button>
-    </section>
-  );
-}
-
-function FocusPreview({
-  distance,
-  emptyLabel,
-  node,
-  onSelect,
-  relation,
-}: {
-  distance: 1 | 2;
-  emptyLabel: string;
-  node: CareerNode | null;
-  onSelect: (node: CareerNode) => void;
-  relation: string;
-}) {
-  if (!node) {
-    return (
-      <span
-        className={styles.focusPreview}
-        data-distance={distance}
-        data-empty="true"
-      >
-        <span>{relation}</span>
-        <strong>{emptyLabel}</strong>
-        <small>No connected node</small>
-      </span>
-    );
-  }
-
-  return (
-    <button
-      aria-label={`Focus ${node.label}, ${relation.toLowerCase()}`}
-      className={styles.focusPreview}
-      data-distance={distance}
-      data-kind={node.type}
-      onClick={() => onSelect(node)}
-      type="button"
-    >
-      <span>{relation}</span>
-      <strong>{node.label}</strong>
-      <small>{node.stage}</small>
-    </button>
-  );
-}
-
-function FocusPreviewConnector({
-  direction,
-}: {
-  direction: "future" | "history";
-}) {
-  return (
-    <span className={styles.focusPreviewConnector} aria-hidden="true">
-      <MiniIcon
-        name={direction === "future" ? "arrow-up" : "arrow-down"}
-      />
-    </span>
-  );
-}
-
-function NodeDetailSection({
-  activePaths,
-  edgeByKey,
-  node,
-  nodeById,
-  onSelectNode,
-  section,
-  source,
-}: {
-  activePaths: CareerPath[];
-  edgeByKey: Map<string, CareerEdge>;
-  node: CareerNode;
-  nodeById: Map<string, CareerNode>;
-  onSelectNode: (nodeId: string) => void;
-  section: DetailSection;
-  source: CareerMapData["source"];
-}) {
-  const connections = useMemo(() => {
-    const previous: Array<{ node: CareerNode; edge?: CareerEdge }> = [];
-    const next: Array<{ node: CareerNode; edge?: CareerEdge }> = [];
-
-    for (const path of activePaths) {
-      const index = path.nodeIds.indexOf(node.id);
-      if (index > 0) {
-        const previousNode = nodeById.get(path.nodeIds[index - 1]);
-        if (previousNode) {
-          previous.push({
-            node: previousNode,
-            edge: edgeByKey.get(edgeKey(previousNode.id, node.id)),
-          });
-        }
+      const parsed = await parseProfileFile(file, "linkedin");
+      if (parsed.summary.fieldCount === 0) {
+        throw new Error(
+          "We could not find usable experience in this LinkedIn export.",
+        );
       }
-      if (index >= 0 && index < path.nodeIds.length - 1) {
-        const nextNode = nodeById.get(path.nodeIds[index + 1]);
-        if (nextNode) {
-          next.push({
-            node: nextNode,
-            edge: edgeByKey.get(edgeKey(node.id, nextNode.id)),
-          });
-        }
+      setParsedLinkedin(parsed);
+    } catch (error) {
+      setLinkedinFile(previousFile);
+      setParsedLinkedin(previousParsed);
+      setLinkedinError(
+        error instanceof Error
+          ? error.message
+          : "Path[IN] could not read this LinkedIn export.",
+      );
+      if (linkedinInput.current) {
+        linkedinInput.current.value = "";
       }
+    } finally {
+      setParsingLinkedin(false);
     }
+  }
+
+  function removeLinkedin() {
+    setLinkedinFile(null);
+    setParsedLinkedin(null);
+    setLinkedinError("");
+    setGenerationError("");
+    if (linkedinInput.current) {
+      linkedinInput.current.value = "";
+    }
+  }
+
+  function buildSubmission(): ProfileSubmission {
+    const fields = cloneParsedFields(
+      [parsedResume, parsedLinkedin].filter(
+        (profile): profile is ParsedProfile => Boolean(profile),
+      ),
+    );
+    const enabledCategories = categoryRecord(() => true);
+    const headline =
+      fields.roles[0]?.value ??
+      fields.projects[0]?.value ??
+      fields.interests[0]?.value ??
+      "";
 
     return {
-      previous: Array.from(
-        new Map(previous.map((item) => [item.node.id, item])).values(),
-      ),
-      next: Array.from(
-        new Map(next.map((item) => [item.node.id, item])).values(),
-      ),
+      name: "",
+      headline,
+      fields,
+      enabledCategories,
+      preferences: {
+        industries: fields.industries.map((field) => field.value),
+        workStyles: fields.workStyles.map((field) => field.value),
+        remotePreference: "Flexible",
+        trainingTime: "A few hours per week",
+        desiredDifficulty: "Flexible",
+      },
+      constraints: {
+        excludedRoles: [],
+        excludedIndustries: [],
+      },
+      trainingTime: "A few hours per week",
+      desiredDifficulty: "Flexible",
+      exclusions: [],
     };
-  }, [activePaths, edgeByKey, node.id, nodeById]);
+  }
 
-  if (section === "fit") {
+  async function generate(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (!canGenerate) {
+      return;
+    }
+
+    const submission = buildSubmission();
+    setLastSubmission(submission);
+    setGenerationError("");
+    setLoadingStage(0);
+    setPhase("generating");
+    const startedAt = Date.now();
+
+    try {
+      await normalizeProfile(submission);
+      const generated = await generateCareerMap(submission);
+      const remaining = Math.max(0, 3200 - (Date.now() - startedAt));
+      if (remaining) {
+        await new Promise((resolve) => window.setTimeout(resolve, remaining));
+      }
+      setCareerMap(generated);
+      setPhase("map");
+    } catch (error) {
+      setGenerationError(
+        error instanceof PathInApiError || error instanceof Error
+          ? error.message
+          : "Path[IN] could not generate a career path.",
+      );
+      setPhase("onboarding");
+    }
+  }
+
+  async function regenerate(
+    action: RegenerationAction,
+    {
+      targetId,
+      pinnedNodeIds = [],
+      dismissedNodeIds = [],
+    }: {
+      targetId?: string;
+      pinnedNodeIds?: string[];
+      dismissedNodeIds?: string[];
+    } = {},
+  ) {
+    if (!careerMap || !lastSubmission) {
+      return;
+    }
+
+    setGenerationError("");
+    setLoadingStage(0);
+    setPhase("generating");
+    const startedAt = Date.now();
+
+    try {
+      const generated = await regenerateCareerMap(careerMap.id, {
+        profile: lastSubmission,
+        action,
+        targetId,
+        pinnedNodeIds,
+        dismissedNodeIds,
+      });
+      const remaining = Math.max(0, 2600 - (Date.now() - startedAt));
+      if (remaining) {
+        await new Promise((resolve) => window.setTimeout(resolve, remaining));
+      }
+      setCareerMap(generated);
+      setPhase("map");
+    } catch (error) {
+      setGenerationError(
+        error instanceof Error
+          ? error.message
+          : "Path[IN] could not regenerate this map.",
+      );
+      setPhase("map");
+    }
+  }
+
+  async function buildToward(destinationId: string) {
+    if (!lastSubmission) {
+      return;
+    }
+
+    setGenerationError("");
+    setLoadingStage(0);
+    setPhase("generating");
+    const startedAt = Date.now();
+
+    try {
+      const generated = await buildCareerMap(lastSubmission, destinationId);
+      const remaining = Math.max(0, 2600 - (Date.now() - startedAt));
+      if (remaining) {
+        await new Promise((resolve) => window.setTimeout(resolve, remaining));
+      }
+      setCareerMap(generated);
+      setPhase("map");
+    } catch (error) {
+      setGenerationError(
+        error instanceof Error
+          ? error.message
+          : "Path[IN] could not build this destination.",
+      );
+      setPhase("map");
+    }
+  }
+
+  async function saveMap(
+    pinnedNodeIds: string[],
+    dismissedNodeIds: string[],
+  ) {
+    if (!careerMap) {
+      return;
+    }
+    const saved = await saveCareerMap(careerMap.id, {
+      pinnedNodeIds,
+      dismissedNodeIds,
+    });
+    setCareerMap(saved);
+    window.localStorage.setItem(SAVED_MAP_ID_KEY, saved.id);
+  }
+
+  async function reopenSavedMap() {
+    const mapId = window.localStorage.getItem(SAVED_MAP_ID_KEY);
+    if (!mapId) {
+      throw new PathInApiError("No saved generated map was found.");
+    }
+
+    const reopened = await reopenCareerMap(mapId);
+    setCareerMap(reopened);
+
+    if (reopened.profileSnapshot) {
+      const snapshot = reopened.profileSnapshot;
+      setLastSubmission({
+        name: snapshot.name,
+        headline: snapshot.headline,
+        fields: snapshot.fieldEvidence,
+        enabledCategories: snapshot.enabledCategories,
+        preferences: {
+          industries: snapshot.industries,
+          workStyles: snapshot.workStyles,
+          remotePreference: String(
+            snapshot.preferences.remotePreference ?? "Flexible",
+          ),
+          trainingTime: snapshot.trainingTime,
+          desiredDifficulty: snapshot.desiredDifficulty,
+        },
+        constraints: {
+          excludedRoles: snapshot.exclusions,
+          excludedIndustries: [],
+        },
+        trainingTime: snapshot.trainingTime,
+        desiredDifficulty: snapshot.desiredDifficulty,
+        exclusions: snapshot.exclusions,
+      });
+    }
+
+    setPhase("map");
+  }
+
+  async function submitFeedback(
+    target: { id: string; label: string; type: "node" | "edge" },
+    category: string,
+  ) {
+    if (!careerMap) {
+      return;
+    }
+    await submitCareerFeedback(careerMap.id, {
+      target,
+      category,
+    });
+  }
+
+  function startOver() {
+    setCareerMap(null);
+    setLastSubmission(null);
+    setResume(null);
+    setParsedResume(null);
+    setParsingResume(false);
+    setUploadError("");
+    setLinkedinFile(null);
+    setParsedLinkedin(null);
+    setParsingLinkedin(false);
+    setLinkedinError("");
+    setGenerationError("");
+    setLoadingStage(0);
+    if (fileInput.current) {
+      fileInput.current.value = "";
+    }
+    if (linkedinInput.current) {
+      linkedinInput.current.value = "";
+    }
+    setPhase("onboarding");
+  }
+
+  if (phase === "generating") {
     return (
-      <div className={styles.detailSection}>
-        <h3>Why this may fit</h3>
-        <ul className={styles.checkList}>
-          {node.whyItFits.slice(0, 2).map((reason) => (
-            <li key={reason}>
-              <MiniIcon name="check" />
-              <span>{reason}</span>
-            </li>
-          ))}
-        </ul>
-        <div className={styles.callout}>
-          <MiniIcon name="info" />
-          <p>
-            This is a plausible match, not a prediction of hiring or success.
-          </p>
-        </div>
-      </div>
+      <GenerationScreen
+        currentStage={loadingStage}
+        hasLinkedin={Boolean(parsedLinkedin)}
+        stages={loadingStages}
+      />
     );
   }
 
-  if (section === "skills") {
+  if (phase === "map" && careerMap) {
     return (
-      <div className={styles.detailSection}>
-        <SkillGroup
-          label="You already bring"
-          skills={node.existingSkills.slice(0, 3)}
-        />
-        <SkillGroup
-          label="Also transfers"
-          skills={node.transferableSkills.slice(0, 3)}
-          tone="blue"
-        />
-        <SkillGroup
-          label="Build next"
-          skills={node.skillsToBuild.slice(0, 3)}
-          tone="amber"
-        />
-      </div>
-    );
-  }
-
-  if (section === "connections") {
-    return (
-      <div className={styles.detailSection}>
-        <ConnectionGroup
-          items={connections.previous}
-          label="Comes before"
-          onSelectNode={onSelectNode}
-        />
-        <ConnectionGroup
-          items={connections.next}
-          label="Comes next"
-          onSelectNode={onSelectNode}
-        />
-        {connections.previous.length === 0 ? (
-          <p className={styles.emptyConnection}>
-            This is the start of the visible route.
-          </p>
-        ) : null}
-        {connections.next.length === 0 ? (
-          <p className={styles.emptyConnection}>
-            This is the end of the visible route.
-          </p>
-        ) : null}
-      </div>
-    );
-  }
-
-  if (section === "evidence") {
-    return (
-      <div className={styles.detailSection}>
-        <div className={styles.evidenceHero}>
-          <span>
-            <strong>{source.cohortCount}</strong>
-            similar technical profiles
-          </span>
-          <span>
-            <strong>{node.market?.postingCount ?? 0}</strong>
-            related PIT postings
-          </span>
-        </div>
-        <div className={styles.compactEvidence}>
-          <small>Why it appears</small>
-          <p>{node.whyItFits[0]}</p>
-          <small>Grounded in</small>
-          <p>
-            {node.sourceRecord?.label ?? "Path[IN] prototype taxonomy"} ·{" "}
-            {source.status === "live" ? "live PIT data" : "PIT snapshot"}
-          </p>
-        </div>
-        {node.market ? (
-          <>
-            <div className={styles.marketGrid}>
-              <span>
-                <small>Listed floor</small>
-                <strong>
-                  {formatCurrency(node.market.averageSalaryFrom)}
-                </strong>
-              </span>
-              <span>
-                <small>Listed ceiling</small>
-                <strong>{formatCurrency(node.market.averageSalaryTo)}</strong>
-              </span>
-            </div>
-            <p className={styles.marketNote}>
-              Demo PIT ranges, not live market estimates.
-            </p>
-          </>
-        ) : null}
-      </div>
+      <CareerMapView
+        generationError={generationError}
+        initialMap={careerMap}
+        key={`${careerMap.id}-${careerMap.generation.generatedAt ?? ""}`}
+        onBuildToward={buildToward}
+        onRegenerate={regenerate}
+        onReopenSaved={reopenSavedMap}
+        onSave={saveMap}
+        onStartOver={startOver}
+        onSubmitFeedback={submitFeedback}
+      />
     );
   }
 
   return (
-    <div className={styles.detailSection}>
-      <p className={styles.detailSummary}>{node.summary}</p>
-      <div className={styles.detailMetaGrid}>
-        <span>
-          <small>Stage</small>
-          <strong>{node.stage}</strong>
-        </span>
-        <span>
-          <small>Typical setting</small>
-          <strong>{node.workSetting}</strong>
-        </span>
+    <form className={styles.uploadPage} onSubmit={generate}>
+      <div className={styles.uploadShell}>
+        <header className={styles.uploadIntro}>
+          <h1>Build your career path</h1>
+          <p>
+            Upload your resume and add your LinkedIn profile export for
+            recommendations grounded in both sources.
+          </p>
+        </header>
+
+        <section className={styles.uploadCard}>
+          <ResumeUpload
+            error={uploadError}
+            file={resume}
+            inputRef={fileInput}
+            loading={parsingResume}
+            onDrop={selectResume}
+            onRemove={removeResume}
+            onSelect={(event) =>
+              selectResume(event.target.files?.[0] ?? null)
+            }
+          />
+
+          <div className={styles.linkedinUploadSection}>
+            <div className={styles.linkedinUploadHeading}>
+              <div>
+                <strong>Add LinkedIn profile export</strong>
+                <span>Recommended</span>
+              </div>
+              <p>
+                Corroborates roles and skills and unlocks your company-specific
+                North Star.
+              </p>
+            </div>
+            <EvidenceUpload
+              compact
+              emptyLabel="LinkedIn PDF or data export"
+              error={linkedinError}
+              file={linkedinFile}
+              inputLabel="Upload LinkedIn profile export"
+              inputRef={linkedinInput}
+              loading={parsingLinkedin}
+              onDrop={selectLinkedin}
+              onRemove={removeLinkedin}
+              onSelect={(event) =>
+                selectLinkedin(event.target.files?.[0] ?? null)
+              }
+              readyLabel="LinkedIn evidence ready"
+            />
+          </div>
+
+          {generationError ? (
+            <p className={styles.resumeError} role="alert">
+              {generationError}
+            </p>
+          ) : null}
+
+          <button
+            className={styles.resumeGenerateButton}
+            disabled={!canGenerate}
+            type="submit"
+          >
+            Generate career path
+          </button>
+        </section>
       </div>
-      <h3>What you would do</h3>
-      <ul className={styles.bulletList}>
-        {node.responsibilities.slice(0, 2).map((responsibility) => (
-          <li key={responsibility}>{responsibility}</li>
-        ))}
-      </ul>
-      <div className={styles.compactCaution}>
-        <strong>Watch for</strong>
-        <span>{node.challenges[0]}</span>
+
+      <p aria-live="polite" className={styles.srStatus}>
+        {parsingResume
+          ? "Reading the selected resume."
+          : parsingLinkedin
+            ? "Reading the selected LinkedIn profile export."
+          : parsedResume
+            ? parsedLinkedin
+              ? "Resume and LinkedIn evidence ready. Generate your career path."
+              : "Resume ready. Add LinkedIn evidence for stronger personalization or generate now."
+            : uploadError || "Choose a resume to begin."}
+      </p>
+    </form>
+  );
+}
+
+function ResumeUpload({
+  error,
+  file,
+  inputRef,
+  loading,
+  onDrop,
+  onRemove,
+  onSelect,
+}: {
+  error: string;
+  file: File | null;
+  inputRef: RefObject<HTMLInputElement | null>;
+  loading: boolean;
+  onDrop: (file: File) => void;
+  onRemove: () => void;
+  onSelect: (event: ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <EvidenceUpload
+      emptyLabel="Upload your resume"
+      error={error}
+      file={file}
+      inputLabel="Upload resume"
+      inputRef={inputRef}
+      loading={loading}
+      onDrop={onDrop}
+      onRemove={onRemove}
+      onSelect={onSelect}
+      readyLabel="Resume ready"
+    />
+  );
+}
+
+function EvidenceUpload({
+  compact = false,
+  emptyLabel,
+  error,
+  file,
+  inputLabel,
+  inputRef,
+  loading,
+  onDrop,
+  onRemove,
+  onSelect,
+  readyLabel,
+}: {
+  compact?: boolean;
+  emptyLabel: string;
+  error: string;
+  file: File | null;
+  inputLabel: string;
+  inputRef: RefObject<HTMLInputElement | null>;
+  loading: boolean;
+  onDrop: (file: File) => void;
+  onRemove: () => void;
+  onSelect: (event: ChangeEvent<HTMLInputElement>) => void;
+  readyLabel: string;
+}) {
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const dropped = event.dataTransfer.files[0];
+    if (dropped) {
+      onDrop(dropped);
+    }
+  }
+
+  return (
+    <div>
+      <div
+        aria-busy={loading}
+        className={styles.resumeDrop}
+        data-compact={compact ? "true" : "false"}
+        data-error={error ? "true" : "false"}
+        data-has-file={file ? "true" : "false"}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handleDrop}
+      >
+        <input
+          accept=".pdf,.docx,.txt"
+          aria-label={inputLabel}
+          onChange={onSelect}
+          ref={inputRef}
+          type="file"
+        />
+
+        {file ? (
+          <div className={styles.resumeFile}>
+            <span aria-hidden="true">
+              {file.name.split(".").pop()?.toUpperCase()}
+            </span>
+            <div className={styles.resumeFileName}>
+              <strong>{file.name}</strong>
+              <small>
+                {formatFileSize(file.size)}
+                {loading ? " · Reading..." : ` · ${readyLabel}`}
+              </small>
+            </div>
+            <div className={styles.resumeFileActions}>
+              <button
+                disabled={loading}
+                onClick={() => inputRef.current?.click()}
+                type="button"
+              >
+                Replace
+              </button>
+              <button
+                aria-label={`Remove ${file.name}`}
+                className={styles.resumeRemoveButton}
+                disabled={loading}
+                onClick={onRemove}
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <svg
+              aria-hidden="true"
+              className={styles.resumeUploadIcon}
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.8"
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" />
+              <path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
+            </svg>
+            <strong>{emptyLabel}</strong>
+            <p>
+              {compact
+                ? "PDF, DOCX, or TXT · maximum 5 MB"
+                : "Drag and drop here, or choose a file"}
+            </p>
+            <button
+              onClick={() => inputRef.current?.click()}
+              type="button"
+            >
+              Choose file
+            </button>
+            <small>PDF, DOCX, or TXT · maximum 5 MB</small>
+          </>
+        )}
       </div>
+
+      {error ? (
+        <p className={styles.resumeError} role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
 
-function IllustrativePeerCard({ node }: { node: CareerNode }) {
-  const peer = illustrativePeerForNode(node);
-  const initials = peer.name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2);
-
+function GenerationScreen({
+  currentStage,
+  hasLinkedin,
+  stages,
+}: {
+  currentStage: number;
+  hasLinkedin: boolean;
+  stages: string[];
+}) {
   return (
     <section
-      aria-label={`Illustrative peer matched to ${node.label}`}
-      className={styles.peerCard}
+      aria-labelledby="pathin-generation-title"
+      className={styles.careerLoadingScreen}
     >
-      <div className={styles.peerIdentity}>
-        <span aria-hidden="true" className={styles.peerAvatar}>
-          {initials}
-        </span>
-        <div>
-          <small>Illustrative peer · synthetic</small>
-          <strong>{peer.name}</strong>
-          <span>Current role: {peer.currentRole}</span>
+      <div className={styles.careerLoadingCard}>
+        <div className={styles.careerLoadingOrb} aria-hidden="true">
+          <span />
+          <span />
+          <strong>in</strong>
+        </div>
+        <h1 id="pathin-generation-title">{stages[currentStage]}</h1>
+        <p role="status">
+          Creating recommendations from your resume
+          {hasLinkedin ? " and LinkedIn evidence" : " evidence"}
+        </p>
+        <div className={styles.careerLoadingDots} aria-hidden="true">
+          {stages.map((stage, index) => (
+            <span
+              data-state={
+                index < currentStage
+                  ? "visited"
+                  : index === currentStage
+                    ? "current"
+                    : "waiting"
+              }
+              key={stage}
+            />
+          ))}
         </div>
       </div>
-      <p className={styles.peerStory}>{peer.note}</p>
-      <div aria-label="Illustrative peer skills" className={styles.peerSkills}>
-        {peer.skills.map((skill) => (
-          <span key={skill}>{skill}</span>
-        ))}
-      </div>
-      <p className={styles.peerNote}>
-        Matched to PIT role and course skills; not a real member profile.
-      </p>
-    </section>
-  );
-}
-
-function SkillGroup({
-  label,
-  skills,
-  tone = "green",
-}: {
-  label: string;
-  skills: string[];
-  tone?: "green" | "blue" | "amber";
-}) {
-  return (
-    <section className={styles.skillGroup}>
-      <h3>{label}</h3>
-      <div className={styles.skillPills} data-tone={tone}>
-        {skills.map((skill) => (
-          <span key={skill}>{skill}</span>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ConnectionGroup({
-  items,
-  label,
-  onSelectNode,
-}: {
-  items: Array<{ node: CareerNode; edge?: CareerEdge }>;
-  label: string;
-  onSelectNode: (nodeId: string) => void;
-}) {
-  if (items.length === 0) {
-    return null;
-  }
-
-  return (
-    <section className={styles.connectionGroup}>
-      <h3>{label}</h3>
-      {items.map(({ node, edge }) => (
-        <button
-          key={node.id}
-          onClick={() => onSelectNode(node.id)}
-          type="button"
-        >
-          <span className={styles.connectionIcon}>
-            <MiniIcon name={nodeIcon(node)} />
-          </span>
-          <span>
-            <small>{node.eyebrow}</small>
-            <strong>{node.label}</strong>
-            <em>
-              {edge?.explanation ??
-                "Open this step to inspect the route connection."}
-            </em>
-          </span>
-          <MiniIcon name="arrow-right" />
-        </button>
-      ))}
     </section>
   );
 }
