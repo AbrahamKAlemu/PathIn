@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 import { Avatar } from "./avatar";
 import { Icon, LinkedInLogo } from "./icons";
@@ -13,14 +16,30 @@ const navigation = [
     id: "jobs" as const,
   },
   { icon: "message" as const, label: "Messaging" },
-  { icon: "bell" as const, label: "Notifications", notifications: "25" },
+  { icon: "bell" as const, label: "Notifications", id: "notifications" as const },
 ];
 
-export function Header({ active = "home" }: { active?: "home" | "jobs" }) {
+type HeaderActive = "home" | "jobs" | "profile" | "notifications";
+
+export function Header({
+  active = "home",
+  notificationCount = 0,
+}: {
+  active?: HeaderActive;
+  notificationCount?: number;
+}) {
+  const [openPanel, setOpenPanel] = useState<string | null>(null);
+
+  function togglePanel(panel: string) {
+    setOpenPanel((current) => (current === panel ? null : panel));
+  }
+
   return (
     <header className="sticky top-0 z-50 h-[58px] border-b border-[#dedede] bg-white">
       <div className="linkedin-header-inner flex h-full items-center">
-        <LinkedInLogo className="size-[34px] shrink-0 -translate-y-[3px] text-[34px]" />
+        <Link aria-label="LinkedIn home" href="/">
+          <LinkedInLogo className="size-[34px] shrink-0 -translate-y-[3px] text-[34px]" />
+        </Link>
 
         <div className="linkedin-search ml-[10px] flex h-[34px] w-[280px] shrink-0 -translate-y-[3px] items-center rounded-full border border-[#a6a6a6] px-[18px] text-[#555]">
           <Icon className="size-[16px] shrink-0 text-[#111]" name="search" />
@@ -35,9 +54,9 @@ export function Header({ active = "home" }: { active?: "home" | "jobs" }) {
             const content = (
               <>
                 <Icon className="size-[23px]" name={item.icon} />
-                {item.notifications ? (
+                {item.id === "notifications" ? (
                   <span className="absolute left-[45px] top-[7px] min-w-[33px] rounded-full bg-[#d3112a] px-[5px] py-px text-center text-[14px] font-bold leading-[18px] text-white">
-                    {item.notifications}
+                    {notificationCount}
                   </span>
                 ) : null}
                 {isActive ? (
@@ -59,37 +78,80 @@ export function Header({ active = "home" }: { active?: "home" | "jobs" }) {
                 {content}
               </Link>
             ) : (
-              <div
-              aria-label={item.label}
-              className={className}
-              key={item.label}
-            >
-              {content}
-            </div>
+              <button
+                aria-expanded={openPanel === item.label}
+                aria-label={item.label}
+                className={`${className} border-0 bg-transparent`}
+                key={item.label}
+                onClick={() => togglePanel(item.label)}
+                type="button"
+              >
+                {content}
+              </button>
             );
           })}
 
-          <div
+          <Link
             aria-label="Me"
-            className="flex h-full items-center justify-center border-r border-[#dedede] pb-[6px]"
+            className={`relative flex h-full items-center justify-center border-r border-[#dedede] pb-[6px] ${
+              active === "profile" ? "text-[#181818]" : "text-[#666]"
+            }`}
+            href="/in/winstoniskandar"
           >
             <Avatar
               alt="Winston Iskandar"
               className="size-[30px]"
               src="/linkedin/profile-small.png"
             />
-          </div>
+            {active === "profile" ? (
+              <span className="absolute bottom-0 h-[2px] w-full bg-[#191919]" />
+            ) : null}
+          </Link>
 
-          <div aria-label="For Business" className="flex h-full items-center justify-center pb-[6px] text-[#666]">
+          <button
+            aria-expanded={openPanel === "For Business"}
+            aria-label="For Business"
+            className="flex h-full items-center justify-center border-0 bg-transparent pb-[6px] text-[#666]"
+            onClick={() => togglePanel("For Business")}
+            type="button"
+          >
             <Icon className="size-[24px]" name="grid" />
-          </div>
+          </button>
 
-          <div aria-label="Learning" className="flex h-full items-center justify-center pb-[6px] text-[#666]">
+          <button
+            aria-expanded={openPanel === "Learning"}
+            aria-label="Learning"
+            className="flex h-full items-center justify-center border-0 bg-transparent pb-[6px] text-[#666]"
+            onClick={() => togglePanel("Learning")}
+            type="button"
+          >
             <Icon className="h-[23px] w-[28px]" name="media" />
-          </div>
+          </button>
         </nav>
       </div>
+
+      {openPanel ? (
+        <div className="absolute right-4 top-[51px] w-[310px] rounded-[9px] border border-[#d4d4d4] bg-white p-[16px] shadow-[0_6px_20px_rgba(0,0,0,0.18)]">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <strong className="block text-[16px]">{openPanel}</strong>
+              <p className="mt-[5px] text-[13px] leading-[18px] text-[#666]">
+                {openPanel === "Notifications"
+                  ? `You have ${notificationCount} notifications.`
+                  : `${openPanel} is available as an interactive prototype scaffold.`}
+              </p>
+            </div>
+            <button
+              aria-label={`Close ${openPanel}`}
+              className="size-[28px] shrink-0 rounded-full border-0 bg-transparent p-[5px] text-[#555] hover:bg-[#ececec]"
+              onClick={() => setOpenPanel(null)}
+              type="button"
+            >
+              <Icon className="size-full" name="close" />
+            </button>
+          </div>
+        </div>
+      ) : null}
     </header>
   );
 }
-

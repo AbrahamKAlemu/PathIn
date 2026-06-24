@@ -15,6 +15,10 @@ from pathin_api.map_store import (
     InMemorySavedMapStore,
     SQLiteSavedMapStore,
 )
+from pathin_api.profile_store import (
+    InMemoryCurrentProfileStore,
+    SQLiteCurrentProfileStore,
+)
 from pathin_api.resume_parser import MAX_UPLOAD_BYTES
 
 
@@ -146,6 +150,7 @@ def service() -> CareerService:
     return CareerService(
         SnapshotPitRepository(),
         InMemorySavedMapStore(),
+        InMemoryCurrentProfileStore(),
     )
 
 
@@ -230,6 +235,110 @@ def test_health_exposes_versions_and_privacy_threshold(
     assert payload["versions"]["api"] == "v1"
     assert payload["versions"]["resumeParser"]
     assert payload["versions"]["algorithm"]
+
+
+def test_current_profile_exposes_authorized_evidence_without_social_metrics(
+    client: FlaskClient,
+) -> None:
+    response = client.get("/api/v1/profiles/current")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["name"] == "Winston Iskandar"
+    assert payload["provenance"] == {
+        "source": "user_supplied_linkedin_profile",
+        "authorized": True,
+        "scraped": False,
+        "description": (
+            "Profile facts supplied by the user for this Path[IN] prototype. "
+            "No LinkedIn credentials or scraping are used."
+        ),
+    }
+    evidence = payload["pathinEvidence"]
+    assert evidence["source"] == "linkedin"
+    assert evidence["fields"]["roles"]
+    assert evidence["fields"]["education"]
+    assert evidence["fields"]["skills"]
+    assert all(
+        item["source"] == "linkedin"
+        for items in evidence["fields"].values()
+        for item in items
+    )
+    serialized_evidence = str(evidence)
+    assert "profileViews" not in serialized_evidence
+    assert "viewerSuggestions" not in serialized_evidence
+
+
+def test_current_profile_updates_identity_and_enabled_categories(
+    client: FlaskClient,
+) -> None:
+    response = client.patch(
+        "/api/v1/profiles/current",
+        json={
+            "profile": {
+                "headline": "Founder | CS/Math @ Stanford",
+                "enabledCategories": {
+                    "roles": True,
+                    "skills": False,
+                    "education": True,
+                },
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["headline"] == "Founder | CS/Math @ Stanford"
+    assert payload["enabledCategories"]["skills"] is False
+    assert payload["pathinEvidence"]["enabledCategories"]["skills"] is False
+
+    reopened = client.get("/api/v1/profiles/current").get_json()
+    assert reopened["headline"] == "Founder | CS/Math @ Stanford"
+    assert reopened["enabledCategories"]["skills"] is False
+
+
+def test_current_profile_rejects_unsupported_updates(
+    client: FlaskClient,
+) -> None:
+    response = client.patch(
+        "/api/v1/profiles/current",
+        json={"profile": {"privateLinkedinToken": "do-not-store"}},
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["error"]["code"] == "UNSUPPORTED_PROFILE_UPDATE"
+    assert payload["error"]["details"]["unsupportedFields"] == [
+        "privateLinkedinToken"
+    ]
+
+
+def test_current_profile_persists_across_service_restart(tmp_path) -> None:
+    database_path = tmp_path / "profiles.sqlite3"
+    first_service = CareerService(
+        SnapshotPitRepository(),
+        InMemorySavedMapStore(),
+        SQLiteCurrentProfileStore(database_path),
+    )
+    first_service.update_current_profile(
+        {
+            "headline": "Persistent Path[IN] profile",
+            "enabledCategories": {
+                "roles": True,
+                "skills": False,
+            },
+        }
+    )
+
+    restarted_service = CareerService(
+        SnapshotPitRepository(),
+        InMemorySavedMapStore(),
+        SQLiteCurrentProfileStore(database_path),
+    )
+    reopened = restarted_service.get_current_profile()
+
+    assert reopened["headline"] == "Persistent Path[IN] profile"
+    assert reopened["enabledCategories"]["skills"] is False
 
 
 @pytest.mark.parametrize(

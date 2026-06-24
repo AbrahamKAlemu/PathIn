@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import {
   type ChangeEvent,
   type DragEvent,
@@ -9,6 +11,9 @@ import {
   useRef,
   useState,
 } from "react";
+
+import { getCurrentProfile } from "@/features/profile/profile-api";
+import type { CurrentProfile } from "@/features/profile/types";
 
 import { CareerMapView } from "./career-map-view";
 import styles from "./career-tree.module.css";
@@ -84,15 +89,17 @@ function formatFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function cloneParsedFields(
-  profiles: ParsedProfile[],
+function cloneProfileFields(
+  fieldSets: Array<Partial<Record<ProfileCategory, ParsedProfileField[]>>>,
 ): Record<ProfileCategory, ParsedProfileField[]> {
   return categoryRecord((category) =>
-    profiles.flatMap((profile) =>
-      (profile.fields[category] ?? []).map((field) => ({
+    fieldSets.flatMap((fields) =>
+      (fields[category] ?? []).map((field) => ({
         ...field,
         originalSource: field.originalSource ?? field.source,
-        importBatch: `${field.originalSource ?? field.source}-upload`,
+        importBatch:
+          field.importBatch ??
+          `${field.originalSource ?? field.source}-upload`,
         enabled: true,
       })),
     ),
@@ -111,12 +118,45 @@ export function CareerTree() {
     useState<ParsedProfile | null>(null);
   const [parsingLinkedin, setParsingLinkedin] = useState(false);
   const [linkedinError, setLinkedinError] = useState("");
+  const [connectedProfile, setConnectedProfile] =
+    useState<CurrentProfile | null>(null);
+  const [connectedProfileLoading, setConnectedProfileLoading] = useState(true);
+  const [connectedProfileError, setConnectedProfileError] = useState("");
+  const [useConnectedProfile, setUseConnectedProfile] = useState(true);
   const [generationError, setGenerationError] = useState("");
   const [loadingStage, setLoadingStage] = useState(0);
   const [lastSubmission, setLastSubmission] =
     useState<ProfileSubmission | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const linkedinInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    getCurrentProfile()
+      .then((profile) => {
+        if (active) {
+          setConnectedProfile(profile);
+          setConnectedProfileError("");
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setConnectedProfileError(
+            error instanceof Error
+              ? error.message
+              : "The connected profile is temporarily unavailable.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setConnectedProfileLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (phase !== "generating") {
@@ -275,9 +315,25 @@ export function CareerTree() {
   }
 
   function buildSubmission(): ProfileSubmission {
-    const fields = cloneParsedFields(
-      [parsedResume, parsedLinkedin].filter(
-        (profile): profile is ParsedProfile => Boolean(profile),
+    const connectedFields =
+      connectedProfile?.pathinEvidence && useConnectedProfile
+        ? categoryRecord((category) =>
+            connectedProfile.pathinEvidence.enabledCategories[category]
+              ? connectedProfile.pathinEvidence.fields[category] ?? []
+              : [],
+          )
+        : null;
+    const fields = cloneProfileFields(
+      [
+        parsedResume?.fields,
+        connectedFields,
+        parsedLinkedin?.fields,
+      ].filter(
+        (
+          fieldSet,
+        ): fieldSet is Partial<
+          Record<ProfileCategory, ParsedProfileField[]>
+        > => Boolean(fieldSet),
       ),
     );
     const enabledCategories = categoryRecord(() => true);
@@ -288,7 +344,10 @@ export function CareerTree() {
       "";
 
     return {
-      name: "",
+      name:
+        connectedProfile && useConnectedProfile
+          ? connectedProfile.name
+          : "",
       headline,
       fields,
       enabledCategories,
@@ -506,7 +565,10 @@ export function CareerTree() {
     return (
       <GenerationScreen
         currentStage={loadingStage}
-        hasLinkedin={Boolean(parsedLinkedin)}
+        hasLinkedin={Boolean(
+          parsedLinkedin ||
+            (connectedProfile?.pathinEvidence && useConnectedProfile),
+        )}
         stages={loadingStages}
       />
     );
@@ -534,11 +596,20 @@ export function CareerTree() {
         <header className={styles.uploadIntro}>
           <h1>Build your career path</h1>
           <p>
-            Upload your resume and optionally add a LinkedIn profile PDF for stronger recommendations.
+            Upload a resume for custom recommendations. Your authorized
+            profile can add verified context without replacing the resume.
           </p>
         </header>
 
         <section className={styles.uploadCard}>
+          <ConnectedProfileCard
+            enabled={useConnectedProfile}
+            error={connectedProfileError}
+            loading={connectedProfileLoading}
+            onToggle={() => setUseConnectedProfile((current) => !current)}
+            profile={connectedProfile}
+          />
+
           <ResumeUpload
             error={uploadError}
             file={resume}
@@ -554,19 +625,20 @@ export function CareerTree() {
           <div className={styles.linkedinUploadSection}>
             <div className={styles.linkedinUploadHeading}>
               <div>
-                <strong>Add LinkedIn profile</strong>
+                <strong>Add another LinkedIn profile export</strong>
                 <span>Optional</span>
               </div>
               <p>
-                Upload a PDF or text export. LinkedIn URLs are not scraped.
+                Supplement details missing from the connected profile. LinkedIn
+                URLs are not scraped.
               </p>
             </div>
             <EvidenceUpload
               compact
-              emptyLabel="LinkedIn profile file"
+              emptyLabel="LinkedIn PDF or data export"
               error={linkedinError}
               file={linkedinFile}
-              inputLabel="Upload LinkedIn profile"
+              inputLabel="Upload LinkedIn profile export"
               inputRef={linkedinInput}
               loading={parsingLinkedin}
               onDrop={selectLinkedin}
@@ -600,12 +672,94 @@ export function CareerTree() {
           : parsingLinkedin
             ? "Reading the selected LinkedIn profile export."
           : parsedResume
-            ? parsedLinkedin
-              ? "Resume and LinkedIn evidence ready. Generate your career path."
-              : "Resume ready. Add LinkedIn evidence for stronger personalization or generate now."
+            ? parsedLinkedin ||
+              (connectedProfile?.pathinEvidence && useConnectedProfile)
+              ? "Resume and authorized profile evidence ready. Generate your career path."
+              : "Resume ready. Generate your career path."
             : uploadError || "Choose a resume to begin."}
       </p>
     </form>
+  );
+}
+
+function ConnectedProfileCard({
+  enabled,
+  error,
+  loading,
+  onToggle,
+  profile,
+}: {
+  enabled: boolean;
+  error: string;
+  loading: boolean;
+  onToggle: () => void;
+  profile: CurrentProfile | null;
+}) {
+  const enabledEvidenceCount = profile?.pathinEvidence
+    ? Object.entries(profile.pathinEvidence.fields).reduce(
+        (count, [category, fields]) =>
+          profile.pathinEvidence.enabledCategories[
+            category as ProfileCategory
+          ]
+            ? count + fields.length
+            : count,
+        0,
+      )
+    : 0;
+
+  return (
+    <section
+      aria-busy={loading}
+      className={styles.connectedProfile}
+      data-enabled={enabled ? "true" : "false"}
+    >
+      {loading ? (
+        <div className={styles.connectedProfileLoading}>
+          <span />
+          <div>
+            <strong>Loading authorized profile</strong>
+            <small>Checking enabled Path[IN] evidence</small>
+          </div>
+        </div>
+      ) : profile?.pathinEvidence ? (
+        <>
+          <Image
+            alt=""
+            className={styles.connectedProfileAvatar}
+            height={52}
+            src={profile.profilePhoto}
+            width={52}
+          />
+          <div className={styles.connectedProfileIdentity}>
+            <div>
+              <strong>{profile.name}</strong>
+              <span>Connected</span>
+            </div>
+            <p>{profile.headline}</p>
+            <small>
+              {enabledEvidenceCount} enabled profile signals · analytics and
+              social suggestions excluded
+            </small>
+          </div>
+          <div className={styles.connectedProfileActions}>
+            <Link href="/in/winstoniskandar">Review profile</Link>
+            <button
+              aria-pressed={enabled}
+              onClick={onToggle}
+              type="button"
+            >
+              {enabled ? "Using profile" : "Use profile"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className={styles.connectedProfileUnavailable}>
+          <strong>Authorized profile unavailable</strong>
+          <p>{error || "You can still generate paths from a resume."}</p>
+          <Link href="/in/winstoniskandar">Open profile</Link>
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -73,6 +73,14 @@ def create_app(career_service: CareerService | None = None) -> Flask:
     def normalize_profile():
         return jsonify(service.normalize_profile(_json_payload()))
 
+    @app.get("/api/v1/profiles/current")
+    def current_profile():
+        return jsonify(service.get_current_profile())
+
+    @app.patch("/api/v1/profiles/current")
+    def update_current_profile():
+        return jsonify(service.update_current_profile(_json_payload()))
+
     @app.post("/api/v1/maps/explore")
     def explore_map():
         return jsonify(service.explore(_json_payload())), 201

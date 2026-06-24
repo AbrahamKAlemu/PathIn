@@ -760,6 +760,170 @@
   padding: 24px;
 }
 
+.connectedProfile {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #c9d8e5;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  margin-bottom: 18px;
+  min-height: 88px;
+  padding: 14px;
+}
+
+.connectedProfile[data-enabled="false"] {
+  background: #f7f7f7;
+  border-color: #d6d6d6;
+}
+
+.connectedProfile[data-enabled="false"] .connectedProfileAvatar,
+.connectedProfile[data-enabled="false"] .connectedProfileIdentity {
+  opacity: 0.62;
+}
+
+.connectedProfileAvatar {
+  border-radius: 50%;
+  height: 52px;
+  object-fit: cover;
+  width: 52px;
+}
+
+.connectedProfileIdentity {
+  min-width: 0;
+}
+
+.connectedProfileIdentity > div {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.connectedProfileIdentity strong {
+  font-size: 14px;
+  line-height: 18px;
+}
+
+.connectedProfileIdentity span {
+  background: #dff3e7;
+  border-radius: 999px;
+  color: #057642;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 7px;
+  text-transform: uppercase;
+}
+
+.connectedProfileIdentity p,
+.connectedProfileIdentity small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connectedProfileIdentity p {
+  color: #333333;
+  font-size: 12px;
+  line-height: 17px;
+  margin: 3px 0 0;
+}
+
+.connectedProfileIdentity small {
+  color: #666666;
+  font-size: 10px;
+  margin-top: 3px;
+}
+
+.connectedProfileActions {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.connectedProfileActions a {
+  color: #0a66c2;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.connectedProfileActions button {
+  background: #ffffff;
+  border: 1px solid #0a66c2;
+  border-radius: 999px;
+  color: #0a66c2;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  min-height: 30px;
+  padding: 0 11px;
+}
+
+.connectedProfileActions button[aria-pressed="true"] {
+  background: #e8f3ff;
+}
+
+.connectedProfileLoading,
+.connectedProfileUnavailable {
+  grid-column: 1 / -1;
+}
+
+.connectedProfileLoading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.connectedProfileLoading > span {
+  animation: careerOrbit 1.3s linear infinite;
+  border: 2px solid #d4e4f2;
+  border-radius: 50%;
+  border-top-color: #0a66c2;
+  height: 34px;
+  width: 34px;
+}
+
+.connectedProfileLoading strong,
+.connectedProfileLoading small {
+  display: block;
+}
+
+.connectedProfileLoading strong {
+  font-size: 13px;
+}
+
+.connectedProfileLoading small {
+  color: #666666;
+  font-size: 10px;
+  margin-top: 3px;
+}
+
+.connectedProfileUnavailable {
+  display: grid;
+  gap: 3px;
+}
+
+.connectedProfileUnavailable strong {
+  font-size: 13px;
+}
+
+.connectedProfileUnavailable p {
+  color: #666666;
+  font-size: 11px;
+  margin: 0;
+}
+
+.connectedProfileUnavailable a {
+  color: #0a66c2;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 3px;
+}
+
 .resumeDrop {
   align-items: center;
   background: #f8fafc;
@@ -1205,6 +1369,23 @@
     border-right: 0;
     margin-top: 24px;
     padding: 18px 16px;
+  }
+
+  .connectedProfile {
+    align-items: start;
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .connectedProfileAvatar {
+    height: 48px;
+    width: 48px;
+  }
+
+  .connectedProfileActions {
+    align-items: center;
+    flex-direction: row;
+    grid-column: 1 / -1;
+    justify-content: flex-end;
   }
 
   .resumeDrop {

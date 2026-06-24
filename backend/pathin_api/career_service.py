@@ -21,6 +21,10 @@ from .recommendation_engine import (
     _string_list,
     _timestamp,
 )
+from .profile_store import (
+    CurrentProfileStore,
+    SQLiteCurrentProfileStore,
+)
 from .resume_parser import ResumeParser
 from .taxonomy import (
     ALGORITHM_VERSION,
@@ -42,9 +46,11 @@ class CareerService:
         self,
         repository: EvidenceRepository | None = None,
         saved_map_store: SavedMapStore | None = None,
+        profile_store: CurrentProfileStore | None = None,
     ) -> None:
         self.repository = repository or PitRepository()
         self.saved_map_store = saved_map_store or SQLiteSavedMapStore()
+        self.profile_store = profile_store or SQLiteCurrentProfileStore()
         self.resume_parser = ResumeParser()
         self.profile_normalizer = ProfileNormalizer()
         self._maps: dict[str, dict[str, Any]] = {}
@@ -67,6 +73,22 @@ class CareerService:
 
     def normalize_profile(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self.profile_normalizer.normalize(payload)
+
+    def get_current_profile(self) -> dict[str, Any]:
+        return self.profile_store.get()
+
+    def update_current_profile(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        patch = payload.get("profile", payload)
+        if not isinstance(patch, dict):
+            raise ApiError(
+                "INVALID_PROFILE_UPDATE",
+                "Profile updates must be a JSON object.",
+                details={"field": "profile"},
+            )
+        return self.profile_store.update(patch)
 
     def explore(self, payload: dict[str, Any]) -> dict[str, Any]:
         profile = self.normalize_profile(payload)
@@ -331,6 +353,7 @@ class CareerService:
             "model": MODEL_VERSION,
             "algorithm": ALGORITHM_VERSION,
             "resumeParser": "pathin-resume-parser-1.0",
+            "profileSchema": "pathin-current-profile-1.0",
             "privacyThreshold": PRIVACY_THRESHOLD,
         }
 

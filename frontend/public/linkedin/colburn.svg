@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-labelledby="title">
+  <title id="title">Colburn School of Music</title>
+  <rect width="120" height="120" rx="8" fill="#e7e5e4"/>
+  <circle cx="68" cy="45" r="34" fill="#9eb7cb"/>
+  <circle cx="38" cy="76" r="23" fill="#6f859b" opacity=".9"/>
+</svg>
