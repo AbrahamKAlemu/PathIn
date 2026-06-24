@@ -600,6 +600,81 @@ describe("CareerMapView navigation", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not reuse a custom step ID restored from a saved map", async () => {
+    const baseMap = createCareerMap();
+    const destinationId =
+      baseMap.dreamCareer?.destinationId ?? baseMap.destinationIds[0];
+    const pathId =
+      baseMap.buildPathIdsByDestination[destinationId]?.[0];
+    const sourceNode = baseMap.nodes.find(
+      (node) => node.id === "course-ml",
+    );
+    if (!pathId || !sourceNode) {
+      throw new Error("Expected a build path and source node.");
+    }
+    const existingCustomNode = {
+      ...sourceNode,
+      id: "custom-step-1",
+      type: "experience" as const,
+      label: "Existing restored custom step",
+      eyebrow: "Custom path step",
+      sourceRecord: {
+        id: "custom-step-1",
+        kind: "generated" as const,
+        label: "User-created Build My Path step",
+      },
+    };
+    const initialMap: CareerMapData = {
+      ...baseMap,
+      mode: "build",
+      nodes: [...baseMap.nodes, existingCustomNode],
+      paths: baseMap.paths.map((path) =>
+        path.id === pathId
+          ? {
+              ...path,
+              nodeIds: [
+                ...path.nodeIds.slice(0, -1),
+                existingCustomNode.id,
+                path.nodeIds.at(-1) ?? destinationId,
+              ],
+            }
+          : path,
+      ),
+    };
+    const onSave = vi.fn().mockResolvedValue({
+      savedAt: "2026-06-24T08:00:00.000Z",
+      storage: "browser",
+    });
+    renderCareerMap({ initialMap, onSave });
+
+    const editor = screen.getByRole("region", {
+      name: "Build path editor",
+    });
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Add custom step" }),
+    );
+    fireEvent.change(within(editor).getByLabelText("Step title"), {
+      target: { value: "Second custom step" },
+    });
+    fireEvent.change(
+      within(editor).getByLabelText("What this step proves"),
+      {
+        target: { value: "Proves the restored route can keep growing." },
+      },
+    );
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Add to route" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save path" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const savedMap = onSave.mock.calls[0][0] as CareerMapData;
+    const customIds = savedMap.nodes
+      .map((node) => node.id)
+      .filter((id) => id.startsWith("custom-step-"));
+    expect(customIds).toEqual(["custom-step-1", "custom-step-2"]);
+  });
+
   it("edits a generated node without changing the source map", () => {
     const initialMap = createCareerMap();
     renderCareerMap({ initialMap });

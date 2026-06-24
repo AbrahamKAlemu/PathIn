@@ -1155,7 +1155,7 @@ def test_interdisciplinary_copy_uses_grounded_profile_language(
         transferable = recommendation["transferableSkills"]
         assert set(transferable) <= set(profile["skills"])
         if transferable:
-            expected_strengths = ", ".join(transferable[:3])
+            expected_strengths = "; ".join(transferable[:3])
             assert (
                 f"Current evidence: {expected_strengths}."
                 in recommendation["explanation"]
@@ -1201,7 +1201,8 @@ def test_unrelated_project_is_not_repurposed_for_a_role_route(
                     "Studied financial markets and trading systems"
                 ],
                 "projects": [
-                    "Published an ACM CHI paper on AI literacy apps"
+                    "ACM CHI 2024 research paper",
+                    "Research project",
                 ],
                 "skills": ["Python", "Communication", "Research"],
                 "industries": ["Finance"],
@@ -1217,10 +1218,57 @@ def test_unrelated_project_is_not_repurposed_for_a_role_route(
         if node["type"] not in {"current", "destination"}
     ]
     serialized_steps = str(route_steps).lower()
+    recommendation = payload["rankedDestinations"][0]
     assert "acm chi" not in serialized_steps
+    assert "acm chi" not in str(
+        recommendation["personalizationEvidence"]
+    ).lower()
+    assert recommendation["componentScores"]["projectEvidence"]["score"] == 0
     assert any(
         "small business scenario in financial services" in node["label"]
         for node in route_steps
+    )
+
+    relevant_payload = client.post(
+        "/api/v1/maps/build",
+        json={
+            "profile": {
+                "education": ["Mathematics and Computer Science"],
+                "roles": ["FTTP at Jane Street"],
+                "responsibilities": [
+                    "Studied financial markets and trading systems"
+                ],
+                "projects": [
+                    "Built an investment research model for public companies"
+                ],
+                "skills": ["Python", "Communication", "Research"],
+                "industries": ["Finance"],
+                "interests": ["Markets", "Technology"],
+            },
+            "destinationId": "dest-financial-analyst",
+        },
+    ).get_json()
+    relevant_steps = [
+        node
+        for node in relevant_payload["nodes"]
+        if node["type"] not in {"current", "destination"}
+    ]
+    bridge_node = next(
+        node
+        for node in relevant_steps
+        if node["id"].startswith("bridge-financial-analyst-")
+    )
+    assert "investment research model" in str(relevant_steps).lower()
+    assert (
+        relevant_payload["rankedDestinations"][0]["componentScores"][
+            "projectEvidence"
+        ]["score"]
+        > 0
+    )
+    assert bridge_node["summary"].startswith("Data Analysis ·")
+    assert bridge_node["stepDetails"]["supportingEvidence"] == []
+    assert "does not claim that you already held this role" in (
+        bridge_node["stepDetails"]["support"]
     )
 
 
@@ -1261,6 +1309,28 @@ def test_generated_copy_avoids_truncation_and_skill_name_collisions(
             node.get("stepDetails", {}).get("completionEvidence", "")
         ).lower()
         for node in payload["nodes"]
+    )
+
+    tedx_payload = client.post(
+        "/api/v1/maps/build",
+        json={
+            "profile": {
+                "roles": ["Web developer"],
+                "responsibilities": [
+                    "Built and presented a music-making web application"
+                ],
+                "projects": [
+                    "Music-making web application presented in a live TEDx demo"
+                ],
+                "skills": ["Software Development"],
+            },
+            "destinationId": "dest-software-engineer",
+        },
+    ).get_json()
+    assert any(
+        "live TEDx demo" in node["label"]
+        for node in tedx_payload["nodes"]
+        if node["type"] not in {"current", "destination"}
     )
 
 
@@ -1548,7 +1618,16 @@ def test_generated_routes_are_dynamic_and_address_identified_gaps(
                 assert details["why"]
                 assert details["support"]
                 assert details["skillsDeveloped"]
-                assert details["gapAddressed"] in supported_gaps
+                if node_id.startswith("bridge-"):
+                    assert set(details["skillsDeveloped"]) & set(
+                        recommendation["skills"]
+                    )
+                    assert details["supportingEvidence"] == []
+                    assert "maintained taxonomy" in details["support"]
+                else:
+                    assert details["gapAddressed"] in supported_gaps
+                    assert details["supportingEvidence"]
+                    assert "Small data dashboard" in details["support"]
                 assert details["requirement"] in {
                     "optional",
                     "recommended",
@@ -1556,8 +1635,6 @@ def test_generated_routes_are_dynamic_and_address_identified_gaps(
                 }
                 assert details["effort"]
                 assert details["completionEvidence"]
-                assert details["supportingEvidence"]
-                assert "Small data dashboard" in details["support"]
                 assert "evidence project" not in node_by_id[node_id][
                     "label"
                 ].lower()

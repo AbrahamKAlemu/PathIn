@@ -4,8 +4,8 @@ import re
 from typing import Any
 
 TAXONOMY_VERSION = "pathin-occupations-1.2"
-ALGORITHM_VERSION = "pathin-ranking-2.4"
-MODEL_VERSION = "evidence-grounded-personalization-2.4"
+ALGORITHM_VERSION = "pathin-ranking-2.5"
+MODEL_VERSION = "evidence-grounded-personalization-2.5"
 
 
 def role(

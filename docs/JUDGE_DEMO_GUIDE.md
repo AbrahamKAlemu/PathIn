@@ -173,6 +173,10 @@ PathIn scores every role in a maintained 26-role taxonomy. It uses deterministic
 lexical and semantic concept matching, role adjacency, skill gaps, seniority,
 preferences, and privacy-safe PIT history.
 
+Current generation metadata is `pathin-occupations-1.2`,
+`pathin-ranking-2.5`, `evidence-grounded-personalization-2.5`, and
+`evidence-grounded-career-paths-2.5`.
+
 ### Score weights
 
 | Component | Weight |
@@ -417,7 +421,8 @@ It does not describe an invented strength.
 Project steps reuse a supplied project only when it matches target-role skills,
 maintained role-project patterns, or the target domain. Otherwise the engine
 uses a neutral role-specific artifact rather than repurposing an unrelated
-project or inventing a personal one.
+project or inventing a personal one. A generic word such as "research" cannot
+by itself turn an HCI paper into finance or investment evidence.
 
 LinkedIn Learning cards are live search URLs built from visible skill gaps.
 PathIn does not claim that a specific course is current, enrolled, completed,
@@ -875,7 +880,7 @@ profile values, and sparse evidence uses explicit uncertainty language.
 Current automated baseline:
 
 - 56 backend tests passing
-- 47 frontend tests passing
+- 50 frontend tests passing
 - Frontend lint passing
 - Production Next.js build passing
 - npm audit: zero known vulnerabilities
@@ -891,7 +896,7 @@ Browser workflows verified:
 - Focus and Web navigation
 - Every detail tab
 - Pin, alternatives, feedback, and Not for me
-- Route reorder, reset, add, edit, and remove
+- Route drag/reorder, reset, add, edit, and remove, with button fallbacks
 - Save payload contains custom edits
 - Reload and direct restore
 - Explicit regeneration
@@ -901,8 +906,8 @@ Browser workflows verified:
 Load and structural stress:
 
 - 52 concurrent generations with 52 distinct request fingerprints and map IDs
-- 53 targeted and cross-domain maps containing 131,679 generated string values
-- 973 nodes, 1,118 edges, and 396 paths checked in that corpus
+- 53 targeted and cross-domain maps containing 102,633 generated string values
+- 774 nodes, 882 edges, and 322 paths checked in that corpus
 - All 26 taxonomy roles targeted
 - Every exact target ranked first
 - Zero structural, grounding, malformed-copy, or placeholder-string errors in
@@ -912,8 +917,9 @@ Load and structural stress:
 - Scores and score components validated from 0 to 100
 - Unsupported update, invalid destination, and missing-map errors validated
 
-The current 12-worker in-process API stress run had a 3.63-second median,
-4.32-second p95, and 5.00-second maximum generation time. Single-user
+The current 12-worker in-process API stress run had a 3.55-second median,
+4.17-second p95, and 4.60-second maximum generation time. Twenty concurrent
+saves had a 66.3-millisecond median and 81.8-millisecond p95. Single-user
 generation is faster, and the frontend no longer adds artificial wait time
 after the API response.
 

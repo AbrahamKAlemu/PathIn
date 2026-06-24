@@ -94,6 +94,15 @@ STOP_WORDS = {
     "team",
 }
 
+AMBIGUOUS_PROJECT_CONCEPTS = {"research"}
+AMBIGUOUS_PROJECT_TERMS = {
+    "paper",
+    "project",
+    "research",
+    "studies",
+    "study",
+}
+
 DOMAIN_SIGNALS: dict[str, tuple[str, ...]] = {
     "Robotics and Hardware": (
         "robotics",
@@ -480,7 +489,17 @@ ROLE_SPECIALIZATION_RULES: dict[
     ),
     "financial-analyst": (
         ("Strategic Finance Analyst", ("strategy", "scenario", "forecast")),
-        ("Investment Research Analyst", ("investment", "research", "market")),
+        (
+            "Investment Research Analyst",
+            (
+                "investment",
+                "investment research",
+                "market",
+                "markets",
+                "trading",
+                "financial",
+            ),
+        ),
         ("Planning and Forecasting Analyst", ("budget", "forecast", "planning")),
     ),
     "business-analyst": (
@@ -1382,11 +1401,40 @@ class RecommendationEngine:
         target_domain: str | None = None,
     ) -> bool:
         role = ROLE_BY_ID.get(role_id)
-        if role and any(
-            self._evidence_value_matches(project_value, candidate_value)
-            for candidate_value in [*role["skills"], *role["projects"]]
-        ):
-            return True
+        if role:
+            (
+                normalized_project,
+                project_concepts,
+                project_terms,
+            ) = self._value_features(project_value)
+            for candidate_value in [*role["skills"], *role["projects"]]:
+                (
+                    normalized_candidate,
+                    candidate_concepts,
+                    candidate_terms,
+                ) = self._value_features(candidate_value)
+                direct_match = (
+                    normalized_project == normalized_candidate
+                    or f" {normalized_candidate} "
+                    in f" {normalized_project} "
+                    or f" {normalized_project} "
+                    in f" {normalized_candidate} "
+                )
+                meaningful_shared_terms = (
+                    project_terms
+                    & candidate_terms
+                    - AMBIGUOUS_PROJECT_TERMS
+                )
+                if direct_match and meaningful_shared_terms:
+                    return True
+                if (
+                    project_concepts
+                    & candidate_concepts
+                    - AMBIGUOUS_PROJECT_CONCEPTS
+                ):
+                    return True
+                if len(meaningful_shared_terms) >= 2:
+                    return True
         return bool(
             target_domain
             and any(
@@ -1733,7 +1781,7 @@ class RecommendationEngine:
                 "taxonomyVersion": TAXONOMY_VERSION,
                 "modelVersion": MODEL_VERSION,
                 "algorithmVersion": ALGORITHM_VERSION,
-                "promptVersion": "evidence-grounded-career-paths-2.4",
+                "promptVersion": "evidence-grounded-career-paths-2.5",
                 "requestFingerprint": fingerprint,
                 "generatedAt": generated_at,
             },
@@ -2119,8 +2167,16 @@ class RecommendationEngine:
         )
         if candidate["id"] in profile.get("goalRoleIds", []):
             interest_score = 100.0
+        relevant_project_evidence = [
+            value
+            for value in [
+                *profile["projects"],
+                *profile["achievements"],
+            ]
+            if self._project_matches_role(value, candidate["id"])
+        ]
         project_score, project_matches = self._overlap_score(
-            [*profile["projects"], *profile["achievements"]],
+            relevant_project_evidence,
             [*candidate["projects"], *candidate["responsibilities"]],
         )
         education_score, education_matches = self._overlap_score(
@@ -2554,9 +2610,11 @@ class RecommendationEngine:
         for category in profile["enabledSignals"]:
             for item in profile["fieldEvidence"].get(category, []):
                 value = item["value"]
-                if category == "projects" and not self._project_matches_role(
-                    value,
-                    candidate["id"],
+                if category in {
+                    "projects",
+                    "achievements",
+                } and not self._project_matches_role(
+                    value, candidate["id"]
                 ):
                     continue
                 if any(
@@ -2719,7 +2777,7 @@ class RecommendationEngine:
             current_strengths = [
                 item["value"]
                 for item in combined_evidence
-                if len(item["value"]) <= 40
+                if len(item["value"]) <= 56
             ][:2]
         if not current_strengths:
             current_strengths = ["limited role-specific evidence"]
@@ -2737,7 +2795,7 @@ class RecommendationEngine:
         )
         career_thesis = (
             f"{intersection_copy}"
-            f"Current evidence: {', '.join(current_strengths)}. "
+            f"Current evidence: {'; '.join(current_strengths)}. "
             f"Build next: {gap_copy}."
         )
         return {
@@ -2850,7 +2908,7 @@ class RecommendationEngine:
         personalization: dict[str, Any],
         gaps: list[str],
     ) -> str:
-        strength_copy = ", ".join(
+        strength_copy = "; ".join(
             personalization["currentStrengths"][:3]
         )
         gap_copy = gaps[0] if gaps else "role-specific applied proof"
@@ -3236,6 +3294,34 @@ class RecommendationEngine:
             if bridge_is_current
             else bridge["title"]
         )
+        bridge_transferable_skills = list(
+            dict.fromkeys(
+                [
+                    skill
+                    for skill in bridge["skills"]
+                    if skill in recommendation["skills"]
+                ]
+            )
+        )
+        bridge_focus_label = (
+            " and ".join(bridge_transferable_skills[:2])
+            if bridge_transferable_skills
+            else "Destination-adjacent responsibilities"
+        )
+        bridge_support = (
+            f"{bridge['title']} is adjacent to "
+            f"{recommendation['canonicalRole']} in the maintained taxonomy. "
+            + (
+                f"This expands a supplied current role to build "
+                f"{bridge_focus_label.lower()} evidence."
+                if bridge_is_current
+                else (
+                    f"This optional route can build "
+                    f"{bridge_focus_label.lower()} evidence; PathIn does not "
+                    "claim that you already held this role."
+                )
+            )
+        )
 
         course_node = {
             "id": course_id,
@@ -3402,29 +3488,23 @@ class RecommendationEngine:
             ),
             "label": bridge_label,
             "eyebrow": "Adjacent role",
-            "summary": f"{gap} · workplace experience",
+            "summary": f"{bridge_focus_label} · adjacent workplace evidence",
             "stage": "Experience-first step",
             "workSetting": ", ".join(bridge["workStyles"][:2]),
             "whyItFits": [
                 f"{bridge['title']} is adjacent to the destination in the maintained taxonomy.",
                 (
-                    f"It creates a workplace setting for practicing {gap} and "
-                    "destination-adjacent responsibilities."
+                    f"It creates a workplace setting for building "
+                    f"{bridge_focus_label.lower()} evidence that transfers "
+                    "toward the destination."
                 ),
             ],
             "responsibilities": bridge["responsibilities"],
             "existingSkills": recommendation["transferableSkills"][:4],
-            "transferableSkills": list(
-                dict.fromkeys(
-                    [
-                        skill
-                        for skill in bridge["skills"]
-                        if skill in recommendation["skills"]
-                    ]
-                )
-            )[:5]
+            "transferableSkills": bridge_transferable_skills[:5]
             or bridge["skills"][:4],
-            "skillsToBuild": gaps[:3],
+            "skillsToBuild": bridge_transferable_skills[:4]
+            or bridge["skills"][:4],
             "preview": bridge["description"],
             "challenges": [
                 "This role is an option, not a mandatory prerequisite."
@@ -3454,9 +3534,9 @@ class RecommendationEngine:
                     )
                     + f"{recommendation['personalizedTitle']}."
                 ),
-                "support": evidence_support,
+                "support": bridge_support,
                 "skillsDeveloped": bridge["skills"][:4],
-                "gapAddressed": gap,
+                "gapAddressed": bridge_focus_label,
                 "requirement": "optional",
                 "effort": (
                     "One responsibility expansion in the current role"
@@ -3464,8 +3544,8 @@ class RecommendationEngine:
                     else "One role transition or equivalent responsibility expansion"
                 ),
                 "completionEvidence": "Documented ownership of adjacent responsibilities",
-                "supportingEvidence": source_evidence,
-                "sourceBlend": recommendation["sourceBlend"],
+                "supportingEvidence": [],
+                "sourceBlend": f"Maintained role taxonomy {TAXONOMY_VERSION}",
             },
         }
         positioning_node = {
@@ -3557,20 +3637,28 @@ class RecommendationEngine:
             alternative_nodes = [course_node, bridge_node]
             alternative_strategy = (
                 (
-                    f"{gap} plus expanded {bridge['title']} responsibilities"
+                    f"{gap} learning plus expanded "
+                    f"{bridge_focus_label.lower()} responsibilities"
                     if bridge_is_current
-                    else f"{gap} plus {bridge['title']} responsibility bridge"
+                    else (
+                        f"{gap} learning plus a "
+                        f"{bridge_focus_label.lower()} responsibility bridge"
+                    )
                 )
             )
             alternative_description = (
                 (
-                    f"Build enough {gap} to expand {bridge['title']} "
-                    f"responsibilities, then move toward "
+                    f"Build {gap} through focused learning, then expand "
+                    f"{bridge['title']} responsibilities to add "
+                    f"{bridge_focus_label.lower()} evidence before moving "
+                    f"toward "
                     f"{recommendation['personalizedTitle']}."
                     if bridge_is_current
                     else (
-                        f"Build enough {gap} to take on adjacent "
-                        f"{bridge['title']} responsibilities, then move toward "
+                        f"Build {gap} through focused learning, then add "
+                        f"{bridge_focus_label.lower()} evidence through "
+                        f"adjacent {bridge['title']} responsibilities before "
+                        f"moving toward "
                         f"{recommendation['personalizedTitle']}."
                     )
                 )
@@ -3767,7 +3855,7 @@ class RecommendationEngine:
             maxsplit=1,
         )[0].strip(" .,:;-")
         words = cleaned.split()
-        subject = " ".join(words[:8]).strip(" .,:;-")
+        subject = " ".join(words[:12]).strip(" .,:;-")
         if not subject:
             subject = fallback.strip()
         return subject or "an existing work sample"

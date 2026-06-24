@@ -2690,8 +2690,11 @@ export function CareerMapView({
     if (!label || !summary) {
       return;
     }
-    customStepSequenceRef.current += 1;
-    const id = `custom-step-${customStepSequenceRef.current}`;
+    let id: string;
+    do {
+      customStepSequenceRef.current += 1;
+      id = `custom-step-${customStepSequenceRef.current}`;
+    } while (nodeById.has(id));
     const destination = nodeById.get(focusedPath.destinationId);
     addBuildSuggestion({
       id,
