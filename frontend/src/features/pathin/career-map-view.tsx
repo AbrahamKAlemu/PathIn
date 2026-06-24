@@ -2104,6 +2104,7 @@ export function CareerMapView({
     let result: SaveMapResult;
     const materializedMap: CareerMapData = {
       ...initialMap,
+      mode,
       nodes: [
         ...initialMap.nodes,
         ...Object.values(customNodes).filter(

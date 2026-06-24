@@ -570,6 +570,7 @@ describe("CareerMapView navigation", () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     const savedMap = onSave.mock.calls[0][0] as CareerMapData;
+    expect(savedMap.mode).toBe("build");
     expect(
       savedMap.nodes.find((node) => node.id === "course-ml")?.label,
     ).toBe("Build an ML evaluation pipeline");

@@ -657,6 +657,7 @@ describe("CareerTree evidence-first onboarding", () => {
     expect(
       screen.queryByRole("region", { name: "Build path editor" }),
     ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Build My Path" }));
     expect(fetchMock).toHaveBeenCalledTimes(3);
 
     fireEvent.click(screen.getByRole("button", { name: "Save path" }));
@@ -668,6 +669,7 @@ describe("CareerTree evidence-first onboarding", () => {
       SAVED_MAP_SNAPSHOT_KEY,
     );
     expect(savedSnapshot).toContain(map.id);
+    expect(JSON.parse(savedSnapshot ?? "{}").map.mode).toBe("build");
 
     fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
@@ -687,7 +689,13 @@ describe("CareerTree evidence-first onboarding", () => {
     );
 
     expect(
-      await screen.findByText("Senior Data Scientist"),
+      (await screen.findAllByText("Senior Data Scientist")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("tab", { name: "Build My Path" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("region", { name: "Build path editor" }),
     ).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(

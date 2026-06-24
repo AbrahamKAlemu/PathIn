@@ -500,6 +500,12 @@ export function CareerTree() {
       storage = "browser";
     }
 
+    // The backend mode describes generation; the snapshot also restores the
+    // Explore/Build workspace the user was viewing when they saved.
+    saved = {
+      ...saved,
+      mode: map.mode ?? saved.mode,
+    };
     writeSavedMapSnapshot(saved, savedAt);
     setSavedMapAvailable(true);
     setCareerMap(saved);
