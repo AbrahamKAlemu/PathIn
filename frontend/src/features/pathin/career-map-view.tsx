@@ -290,7 +290,7 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
       sourceRecord: {
         id: "profile-interests",
         kind: "profile",
-        label: "Confirmed Path[IN] interests",
+        label: "Confirmed PathIn interests",
       },
     },
     {
@@ -356,7 +356,7 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
       label: conciseExperienceLabel(priorExperience),
       eyebrow: "Prior experience",
       summary:
-        `${priorExperience}. Path[IN] keeps this entry factual and does not infer unsupported responsibilities or seniority.`,
+        `${priorExperience}. PathIn keeps this entry factual and does not infer unsupported responsibilities or seniority.`,
       stage: "Earlier professional signal",
       workSetting: priorExperience,
       whyItFits: [
@@ -370,7 +370,7 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
       transferableSkills: skillValues.slice(0, 4),
       skillsToBuild: ["Specific accomplishment evidence"],
       preview:
-        "Path[IN] keeps this node factual until the user supplies more detail.",
+        "PathIn keeps this node factual until the user supplies more detail.",
       challenges: [
         "The current profile does not include enough detail to infer a title or achievement safely.",
       ],
@@ -524,7 +524,7 @@ function sanitizeCareerNode(node: CareerNode): CareerNode {
           label: compactMapText(
             node.sourceRecord.label,
             100,
-            "Path[IN] evidence",
+            "PathIn evidence",
           ),
         }
       : undefined,
@@ -1762,7 +1762,7 @@ export function CareerMapView({
       const message =
         error instanceof Error
           ? error.message
-          : "Path[IN] could not save this generated map.";
+          : "PathIn could not save this generated map.";
       setPersistenceError(message);
       setStatusMessage(message);
       return;
@@ -1885,7 +1885,7 @@ export function CareerMapView({
       setStatusMessage(
         error instanceof Error
           ? error.message
-          : "Path[IN] could not record this feedback.",
+          : "PathIn could not record this feedback.",
       );
     }
   }
@@ -1911,7 +1911,7 @@ export function CareerMapView({
           <PathInLogo />
           <div>
             <div className={styles.featureTitleLine}>
-              <h1>Path[IN]</h1>
+              <h1>PathIn</h1>
               <span className={styles.betaBadge}>Beta</span>
             </div>
             <p>
@@ -2810,7 +2810,7 @@ export function CareerMapView({
             <div className={styles.feedbackHeading}>
               <div>
                 <p>Recommendation feedback</p>
-                <h2 id="pathin-feedback-title">What should Path[IN] review?</h2>
+                <h2 id="pathin-feedback-title">What should PathIn review?</h2>
               </div>
               <button
                 aria-label="Close feedback dialog"
@@ -2842,7 +2842,7 @@ export function CareerMapView({
               </button>
             </div>
             <p className={styles.feedbackPrivacy}>
-              Feedback is submitted to the Path[IN] backend with the map and
+              Feedback is submitted to the PathIn backend with the map and
               generation-version identifiers. It does not include raw PIT
               member histories.
             </p>

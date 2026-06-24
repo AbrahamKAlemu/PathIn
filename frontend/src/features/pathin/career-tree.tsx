@@ -244,7 +244,7 @@ export function CareerTree() {
       setUploadError(
         error instanceof Error
           ? error.message
-          : "Path[IN] could not read this resume.",
+          : "PathIn could not read this resume.",
       );
       if (fileInput.current) {
         fileInput.current.value = "";
@@ -314,7 +314,7 @@ export function CareerTree() {
       setLinkedinError(
         error instanceof Error
           ? error.message
-          : "Path[IN] could not read this LinkedIn export.",
+          : "PathIn could not read this LinkedIn export.",
       );
       if (linkedinInput.current) {
         linkedinInput.current.value = "";
@@ -413,7 +413,7 @@ export function CareerTree() {
       setGenerationError(
         error instanceof PathInApiError || error instanceof Error
           ? error.message
-          : "Path[IN] could not generate a career path.",
+          : "PathIn could not generate a career path.",
       );
       setPhase("onboarding");
     }
@@ -458,7 +458,7 @@ export function CareerTree() {
       setGenerationError(
         error instanceof Error
           ? error.message
-          : "Path[IN] could not regenerate this map.",
+          : "PathIn could not regenerate this map.",
       );
       setPhase("map");
     }
@@ -486,7 +486,7 @@ export function CareerTree() {
       setGenerationError(
         error instanceof Error
           ? error.message
-          : "Path[IN] could not build this destination.",
+          : "PathIn could not build this destination.",
       );
       setPhase("map");
     }
@@ -780,7 +780,7 @@ function ConnectedProfileCard({
           <span />
           <div>
             <strong>Loading authorized profile</strong>
-            <small>Checking enabled Path[IN] evidence</small>
+            <small>Checking enabled PathIn evidence</small>
           </div>
         </div>
       ) : profile?.pathinEvidence ? (

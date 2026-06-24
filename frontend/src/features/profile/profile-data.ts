@@ -349,7 +349,7 @@ export const DEFAULT_CURRENT_PROFILE: CurrentProfile = {
     authorized: true,
     scraped: false,
     description:
-      "Profile facts supplied by the user for this Path[IN] prototype. No LinkedIn credentials or scraping are used.",
+      "Profile facts supplied by the user for this PathIn prototype. No LinkedIn credentials or scraping are used.",
   },
   schemaVersion: "pathin-current-profile-1.0",
   updatedAt: "2026-06-23T00:00:00+00:00",
@@ -365,6 +365,6 @@ export const DEFAULT_CURRENT_PROFILE: CurrentProfile = {
     source: "linkedin",
     sourceLabel: "User-authorized LinkedIn-style profile",
     privacy:
-      "Only enabled categories are sent to Path[IN]. Analytics, viewer suggestions, and social recommendations are never used for ranking.",
+      "Only enabled categories are sent to PathIn. Analytics, viewer suggestions, and social recommendations are never used for ranking.",
   },
 };

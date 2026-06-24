@@ -306,7 +306,7 @@ function skillNode(
     sourceRecord: {
       id: `prototype-${id}`,
       kind: "prototype",
-      label: "Path[IN] role and skill taxonomy",
+      label: "PathIn role and skill taxonomy",
     },
   };
 }
@@ -459,7 +459,7 @@ export function createCareerMap(
         "Portfolio storytelling",
       ],
       preview:
-        "Path[IN] uses this editable profile snapshot as the starting point for each possible route.",
+        "PathIn uses this editable profile snapshot as the starting point for each possible route.",
       challenges: [
         "The current profile does not yet declare one target career.",
         "Some recommendations rely on broad technical signals rather than a long job history.",
@@ -560,7 +560,7 @@ export function createCareerMap(
       sourceRecord: {
         id: "prototype-data-project",
         kind: "prototype",
-        label: "Path[IN] evidence-building recommendation",
+        label: "PathIn evidence-building recommendation",
       },
     },
     {
@@ -593,7 +593,7 @@ export function createCareerMap(
       sourceRecord: {
         id: "prototype-product-sprint",
         kind: "prototype",
-        label: "Path[IN] evidence-building recommendation",
+        label: "PathIn evidence-building recommendation",
       },
     },
     {
@@ -626,7 +626,7 @@ export function createCareerMap(
       sourceRecord: {
         id: "prototype-ux-case-study",
         kind: "prototype",
-        label: "Path[IN] evidence-building recommendation",
+        label: "PathIn evidence-building recommendation",
       },
     },
     {
@@ -659,7 +659,7 @@ export function createCareerMap(
       sourceRecord: {
         id: "prototype-feature-lead",
         kind: "prototype",
-        label: "Path[IN] adjacent-role recommendation",
+        label: "PathIn adjacent-role recommendation",
       },
     },
     roleNode({

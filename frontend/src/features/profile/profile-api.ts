@@ -19,7 +19,7 @@ async function parseProfileResponse(response: Response) {
       };
     };
     throw new Error(
-      errorPayload.error?.message ?? "Path[IN] could not load this profile.",
+      errorPayload.error?.message ?? "PathIn could not load this profile.",
     );
   }
   return payload as CurrentProfile;

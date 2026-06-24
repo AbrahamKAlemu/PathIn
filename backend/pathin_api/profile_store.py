@@ -343,7 +343,7 @@ DEFAULT_CURRENT_PROFILE: dict[str, Any] = {
         "authorized": True,
         "scraped": False,
         "description": (
-            "Profile facts supplied by the user for this Path[IN] prototype. "
+            "Profile facts supplied by the user for this PathIn prototype. "
             "No LinkedIn credentials or scraping are used."
         ),
     },
@@ -586,7 +586,7 @@ def _with_pathin_evidence(profile: dict[str, Any]) -> dict[str, Any]:
         "source": "linkedin",
         "sourceLabel": "User-authorized LinkedIn-style profile",
         "privacy": (
-            "Only enabled categories are sent to Path[IN]. Analytics, viewer "
+            "Only enabled categories are sent to PathIn. Analytics, viewer "
             "suggestions, and social recommendations are never used for ranking."
         ),
     }

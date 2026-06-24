@@ -7,7 +7,7 @@ import { ProfilePage } from "@/features/profile/profile-page";
 export const metadata: Metadata = {
   title: "Winston Iskandar | LinkedIn",
   description:
-    "Winston Iskandar's LinkedIn-style profile and Path[IN] career evidence controls.",
+    "Winston Iskandar's LinkedIn-style profile and PathIn career evidence controls.",
 };
 
 export default function WinstonProfilePage() {

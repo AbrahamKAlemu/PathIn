@@ -1029,7 +1029,7 @@ class RecommendationEngine:
         if not candidate:
             raise ApiError(
                 "INVALID_DESTINATION",
-                "Choose a destination returned by the Path[IN] catalog.",
+                "Choose a destination returned by the PathIn catalog.",
                 details={"destinationId": role_id},
             )
         if self._excluded(candidate, profile, feedback or {}):
@@ -1158,7 +1158,7 @@ class RecommendationEngine:
         )
         map_data = {
             "id": map_id,
-            "name": "My Path[IN] career map",
+            "name": "My PathIn career map",
             "mode": mode,
             "disclaimer": (
                 "These are explainable possibilities based on enabled profile "
@@ -2302,7 +2302,7 @@ class RecommendationEngine:
                     if recommendation["catalogSource"] == "pit"
                     else (
                         f"Personalized from {recommendation['sourceBlend']}; "
-                        f"Path[IN] taxonomy {TAXONOMY_VERSION}"
+                        f"PathIn taxonomy {TAXONOMY_VERSION}"
                     )
                 ),
             },
@@ -2548,7 +2548,7 @@ class RecommendationEngine:
                 "label": (
                     "Aggregated PIT job family"
                     if bridge.get("market")
-                    else f"Path[IN] taxonomy {TAXONOMY_VERSION}"
+                    else f"PathIn taxonomy {TAXONOMY_VERSION}"
                 ),
             },
             **({"market": bridge["market"]} if bridge.get("market") else {}),
@@ -3019,7 +3019,7 @@ class RecommendationEngine:
             or "Resume-based career explorer"
         )
         return {
-            "name": profile.get("name") or "Path[IN] user",
+            "name": profile.get("name") or "PathIn user",
             "headline": headline,
             "location": (
                 profile["locationPreferences"][0]

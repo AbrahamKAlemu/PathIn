@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     template: "%s",
   },
   description:
-    "A LinkedIn-style prototype featuring Path[IN], an interactive career-path explorer.",
+    "A LinkedIn-style prototype featuring PathIn, an interactive career-path explorer.",
 };
 
 export default function RootLayout({

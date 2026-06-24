@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ProfileSidebar } from "./profile-sidebar";
 
 describe("ProfileSidebar", () => {
-  it("provides the dedicated Path[IN] Career Explorer entry point", () => {
+  it("provides the dedicated PathIn Career Explorer entry point", () => {
     render(<ProfileSidebar />);
 
     expect(

@@ -255,7 +255,7 @@ def test_current_profile_exposes_authorized_evidence_without_social_metrics(
         "authorized": True,
         "scraped": False,
         "description": (
-            "Profile facts supplied by the user for this Path[IN] prototype. "
+            "Profile facts supplied by the user for this PathIn prototype. "
             "No LinkedIn credentials or scraping are used."
         ),
     }
@@ -327,7 +327,7 @@ def test_current_profile_persists_across_service_restart(tmp_path) -> None:
     )
     first_service.update_current_profile(
         {
-            "headline": "Persistent Path[IN] profile",
+            "headline": "Persistent PathIn profile",
             "enabledCategories": {
                 "roles": True,
                 "skills": False,
@@ -342,7 +342,7 @@ def test_current_profile_persists_across_service_restart(tmp_path) -> None:
     )
     reopened = restarted_service.get_current_profile()
 
-    assert reopened["headline"] == "Persistent Path[IN] profile"
+    assert reopened["headline"] == "Persistent PathIn profile"
     assert reopened["enabledCategories"]["skills"] is False
 
 
@@ -1239,7 +1239,7 @@ def test_errors_use_consistent_contract(client: FlaskClient) -> None:
     assert response.get_json() == {
         "error": {
             "code": "INVALID_DESTINATION",
-            "message": "Choose a destination returned by the Path[IN] catalog.",
+            "message": "Choose a destination returned by the PathIn catalog.",
             "retryable": False,
             "details": {"destinationId": "astronaut"},
         }

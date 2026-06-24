@@ -54,7 +54,7 @@ describe("Header", () => {
     expect(within(notifications).getByText("9")).toBeInTheDocument();
   });
 
-  it("keeps Jobs separate from the Path[IN] Career Tree", () => {
+  it("keeps Jobs separate from the PathIn Career Tree", () => {
     render(<Header />);
 
     expect(document.querySelector('a[href="/career-tree"]')).toBeNull();
