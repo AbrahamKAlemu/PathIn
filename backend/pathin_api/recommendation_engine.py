@@ -2126,6 +2126,7 @@ class RecommendationEngine:
             *profile.get("exclusions", []),
             *_string_list(feedback.get("excludedRoles")),
             *_string_list(feedback.get("notForMeRoleIds")),
+            *_string_list(feedback.get("regeneratedFromRoleIds")),
         ]
         normalized_exclusions = {_normalized_text(value) for value in exclusions}
         role_keys = {

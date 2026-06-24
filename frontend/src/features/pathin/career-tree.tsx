@@ -28,6 +28,11 @@ import {
   submitCareerFeedback,
   type RegenerationAction,
 } from "./pathin-api";
+import {
+  readSavedMapSnapshot,
+  SAVED_MAP_ID_KEY,
+  writeSavedMapSnapshot,
+} from "./saved-map-storage";
 import type {
   CareerMapData,
   ParsedProfile,
@@ -38,7 +43,6 @@ import type {
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const SUPPORTED_FILE_EXTENSIONS = [".pdf", ".docx", ".txt"];
-const SAVED_MAP_ID_KEY = "pathin-generated-map-id";
 
 const profileCategories: ProfileCategory[] = [
   "education",
@@ -491,25 +495,64 @@ export function CareerTree() {
   async function saveMap(
     pinnedNodeIds: string[],
     dismissedNodeIds: string[],
-  ) {
+  ): Promise<{
+    savedAt: string;
+    storage: "backend_and_browser" | "browser";
+  }> {
     if (!careerMap) {
-      return;
+      throw new PathInApiError("There is no generated map to save.");
     }
-    const saved = await saveCareerMap(careerMap.id, {
+    const savedAt = new Date().toISOString();
+    let storage: "backend_and_browser" | "browser" = "backend_and_browser";
+    let saved: CareerMapData = {
+      ...careerMap,
       pinnedNodeIds,
       dismissedNodeIds,
-    });
+    };
+
+    try {
+      saved = await saveCareerMap(careerMap.id, {
+        pinnedNodeIds,
+        dismissedNodeIds,
+      });
+    } catch {
+      storage = "browser";
+    }
+
+    writeSavedMapSnapshot(saved, savedAt);
     setCareerMap(saved);
-    window.localStorage.setItem(SAVED_MAP_ID_KEY, saved.id);
+    return { savedAt, storage };
   }
 
-  async function reopenSavedMap() {
-    const mapId = window.localStorage.getItem(SAVED_MAP_ID_KEY);
-    if (!mapId) {
+  async function reopenSavedMap(): Promise<{
+    source: "backend" | "browser";
+  }> {
+    const snapshot = readSavedMapSnapshot();
+    const mapId =
+      window.localStorage.getItem(SAVED_MAP_ID_KEY) ?? snapshot?.map.id;
+    if (!mapId && !snapshot) {
       throw new PathInApiError("No saved generated map was found.");
     }
 
-    const reopened = await reopenCareerMap(mapId);
+    let source: "backend" | "browser" = "backend";
+    let reopened: CareerMapData | null = null;
+    if (mapId) {
+      try {
+        reopened = await reopenCareerMap(mapId);
+      } catch {
+        reopened = snapshot?.map ?? null;
+        source = "browser";
+      }
+    } else {
+      reopened = snapshot?.map ?? null;
+      source = "browser";
+    }
+    if (!reopened) {
+      throw new PathInApiError(
+        "The saved map is no longer available. Save the current map again.",
+      );
+    }
+
     setCareerMap(reopened);
 
     if (reopened.profileSnapshot) {
@@ -539,6 +582,7 @@ export function CareerTree() {
     }
 
     setPhase("map");
+    return { source };
   }
 
   async function submitFeedback(

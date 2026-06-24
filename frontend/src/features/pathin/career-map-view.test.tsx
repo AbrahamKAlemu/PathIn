@@ -10,14 +10,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCareerMap } from "./career-map-data";
 import { CareerMapView } from "./career-map-view";
 
-function renderCareerMap() {
+function renderCareerMap({
+  onRegenerate = vi.fn().mockResolvedValue(undefined),
+  onReopenSaved = vi.fn().mockResolvedValue({ source: "browser" }),
+  onSave = vi.fn().mockResolvedValue({
+    savedAt: "2026-06-24T08:00:00.000Z",
+    storage: "browser",
+  }),
+}: {
+  onRegenerate?: ReturnType<typeof vi.fn>;
+  onReopenSaved?: ReturnType<typeof vi.fn>;
+  onSave?: ReturnType<typeof vi.fn>;
+} = {}) {
   return render(
     <CareerMapView
       initialMap={createCareerMap()}
       onBuildToward={vi.fn().mockResolvedValue(undefined)}
-      onRegenerate={vi.fn().mockResolvedValue(undefined)}
-      onReopenSaved={vi.fn().mockResolvedValue(undefined)}
-      onSave={vi.fn().mockResolvedValue(undefined)}
+      onRegenerate={onRegenerate}
+      onReopenSaved={onReopenSaved}
+      onSave={onSave}
       onStartOver={vi.fn()}
       onSubmitFeedback={vi.fn().mockResolvedValue(undefined)}
     />,
@@ -117,8 +128,17 @@ describe("CareerMapView navigation", () => {
     );
     const currentTop = Number.parseFloat(current.style.top);
     const profileTop = Number.parseFloat(profileFoundation.style.top);
+    const routeLabels = web.querySelectorAll<HTMLElement>(
+      "[data-route-label='true']",
+    );
 
     expect(profileTop).toBeLessThan(currentTop);
+    expect(routeLabels).toHaveLength(3);
+    for (const routeLabel of routeLabels) {
+      expect(Number.parseFloat(routeLabel.style.top)).toBeGreaterThan(
+        currentTop + 120,
+      );
+    }
     expect(destinations.length).toBeGreaterThan(0);
     for (const destination of destinations) {
       expect(Number.parseFloat(destination.style.top)).toBeGreaterThan(
@@ -127,7 +147,37 @@ describe("CareerMapView navigation", () => {
     }
     expect(
       screen.getByRole("heading", {
-        name: "Follow every route from top to bottom",
+        name: "See every suggested career and its route",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("merges shared Build My Path destinations into one final bubble", async () => {
+    renderCareerMap();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Build My Path" }));
+    fireEvent.click(screen.getByRole("button", { name: "Web" }));
+
+    const web = screen.getByRole("region", {
+      name: "Complete connected career path web",
+    });
+    await waitFor(() =>
+      expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledWith(
+        expect.objectContaining({ top: 0 }),
+      ),
+    );
+
+    expect(
+      within(web).getAllByRole("button", {
+        name: /Senior Data Scientist/,
+      }),
+    ).toHaveLength(1);
+    expect(
+      web.querySelectorAll("[data-route-label='true']"),
+    ).toHaveLength(2);
+    expect(
+      screen.getByText("2 routes to Senior Data Scientist", {
+        exact: false,
       }),
     ).toBeInTheDocument();
   });
@@ -192,14 +242,22 @@ describe("CareerMapView navigation", () => {
     const navigator = screen.getByRole("region", {
       name: "Focused career bubble navigator",
     });
-    expect(screen.getByText(/Route 1 of 3\./)).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /Switch right to Discovery-First route at Your current standing/,
-      }),
-    );
+    expect(screen.getByText(/Career 1 of 3/)).toBeInTheDocument();
+    const rightRouteButton = screen.getByRole("button", {
+      name: /Switch right to Product Manager career at Your current standing/,
+    });
+    fireEvent.click(rightRouteButton);
 
-    expect(screen.getByText(/Route 2 of 3\./)).toBeInTheDocument();
+    expect(navigator).toHaveAttribute("aria-busy", "true");
+    expect(navigator).toHaveAttribute("data-transition-direction", "right");
+    expect(navigator).toHaveAttribute("data-transition-phase", "exit");
+    expect(rightRouteButton).toHaveAttribute("data-active", "true");
+    expect(rightRouteButton).toBeDisabled();
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
+    expect(screen.getByText(/Career 2 of 3/)).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: /Your current standing, focused node/,
@@ -215,17 +273,64 @@ describe("CareerMapView navigation", () => {
       () => expect(navigator).toHaveAttribute("aria-busy", "false"),
       { timeout: 1_200 },
     );
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: /Switch left to Project-first route at Machine Learning Fundamentals/,
-      }),
-    );
+    const leftRouteButton = screen.getByRole("button", {
+      name: /Switch left to Senior Data Scientist career at Machine Learning Fundamentals/,
+    });
+    fireEvent.click(leftRouteButton);
 
+    expect(navigator).toHaveAttribute("data-transition-direction", "left");
+    expect(leftRouteButton).toHaveAttribute("data-active", "true");
+    await waitFor(
+      () => expect(navigator).toHaveAttribute("aria-busy", "false"),
+      { timeout: 1_200 },
+    );
     expect(
       screen.getByRole("button", {
         name: /Machine Learning Fundamentals, focused node/,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Route 1 of 3\./)).toBeInTheDocument();
+    expect(screen.getByText(/Career 1 of 3/)).toBeInTheDocument();
+  });
+
+  it("requests a new backend set when Regenerate is clicked", async () => {
+    const onRegenerate = vi.fn().mockResolvedValue(undefined);
+    renderCareerMap({ onRegenerate });
+
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+
+    await waitFor(() =>
+      expect(onRegenerate).toHaveBeenCalledWith("regenerate", {
+        dismissedNodeIds: [],
+        pinnedNodeIds: [],
+      }),
+    );
+  });
+
+  it("shows where a saved path is stored and reopens it", async () => {
+    const onReopenSaved = vi.fn().mockResolvedValue({ source: "browser" });
+    const onSave = vi.fn().mockResolvedValue({
+      savedAt: "2026-06-24T08:00:00.000Z",
+      storage: "browser",
+    });
+    renderCareerMap({ onReopenSaved, onSave });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save path" }));
+
+    expect(
+      await screen.findByText("This path is saved"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Stored in this browser so it survives backend restarts/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Saved paths/ }),
+    ).toHaveTextContent("1");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open saved path" }),
+    );
+    await waitFor(() => expect(onReopenSaved).toHaveBeenCalledTimes(1));
   });
 });

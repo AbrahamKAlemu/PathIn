@@ -1626,6 +1626,104 @@
   color: #216635;
 }
 
+.savedCount {
+  align-items: center;
+  background: var(--blue);
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 9px;
+  height: 17px;
+  justify-content: center;
+  min-width: 17px;
+  padding-inline: 4px;
+}
+
+.savedPathBanner {
+  align-items: center;
+  background: #f4f9ff;
+  border: 1px solid #b8d4ef;
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin-bottom: 12px;
+  padding: 10px 13px;
+}
+
+.savedPathBanner[data-current="true"] {
+  background: #f2faf4;
+  border-color: #a9cfb2;
+}
+
+.savedPathIcon {
+  align-items: center;
+  background: #e2f0ff;
+  border-radius: 50%;
+  color: var(--blue);
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.savedPathBanner[data-current="true"] .savedPathIcon {
+  background: #dff1e3;
+  color: #28733b;
+}
+
+.savedPathIcon svg {
+  height: 17px;
+  width: 17px;
+}
+
+.savedPathBanner strong,
+.savedPathBanner span {
+  display: block;
+}
+
+.savedPathBanner strong {
+  font-size: 12px;
+}
+
+.savedPathBanner div > span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.savedPathBanner button {
+  background: #ffffff;
+  border: 1px solid var(--blue);
+  border-radius: 999px;
+  color: var(--blue);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 750;
+  min-height: 32px;
+  padding-inline: 12px;
+}
+
+.persistenceError {
+  align-items: center;
+  background: #fff7f6;
+  border: 1px solid #d7a49f;
+  border-radius: 10px;
+  color: #7b352d;
+  display: flex;
+  font-size: 11px;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+}
+
+.persistenceError svg {
+  flex: 0 0 auto;
+  height: 16px;
+  width: 16px;
+}
+
 .workspace {
   align-items: start;
   display: block;
@@ -2329,14 +2427,46 @@
   animation: pathinRoutePulseDown 570ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.focusNavigator[data-transitioning="true"][data-transition-direction="left"]::after,
+.focusNavigator[data-transitioning="true"][data-transition-direction="right"]::after {
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(10, 102, 194, 0.5) 20%,
+    #ffffff 48%,
+    rgba(10, 102, 194, 0.92) 54%,
+    rgba(10, 102, 194, 0.34) 78%,
+    transparent
+  );
+  height: 6px;
+  top: 50%;
+  width: 132px;
+}
+
+.focusNavigator[data-transitioning="true"][data-transition-direction="left"]::after {
+  animation: pathinRoutePulseLeft 570ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.focusNavigator[data-transitioning="true"][data-transition-direction="right"]::after {
+  animation: pathinRoutePulseRight 570ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .focusNavigator[data-transitioning="true"] .focusPreviewStack,
-.focusNavigator[data-transitioning="true"] .focusCenterRow {
+.focusNavigator[data-transitioning="true"] .focusCenterRow,
+.focusNavigator[data-transitioning="true"][data-transition-direction="left"]
+  .careerGoals,
+.focusNavigator[data-transitioning="true"][data-transition-direction="right"]
+  .careerGoals {
   pointer-events: none;
   will-change: filter, opacity, transform;
 }
 
 .focusNavigator[data-transition-phase="exit"] .focusPreviewStack,
-.focusNavigator[data-transition-phase="exit"] .focusCenterRow {
+.focusNavigator[data-transition-phase="exit"] .focusCenterRow,
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="left"]
+  .careerGoals,
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="right"]
+  .careerGoals {
   animation-duration: 130ms;
   animation-fill-mode: both;
   animation-timing-function: cubic-bezier(0.55, 0, 0.85, 0.45);
@@ -2356,6 +2486,24 @@
   animation-name: pathinFocusExitPrevious;
 }
 
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="left"]
+  .focusPreviewStack,
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="left"]
+  .focusCenterRow,
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="left"]
+  .careerGoals {
+  animation-name: pathinFocusExitLeft;
+}
+
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="right"]
+  .focusPreviewStack,
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="right"]
+  .focusCenterRow,
+.focusNavigator[data-transition-phase="exit"][data-transition-direction="right"]
+  .careerGoals {
+  animation-name: pathinFocusExitRight;
+}
+
 .focusNavigator[data-transition-phase="exit"][data-transition-direction="next"]
   .focusCenterRow,
 .focusNavigator[data-transition-phase="exit"][data-transition-direction="previous"]
@@ -2371,7 +2519,11 @@
 }
 
 .focusNavigator[data-transition-phase="enter"] .focusPreviewStack,
-.focusNavigator[data-transition-phase="enter"] .focusCenterRow {
+.focusNavigator[data-transition-phase="enter"] .focusCenterRow,
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="left"]
+  .careerGoals,
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="right"]
+  .careerGoals {
   animation-duration: 400ms;
   animation-fill-mode: both;
   animation-timing-function: cubic-bezier(0.16, 1.18, 0.32, 1);
@@ -2389,6 +2541,24 @@
 .focusNavigator[data-transition-phase="enter"][data-transition-direction="previous"]
   .focusCenterRow {
   animation-name: pathinFocusEnterPrevious;
+}
+
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="left"]
+  .focusPreviewStack,
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="left"]
+  .focusCenterRow,
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="left"]
+  .careerGoals {
+  animation-name: pathinFocusEnterLeft;
+}
+
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="right"]
+  .focusPreviewStack,
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="right"]
+  .focusCenterRow,
+.focusNavigator[data-transition-phase="enter"][data-transition-direction="right"]
+  .careerGoals {
+  animation-name: pathinFocusEnterRight;
 }
 
 .focusNavigator[data-transition-phase="enter"][data-transition-direction="next"]
@@ -2698,13 +2868,41 @@
   grid-template-columns: 18px minmax(0, 1fr);
   justify-content: center;
   min-height: 94px;
+  overflow: hidden;
   padding: 10px;
+  position: relative;
   text-align: right;
   transition:
     border-color 140ms ease,
     box-shadow 140ms ease,
     transform 140ms ease;
   width: 100%;
+}
+
+.horizontalRoute::after {
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.98) 0 12%,
+    rgba(10, 102, 194, 0.62) 18%,
+    rgba(10, 102, 194, 0.16) 48%,
+    transparent 72%
+  );
+  content: "";
+  height: 38px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%) scale(0.2);
+  width: 38px;
+}
+
+.horizontalRoute[data-direction="left"]::after {
+  left: -6px;
+}
+
+.horizontalRoute[data-direction="right"]::after {
+  right: -6px;
 }
 
 .horizontalRoute[data-direction="right"] {
@@ -2729,10 +2927,46 @@
   opacity: 0.64;
 }
 
+.horizontalRoute[data-active="true"],
+.horizontalRoute[data-active="true"]:disabled {
+  background: #edf6ff;
+  border-color: var(--blue);
+  border-style: solid;
+  box-shadow:
+    0 8px 24px rgba(10, 102, 194, 0.22),
+    0 0 0 5px rgba(10, 102, 194, 0.1);
+  color: var(--blue-dark);
+  cursor: progress;
+  opacity: 1;
+}
+
+.horizontalRoute[data-active="true"][data-direction="left"] {
+  animation: pathinHorizontalButtonLeft 180ms
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.horizontalRoute[data-active="true"][data-direction="right"] {
+  animation: pathinHorizontalButtonRight 180ms
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.horizontalRoute[data-active="true"]::after {
+  animation: pathinHorizontalSpark 300ms cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+}
+
 .horizontalRoute > svg {
   align-self: center;
   height: 18px;
   width: 18px;
+}
+
+.horizontalRoute[data-active="true"][data-direction="left"] > svg {
+  animation: pathinArrowLaunchLeft 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.horizontalRoute[data-active="true"][data-direction="right"] > svg {
+  animation: pathinArrowLaunchRight 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .horizontalRouteCopy {
@@ -3077,14 +3311,45 @@
 .webPathLabel {
   background: #ffffff;
   border: 1px solid #b9cad8;
-  border-radius: 999px;
+  border-radius: 12px;
+  box-shadow: 0 5px 14px rgba(33, 65, 92, 0.1);
   color: #506170;
-  font-size: 9px;
-  font-weight: 800;
-  padding: 5px 9px;
+  min-height: 54px;
+  padding: 7px 11px;
   position: absolute;
+  text-align: center;
   transform: translate(-50%, -50%);
+  width: 204px;
+  z-index: 3;
+}
+
+.webPathLabel small,
+.webPathLabel strong,
+.webPathLabel span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.webPathLabel small {
+  color: var(--blue);
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.webPathLabel strong {
+  color: var(--ink);
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.webPathLabel span {
+  color: #657481;
+  font-size: 8px;
+  margin-top: 2px;
 }
 
 .webNode {
@@ -3217,6 +3482,15 @@
   gap: 4px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.destinationSelect > small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0;
+  max-width: 230px;
+  text-transform: none;
 }
 
 .selectWrap {
@@ -5412,6 +5686,40 @@
   }
 }
 
+@keyframes pathinRoutePulseLeft {
+  0% {
+    opacity: 0;
+    transform: translate(250px, -50%) scaleX(0.35);
+  }
+  16% {
+    opacity: 0.9;
+  }
+  72% {
+    opacity: 0.78;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-380px, -50%) scaleX(1);
+  }
+}
+
+@keyframes pathinRoutePulseRight {
+  0% {
+    opacity: 0;
+    transform: translate(-380px, -50%) scaleX(0.35);
+  }
+  16% {
+    opacity: 0.9;
+  }
+  72% {
+    opacity: 0.78;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(250px, -50%) scaleX(1);
+  }
+}
+
 @keyframes pathinFocusExitNext {
   0% {
     filter: blur(0);
@@ -5438,6 +5746,32 @@
   }
 }
 
+@keyframes pathinFocusExitLeft {
+  0% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    filter: blur(2px);
+    opacity: 0;
+    transform: translateX(32px) scale(0.965);
+  }
+}
+
+@keyframes pathinFocusExitRight {
+  0% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    filter: blur(2px);
+    opacity: 0;
+    transform: translateX(-32px) scale(0.965);
+  }
+}
+
 @keyframes pathinFocusEnterNext {
   0% {
     filter: blur(3px);
@@ -5456,6 +5790,48 @@
     filter: blur(0);
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pathinFocusEnterLeft {
+  0% {
+    filter: blur(3px);
+    opacity: 0;
+    transform: translateX(-42px) scale(0.94);
+  }
+  62% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateX(5px) scale(1.012);
+  }
+  82% {
+    transform: translateX(-2px) scale(0.998);
+  }
+  100% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes pathinFocusEnterRight {
+  0% {
+    filter: blur(3px);
+    opacity: 0;
+    transform: translateX(42px) scale(0.94);
+  }
+  62% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateX(-5px) scale(1.012);
+  }
+  82% {
+    transform: translateX(2px) scale(0.998);
+  }
+  100% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateX(0) scale(1);
   }
 }
 
@@ -5559,6 +5935,83 @@
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pathinArrowLaunchLeft {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  42% {
+    opacity: 0.22;
+    transform: translateX(-9px) scale(1.12);
+  }
+  43% {
+    opacity: 0;
+    transform: translateX(7px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes pathinArrowLaunchRight {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  42% {
+    opacity: 0.22;
+    transform: translateX(9px) scale(1.12);
+  }
+  43% {
+    opacity: 0;
+    transform: translateX(-7px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes pathinHorizontalButtonLeft {
+  0% {
+    transform: translateX(0) scale(1);
+  }
+  45% {
+    transform: translateX(-4px) scale(0.97);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes pathinHorizontalButtonRight {
+  0% {
+    transform: translateX(0) scale(1);
+  }
+  45% {
+    transform: translateX(4px) scale(0.97);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes pathinHorizontalSpark {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.2);
+  }
+  42% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) scale(1.8);
   }
 }
 
@@ -5790,6 +6243,15 @@
 @media (max-width: 620px) {
   .onboardingPage {
     padding: 8px 0 64px;
+  }
+
+  .savedPathBanner {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .savedPathBanner button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .onboardingHero,
@@ -6282,6 +6744,9 @@
   .detailContentMotion,
   .focusNavigator::after,
   .focusMoveButton,
+  .horizontalRoute,
+  .horizontalRoute > svg,
+  .horizontalRoute::after,
   .previousNext button svg,
   .focusMoveButton svg,
   .focusMoveButton::after {
@@ -6289,13 +6754,21 @@
   }
 
   .focusNavigator[data-transition-phase="exit"] .focusPreviewStack,
-  .focusNavigator[data-transition-phase="exit"] .focusCenterRow {
+  .focusNavigator[data-transition-phase="exit"] .focusCenterRow,
+  .focusNavigator[data-transition-phase="exit"][data-transition-direction="left"]
+    .careerGoals,
+  .focusNavigator[data-transition-phase="exit"][data-transition-direction="right"]
+    .careerGoals {
     animation: pathinFocusFadeOut 70ms ease both !important;
     filter: none !important;
   }
 
   .focusNavigator[data-transition-phase="enter"] .focusPreviewStack,
-  .focusNavigator[data-transition-phase="enter"] .focusCenterRow {
+  .focusNavigator[data-transition-phase="enter"] .focusCenterRow,
+  .focusNavigator[data-transition-phase="enter"][data-transition-direction="left"]
+    .careerGoals,
+  .focusNavigator[data-transition-phase="enter"][data-transition-direction="right"]
+    .careerGoals {
     animation: pathinFocusFadeIn 120ms ease both !important;
     filter: none !important;
   }
@@ -6312,6 +6785,7 @@
   .focusNode,
   .focusPreview,
   .focusMoveButton,
+  .horizontalRoute,
   .previousNext button,
   .switch,
   .switch span,

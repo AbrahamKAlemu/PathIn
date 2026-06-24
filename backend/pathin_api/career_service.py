@@ -378,7 +378,26 @@ class CareerService:
     ) -> None:
         action = str(payload.get("action", "")).strip()
         target_id = str(payload.get("targetId", "")).strip()
-        if not action or not target_id:
+        if not action:
+            return
+        if action == "regenerate":
+            pinned_destinations = {
+                str(node_id)
+                for node_id in _string_list(
+                    payload.get(
+                        "pinnedNodeIds",
+                        current_map.get("pinnedNodeIds", []),
+                    )
+                )
+                if str(node_id).startswith("dest-")
+            }
+            feedback["regeneratedFromRoleIds"] = [
+                destination_id
+                for destination_id in current_map.get("destinationIds", [])
+                if destination_id not in pinned_destinations
+            ]
+            return
+        if not target_id:
             return
         if action == "not_for_me":
             target_node = next(

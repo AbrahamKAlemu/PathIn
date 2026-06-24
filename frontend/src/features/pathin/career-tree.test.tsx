@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createCareerMap } from "./career-map-data";
 import { CareerTree } from "./career-tree";
+import { SAVED_MAP_SNAPSHOT_KEY } from "./saved-map-storage";
 
 function jsonResponse(
   payload: unknown,
@@ -220,7 +222,6 @@ describe("CareerTree evidence-first onboarding", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
-      .mockResolvedValueOnce(jsonResponse({ id: "normalized-profile" }))
       .mockImplementationOnce(() => new Promise<Response>(() => undefined));
     vi.stubGlobal("fetch", fetchMock);
     render(<CareerTree />);
@@ -242,9 +243,9 @@ describe("CareerTree evidence-first onboarding", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Creating recommendations from your LinkedIn profile",
     );
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
 
-    const normalizeBody = JSON.parse(
+    const generationBody = JSON.parse(
       String(fetchMock.mock.calls[1][1]?.body),
     ) as {
       profile: {
@@ -254,9 +255,9 @@ describe("CareerTree evidence-first onboarding", () => {
         };
       };
     };
-    expect(normalizeBody.profile.fields.roles.map((field) => field.source))
+    expect(generationBody.profile.fields.roles.map((field) => field.source))
       .toEqual(["linkedin"]);
-    expect(normalizeBody.profile.fields.skills.map((field) => field.source))
+    expect(generationBody.profile.fields.skills.map((field) => field.source))
       .toEqual(["linkedin"]);
   });
 
@@ -335,7 +336,6 @@ describe("CareerTree evidence-first onboarding", () => {
       .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
       .mockResolvedValueOnce(jsonResponse(parsedResumeResponse()))
       .mockResolvedValueOnce(jsonResponse(parsedLinkedinResponse()))
-      .mockResolvedValueOnce(jsonResponse({ id: "normalized-profile" }))
       .mockImplementationOnce(() => new Promise<Response>(() => undefined));
     vi.stubGlobal("fetch", fetchMock);
     render(<CareerTree />);
@@ -366,14 +366,14 @@ describe("CareerTree evidence-first onboarding", () => {
       name: "Generate career path",
     });
     fireEvent.click(generate);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
 
     const resumeBody = fetchMock.mock.calls[1][1]?.body as FormData;
     const linkedinBody = fetchMock.mock.calls[2][1]?.body as FormData;
     expect(resumeBody.get("source")).toBe("resume");
     expect(linkedinBody.get("source")).toBe("linkedin");
 
-    const normalizeBody = JSON.parse(
+    const generationBody = JSON.parse(
       String(fetchMock.mock.calls[3][1]?.body),
     ) as {
       profile: {
@@ -383,9 +383,9 @@ describe("CareerTree evidence-first onboarding", () => {
         };
       };
     };
-    expect(normalizeBody.profile.fields.roles.map((field) => field.source))
+    expect(generationBody.profile.fields.roles.map((field) => field.source))
       .toEqual(["resume", "linkedin", "linkedin"]);
-    expect(normalizeBody.profile.fields.skills.map((field) => field.source))
+    expect(generationBody.profile.fields.skills.map((field) => field.source))
       .toEqual(["resume", "linkedin", "linkedin"]);
     expect(screen.getByRole("status")).toHaveTextContent(
       "Creating recommendations from your resume and LinkedIn evidence",
@@ -397,7 +397,6 @@ describe("CareerTree evidence-first onboarding", () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
       .mockResolvedValueOnce(jsonResponse(parsedResumeResponse()))
-      .mockResolvedValueOnce(jsonResponse({ id: "normalized-profile" }))
       .mockResolvedValueOnce(
         jsonResponse(
           {
@@ -435,7 +434,7 @@ describe("CareerTree evidence-first onboarding", () => {
     expect(screen.getByText("resume.txt")).toBeInTheDocument();
     expect(generate).toBeEnabled();
     expect(screen.queryByText("Possible career goals")).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("removes connected-profile evidence from the backend request when disabled", async () => {
@@ -443,7 +442,6 @@ describe("CareerTree evidence-first onboarding", () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
       .mockResolvedValueOnce(jsonResponse(parsedResumeResponse()))
-      .mockResolvedValueOnce(jsonResponse({ id: "normalized-profile" }))
       .mockImplementationOnce(() => new Promise<Response>(() => undefined));
     vi.stubGlobal("fetch", fetchMock);
     render(<CareerTree />);
@@ -469,9 +467,9 @@ describe("CareerTree evidence-first onboarding", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Generate career path" }),
     );
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
 
-    const normalizeBody = JSON.parse(
+    const generationBody = JSON.parse(
       String(fetchMock.mock.calls[2][1]?.body),
     ) as {
       profile: {
@@ -481,9 +479,87 @@ describe("CareerTree evidence-first onboarding", () => {
         };
       };
     };
-    expect(normalizeBody.profile.fields.roles.map((field) => field.source))
+    expect(generationBody.profile.fields.roles.map((field) => field.source))
       .toEqual(["resume"]);
-    expect(normalizeBody.profile.fields.skills.map((field) => field.source))
+    expect(generationBody.profile.fields.skills.map((field) => field.source))
       .toEqual(["resume"]);
+  });
+
+  it("reopens the browser snapshot when backend saved-map storage is unavailable", async () => {
+    const map = createCareerMap();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(currentProfileResponse()))
+      .mockResolvedValueOnce(jsonResponse(parsedResumeResponse()))
+      .mockResolvedValueOnce(jsonResponse(map, { status: 201 }))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: "SAVE_UNAVAILABLE",
+              message: "Persistent backend storage is unavailable.",
+            },
+          },
+          { ok: false, status: 503 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            error: {
+              code: "MAP_NOT_FOUND",
+              message: "The requested map was not found.",
+            },
+          },
+          { ok: false, status: 404 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(Date, "now")
+      .mockImplementationOnce(() => 0)
+      .mockImplementation(() => 4_000);
+    render(<CareerTree />);
+
+    fireEvent.change(screen.getByLabelText("Upload resume"), {
+      target: {
+        files: [
+          new File(["resume content"], "resume.txt", {
+            type: "text/plain",
+          }),
+        ],
+      },
+    });
+    await screen.findByText("resume.txt");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Generate career path" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Compare career directions one step at a time",
+      }, { timeout: 4_000 }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save path" }));
+
+    expect(
+      await screen.findByText("This path is saved"),
+    ).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(SAVED_MAP_SNAPSHOT_KEY),
+    ).toContain(map.id);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Saved paths/ }),
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Compare career directions one step at a time",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("The requested map was not found."),
+    ).not.toBeInTheDocument();
   });
 });

@@ -1108,6 +1108,30 @@ def test_saved_map_can_be_reopened_and_feedback_regenerates_backend_ranking(
     ]["notForMeRoleIds"]
 
 
+def test_regenerate_returns_a_new_destination_set(
+    client: FlaskClient,
+) -> None:
+    created = _explore(client, CONTRASTING_PROFILES["design"])
+
+    regenerated = client.post(
+        f"/api/v1/maps/{created['id']}/regenerate",
+        json={
+            "profile": CONTRASTING_PROFILES["design"],
+            "action": "regenerate",
+        },
+    )
+
+    assert regenerated.status_code == 201
+    payload = regenerated.get_json()
+    assert payload["id"] != created["id"]
+    assert set(payload["destinationIds"]).isdisjoint(
+        created["destinationIds"]
+    )
+    assert payload["generationConstraints"]["feedback"][
+        "regeneratedFromRoleIds"
+    ] == created["destinationIds"]
+
+
 def test_explicitly_saved_map_survives_service_restart(tmp_path) -> None:
     database_path = tmp_path / "saved-maps.sqlite3"
     first_service = CareerService(

@@ -30,10 +30,11 @@ import type {
 import styles from "./career-tree.module.css";
 
 type Direction = "previous" | "next";
+type HorizontalDirection = "left" | "right";
 type DetailMotion = Direction | "select";
 type CareerView = "focus" | "web";
 type FocusTransition = {
-  direction: Direction;
+  direction: Direction | HorizontalDirection;
   phase: "exit" | "enter";
 };
 
@@ -57,7 +58,15 @@ type WebLayout = {
   current: WebPlacement;
   placements: WebPlacement[];
   connections: WebConnection[];
-  pathLabels: Array<{ id: string; label: string; x: number; y: number }>;
+  pathLabels: Array<{
+    destinationId: string;
+    id: string;
+    label: string;
+    routeNumber: number;
+    shortLabel: string;
+    x: number;
+    y: number;
+  }>;
 };
 
 type CareerGoalOption = {
@@ -66,8 +75,18 @@ type CareerGoalOption = {
 };
 
 type HorizontalRouteOption = {
+  destination: CareerNode;
   node: CareerNode;
   path: CareerPath;
+};
+
+type SaveMapResult = {
+  savedAt: string;
+  storage: "backend_and_browser" | "browser";
+};
+
+type ReopenMapResult = {
+  source: "backend" | "browser";
 };
 
 type CareerMapViewProps = {
@@ -82,11 +101,11 @@ type CareerMapViewProps = {
       dismissedNodeIds?: string[];
     },
   ) => Promise<void>;
-  onReopenSaved: () => Promise<void>;
+  onReopenSaved: () => Promise<ReopenMapResult>;
   onSave: (
     pinnedNodeIds: string[],
     dismissedNodeIds: string[],
-  ) => Promise<void>;
+  ) => Promise<SaveMapResult>;
   onStartOver: () => void;
   onSubmitFeedback: (
     target: FeedbackTarget,
@@ -110,6 +129,8 @@ type SavedCareerState = {
   pinnedNodeIds: string[];
   dismissedNodeIds: string[];
   webZoom?: number;
+  savedAt: string;
+  storage: SaveMapResult["storage"];
 };
 
 type FeedbackTarget = {
@@ -121,10 +142,11 @@ type FeedbackTarget = {
 const SAVED_STATE_KEY = "pathin-career-tree-state";
 const WEB_NODE_SIZE = 104;
 const WEB_COLUMN_GAP = 248;
-const WEB_FUTURE_ROW_GAP = 164;
+const WEB_FUTURE_ROW_GAP = 210;
 const WEB_HISTORY_ROW_GAP = 142;
 const WEB_X_PADDING = 150;
 const WEB_Y_PADDING = 110;
+const WEB_ROUTE_LABEL_OFFSET = 105;
 const FOCUS_EXIT_DURATION_MS = 160;
 const FOCUS_ENTER_DURATION_MS = 460;
 const REDUCED_FOCUS_EXIT_DURATION_MS = 70;
@@ -791,6 +813,30 @@ function edgeKey(source: string, target: string) {
   return `${source}::${target}`;
 }
 
+function readSavedCareerState(): SavedCareerState | null {
+  const serialized = window.localStorage.getItem(SAVED_STATE_KEY);
+  if (!serialized) {
+    return null;
+  }
+  try {
+    return JSON.parse(serialized) as SavedCareerState;
+  } catch {
+    window.localStorage.removeItem(SAVED_STATE_KEY);
+    return null;
+  }
+}
+
+function savedTimeLabel(value: string) {
+  const savedAt = new Date(value);
+  if (Number.isNaN(savedAt.getTime())) {
+    return "recently";
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(savedAt);
+}
+
 function calculateWebLayout(paths: CareerPath[]): WebLayout {
   const pathCount = Math.max(paths.length, 1);
   const futureDepth = Math.max(
@@ -799,7 +845,7 @@ function calculateWebLayout(paths: CareerPath[]): WebLayout {
   );
   const width = Math.max(
     980,
-    WEB_X_PADDING * 2 + (pathCount - 1) * WEB_COLUMN_GAP + WEB_NODE_SIZE,
+    WEB_X_PADDING * 2 + pathCount * WEB_COLUMN_GAP,
   );
   const currentX = width / 2;
   const currentY =
@@ -818,31 +864,71 @@ function calculateWebLayout(paths: CareerPath[]): WebLayout {
   const placements: WebPlacement[] = [current];
   const connections: WebConnection[] = [];
   const pathLabels: WebLayout["pathLabels"] = [];
+  const columnStartX =
+    currentX - ((pathCount - 1) * WEB_COLUMN_GAP) / 2;
+  const pathColumns = paths.map(
+    (_path, pathIndex) => columnStartX + pathIndex * WEB_COLUMN_GAP,
+  );
+  const destinationGroups = new Map<
+    string,
+    { depths: number[]; pathIndexes: number[] }
+  >();
+  paths.forEach((path, pathIndex) => {
+    const current = destinationGroups.get(path.destinationId) ?? {
+      depths: [],
+      pathIndexes: [],
+    };
+    current.depths.push(Math.max(1, path.nodeIds.length - 1));
+    current.pathIndexes.push(pathIndex);
+    destinationGroups.set(path.destinationId, current);
+  });
+  const sharedDestinationPlacements = new Map<string, WebPlacement>();
 
   paths.forEach((path, pathIndex) => {
-    const columnX =
-      pathCount === 1
-        ? currentX
-        : WEB_X_PADDING +
-          WEB_NODE_SIZE / 2 +
-          pathIndex * WEB_COLUMN_GAP;
+    const columnX = pathColumns[pathIndex] ?? currentX;
     pathLabels.push({
+      destinationId: path.destinationId,
       id: path.id,
-      label: path.shortLabel,
+      label: path.label,
+      routeNumber: pathIndex + 1,
+      shortLabel: path.shortLabel,
       x: columnX,
-      y: currentY + 62,
+      y: currentY + WEB_ROUTE_LABEL_OFFSET,
     });
 
     let source = current;
     path.nodeIds.slice(1).forEach((nodeId, stepIndex) => {
-      const placement: WebPlacement = {
-        key: `web-${path.id}-${nodeId}`,
-        nodeId,
-        pathId: path.id,
-        x: columnX,
-        y: currentY + (stepIndex + 1) * WEB_FUTURE_ROW_GAP,
-      };
-      placements.push(placement);
+      const isDestination = nodeId === path.destinationId;
+      let placement = isDestination
+        ? sharedDestinationPlacements.get(nodeId)
+        : undefined;
+      if (!placement) {
+        const destinationGroup = destinationGroups.get(nodeId);
+        const destinationX =
+          destinationGroup && isDestination
+            ? destinationGroup.pathIndexes.reduce(
+                (total, index) => total + pathColumns[index],
+                0,
+              ) / destinationGroup.pathIndexes.length
+            : columnX;
+        const destinationDepth =
+          destinationGroup && isDestination
+            ? Math.max(...destinationGroup.depths)
+            : stepIndex + 1;
+        placement = {
+          key: isDestination
+            ? `web-destination-${nodeId}`
+            : `web-${path.id}-${nodeId}`,
+          nodeId,
+          pathId: isDestination ? undefined : path.id,
+          x: destinationX,
+          y: currentY + destinationDepth * WEB_FUTURE_ROW_GAP,
+        };
+        placements.push(placement);
+        if (isDestination) {
+          sharedDestinationPlacements.set(nodeId, placement);
+        }
+      }
       connections.push({
         key: `web-edge-${path.id}-${source.nodeId}-${nodeId}-${stepIndex}`,
         source,
@@ -971,6 +1057,11 @@ export function CareerMapView({
   );
   const [lastDismissedPathIds, setLastDismissedPathIds] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+  const [hasSavedMap, setHasSavedMap] = useState(false);
+  const [savedAt, setSavedAt] = useState("");
+  const [savedStorage, setSavedStorage] =
+    useState<SaveMapResult["storage"]>("browser");
+  const [persistenceError, setPersistenceError] = useState("");
   const [feedbackTarget, setFeedbackTarget] =
     useState<FeedbackTarget | null>(null);
   const [statusMessage, setStatusMessage] = useState(
@@ -1127,6 +1218,10 @@ export function CareerMapView({
   const previousHorizontalRoute: HorizontalRouteOption | null =
     focusedPathIndex > 0
       ? {
+          destination:
+            nodeById.get(
+              activePaths[focusedPathIndex - 1].destinationId,
+            ) ?? nodeById.get("current")!,
           node: horizontalNodeForPath(activePaths[focusedPathIndex - 1]),
           path: activePaths[focusedPathIndex - 1],
         }
@@ -1134,6 +1229,10 @@ export function CareerMapView({
   const nextHorizontalRoute: HorizontalRouteOption | null =
     focusedPathIndex >= 0 && focusedPathIndex < activePaths.length - 1
       ? {
+          destination:
+            nodeById.get(
+              activePaths[focusedPathIndex + 1].destinationId,
+            ) ?? nodeById.get("current")!,
           node: horizontalNodeForPath(activePaths[focusedPathIndex + 1]),
           path: activePaths[focusedPathIndex + 1],
         }
@@ -1197,6 +1296,90 @@ export function CareerMapView({
     [activePaths],
   );
   const isFocusTransitioning = focusTransition !== null;
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const state = readSavedCareerState();
+      setHasSavedMap(Boolean(state));
+      setSavedAt(state?.savedAt ?? "");
+      setSavedStorage(state?.storage ?? "browser");
+      if (!state || state.mapId !== initialMap.id) {
+        setSaved(false);
+        return;
+      }
+      const versionsMatch =
+        state.dataVersion === initialMap.generation.dataVersion &&
+        state.modelVersion === initialMap.generation.modelVersion &&
+        state.promptVersion === initialMap.generation.promptVersion;
+      if (!versionsMatch) {
+        setSaved(false);
+        return;
+      }
+
+      const restoredMode =
+        state.mode === "build" || state.mode === "explore"
+          ? state.mode
+          : "explore";
+      const restoredDestination = initialMap.destinationIds.includes(
+        state.destinationId,
+      )
+        ? state.destinationId
+        : initialDestinationId;
+      const restoredActivePathIds =
+        restoredMode === "build"
+          ? initialMap.buildPathIdsByDestination[restoredDestination] ?? []
+          : state.explorePathIds.filter((pathId) => pathById.has(pathId));
+      const restoredPathId = restoredActivePathIds.includes(
+        state.focusedPathId ?? "",
+      )
+        ? state.focusedPathId
+        : restoredActivePathIds[0];
+      const restoredPath = restoredPathId
+        ? pathById.get(restoredPathId)
+        : undefined;
+      const restoredNodeId =
+        nodeById.has(state.selectedNodeId) &&
+        (PROFILE_NODE_ID_SET.has(state.selectedNodeId) ||
+          state.selectedNodeId === "current" ||
+          restoredPath?.nodeIds.includes(state.selectedNodeId))
+          ? state.selectedNodeId
+          : "current";
+
+      setMode(restoredMode);
+      setViewMode(state.viewMode === "web" ? "web" : "focus");
+      setDestinationId(restoredDestination);
+      setExplorePathIds(
+        restoredMode === "explore" && restoredActivePathIds.length > 0
+          ? restoredActivePathIds
+          : initialMap.explorePathIds,
+      );
+      setFocusedPathId(restoredPathId ?? initialFocusedPathId);
+      setSelectedNodeId(restoredNodeId);
+      setDetailSection(state.detailSection);
+      setDetailsOpen(Boolean(state.detailsOpen));
+      setPinnedNodeIds(
+        state.pinnedNodeIds.filter((nodeId) => nodeById.has(nodeId)),
+      );
+      setDismissedNodeIds(
+        state.dismissedNodeIds.filter((nodeId) => nodeById.has(nodeId)),
+      );
+      setWebZoom(Math.max(0.6, Math.min(1.2, state.webZoom ?? 0.9)));
+      setSaved(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    initialDestinationId,
+    initialFocusedPathId,
+    initialMap.buildPathIdsByDestination,
+    initialMap.destinationIds,
+    initialMap.explorePathIds,
+    initialMap.generation.dataVersion,
+    initialMap.generation.modelVersion,
+    initialMap.generation.promptVersion,
+    initialMap.id,
+    nodeById,
+    pathById,
+  ]);
 
   function cancelFocusTransition() {
     focusTransitionSequenceRef.current += 1;
@@ -1325,19 +1508,57 @@ export function CareerMapView({
 
   function switchHorizontalRoute(
     option: HorizontalRouteOption,
-    direction: "left" | "right",
+    direction: HorizontalDirection,
   ) {
-    cancelFocusTransition();
-    setFocusedPathId(option.path.id);
-    setDestinationId(option.path.destinationId);
-    setSelectedNodeId(option.node.id);
+    if (focusTransitionLockRef.current) {
+      return;
+    }
+
+    const transitionSequence = focusTransitionSequenceRef.current + 1;
+    const reduceMotion = prefersReducedMotion();
+    const exitDuration = reduceMotion
+      ? REDUCED_FOCUS_EXIT_DURATION_MS
+      : FOCUS_EXIT_DURATION_MS;
+    const enterDuration = reduceMotion
+      ? REDUCED_FOCUS_ENTER_DURATION_MS
+      : FOCUS_ENTER_DURATION_MS;
+
+    focusTransitionSequenceRef.current = transitionSequence;
+    focusTransitionLockRef.current = true;
     setDetailMotion("select");
+    setFocusTransition({ direction, phase: "exit" });
     setStatusMessage(
-      `Moved ${direction} to ${option.path.label}. ${option.node.label} is focused at the comparable route stage.`,
+      `Moving ${direction} to ${option.path.label}. ${option.node.label} will stay at the comparable route stage.`,
     );
-    window.requestAnimationFrame(() => {
-      focusedNodeRef.current?.focus({ preventScroll: true });
-    });
+
+    focusTransitionTimerRef.current = window.setTimeout(() => {
+      if (focusTransitionSequenceRef.current !== transitionSequence) {
+        return;
+      }
+
+      setFocusedPathId(option.path.id);
+      setDestinationId(option.path.destinationId);
+      setSelectedNodeId(option.node.id);
+      setFocusTransition({ direction, phase: "enter" });
+      setStatusMessage(
+        `Moved ${direction} to ${option.path.label}. ${option.node.label} is focused at the comparable route stage.`,
+      );
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          focusedNodeRef.current?.focus({ preventScroll: true });
+        });
+      });
+
+      focusTransitionTimerRef.current = window.setTimeout(() => {
+        if (focusTransitionSequenceRef.current !== transitionSequence) {
+          return;
+        }
+        focusTransitionLockRef.current = false;
+        focusTransitionTimerRef.current = null;
+        setFocusTransition(null);
+      }, enterDuration);
+    }, exitDuration);
   }
 
   function handleNodeKeyDown(
@@ -1533,14 +1754,17 @@ export function CareerMapView({
   }
 
   async function saveMap() {
+    setPersistenceError("");
+    let result: SaveMapResult;
     try {
-      await onSave(pinnedNodeIds, dismissedNodeIds);
+      result = await onSave(pinnedNodeIds, dismissedNodeIds);
     } catch (error) {
-      setStatusMessage(
+      const message =
         error instanceof Error
           ? error.message
-          : "Path[IN] could not save this generated map.",
-      );
+          : "Path[IN] could not save this generated map.";
+      setPersistenceError(message);
+      setStatusMessage(message);
       return;
     }
     const state: SavedCareerState = {
@@ -1559,21 +1783,37 @@ export function CareerMapView({
       pinnedNodeIds,
       dismissedNodeIds,
       webZoom,
+      savedAt: result.savedAt,
+      storage: result.storage,
     };
     window.localStorage.setItem(SAVED_STATE_KEY, JSON.stringify(state));
     setSaved(true);
-    setStatusMessage("Path saved and linked in this browser.");
+    setHasSavedMap(true);
+    setSavedAt(result.savedAt);
+    setSavedStorage(result.storage);
+    setStatusMessage(
+      result.storage === "backend_and_browser"
+        ? "Path saved in this browser with a server copy."
+        : "Path saved in this browser.",
+    );
   }
 
   async function reopenSavedMap() {
+    setPersistenceError("");
     try {
-      await onReopenSaved();
-    } catch (error) {
+      const result = await onReopenSaved();
       setStatusMessage(
+        result.source === "backend"
+          ? "Saved path reopened from the server copy."
+          : "Saved path reopened from this browser.",
+      );
+    } catch (error) {
+      const message =
         error instanceof Error
           ? error.message
-          : "The saved generated map could not be reopened.",
-      );
+          : "The saved generated map could not be reopened.";
+      setPersistenceError(message);
+      setStatusMessage(message);
     }
   }
 
@@ -1686,7 +1926,10 @@ export function CareerMapView({
             type="button"
           >
             <MiniIcon name="history" />
-            Reopen saved
+            Saved paths
+            {hasSavedMap ? (
+              <span className={styles.savedCount}>1</span>
+            ) : null}
           </button>
           <button
             className={styles.secondaryButton}
@@ -1714,6 +1957,41 @@ export function CareerMapView({
           </button>
         </div>
       </section>
+
+      {hasSavedMap ? (
+        <section
+          className={styles.savedPathBanner}
+          data-current={saved ? "true" : "false"}
+          role="status"
+        >
+          <span className={styles.savedPathIcon}>
+            <MiniIcon name={saved ? "check" : "bookmark"} />
+          </span>
+          <div>
+            <strong>
+              {saved ? "This path is saved" : "One saved path is available"}
+            </strong>
+            <span>
+              {savedAt
+                ? `Saved ${savedTimeLabel(savedAt)}. `
+                : ""}
+              {savedStorage === "backend_and_browser"
+                ? "Stored in this browser with a server copy."
+                : "Stored in this browser so it survives backend restarts."}
+            </span>
+          </div>
+          <button onClick={reopenSavedMap} type="button">
+            Open saved path
+          </button>
+        </section>
+      ) : null}
+
+      {persistenceError ? (
+        <div className={styles.persistenceError} role="alert">
+          <MiniIcon name="info" />
+          <span>{persistenceError}</span>
+        </div>
+      ) : null}
 
       {generationError ? (
         <div className={styles.mapErrorBanner} role="alert">
@@ -1884,19 +2162,27 @@ export function CareerMapView({
             <div className={styles.mapContext}>
               <div>
                 <p className={styles.mapEyebrow}>
-                  {viewMode === "focus"
-                    ? "Interactive bubble focus"
-                    : "Complete path web"}
+                  {mode === "explore"
+                    ? "Explore · Compare different careers"
+                    : "Build My Path · One goal, multiple routes"}
                 </p>
                 <h2>
-                  {viewMode === "focus"
-                    ? "Move through steps and compare routes"
-                    : "Follow every route from top to bottom"}
+                  {mode === "explore"
+                    ? viewMode === "focus"
+                      ? "Compare career directions one step at a time"
+                      : "See every suggested career and its route"
+                    : viewMode === "focus"
+                      ? `Build toward ${activeGoal?.destination.label ?? "one career goal"}`
+                      : `Compare ways to reach ${activeGoal?.destination.label ?? "your selected goal"}`}
                 </h2>
                 <p>
-                  {viewMode === "focus"
-                    ? "Use up and down for connected steps. Use the route cards on the left and right to compare another path at the same stage."
-                    : "Profile evidence starts above your current standing, then each possible route continues downward through practical steps to a destination."}
+                  {mode === "explore"
+                    ? viewMode === "focus"
+                      ? "Up and down move through one path. Left and right switch to a different career suggestion at the comparable stage."
+                      : "Each column is a different career destination. Profile evidence flows into your current standing, then branches into possible futures."
+                    : viewMode === "focus"
+                      ? "Up and down move through the selected path. Left and right compare another strategy for reaching the same destination."
+                      : "Each column is an alternate route to the same destination. Shared destinations merge into one final bubble."}
                 </p>
               </div>
 
@@ -1930,15 +2216,24 @@ export function CareerMapView({
                     </select>
                     <MiniIcon name="chevron-down" />
                   </span>
+                  <small>
+                    Route {Math.max(1, focusedPathIndex + 1)} of{" "}
+                    {activePaths.length} ·{" "}
+                    {focusedPath?.shortLabel ?? "Generated route"}
+                  </small>
                 </label>
               ) : (
                 <div className={styles.scenarioStatus}>
-                  <span>Horizontal routes</span>
-                  <strong>{focusedPath?.shortLabel ?? "Career route"}</strong>
+                  <span>Current career suggestion</span>
+                  <strong>
+                    {activeGoal?.destination.label ??
+                      focusedPath?.shortLabel ??
+                      "Career route"}
+                  </strong>
                   <small>
-                    Route {Math.max(1, focusedPathIndex + 1)} of{" "}
-                    {activePaths.length}. Use left and right to compare
-                    alternatives at the same stage.
+                    Career {Math.max(1, focusedPathIndex + 1)} of{" "}
+                    {activePaths.length} · {focusedPath?.shortLabel}. Left and
+                    right switch careers.
                   </small>
                 </div>
               )}
@@ -2025,9 +2320,14 @@ export function CareerMapView({
 
                   <div className={styles.focusCenterRow}>
                     <HorizontalRouteControl
+                      active={
+                        focusTransition?.direction === "left" &&
+                        focusTransition.phase === "exit"
+                      }
                       activeRouteIndex={Math.max(0, focusedPathIndex)}
                       direction="left"
                       disabled={isFocusTransitioning}
+                      mode={mode}
                       onSelect={switchHorizontalRoute}
                       option={previousHorizontalRoute}
                       routeCount={activePaths.length}
@@ -2064,9 +2364,14 @@ export function CareerMapView({
                     </button>
 
                     <HorizontalRouteControl
+                      active={
+                        focusTransition?.direction === "right" &&
+                        focusTransition.phase === "exit"
+                      }
                       activeRouteIndex={Math.max(0, focusedPathIndex)}
                       direction="right"
                       disabled={isFocusTransitioning}
+                      mode={mode}
                       onSelect={switchHorizontalRoute}
                       option={nextHorizontalRoute}
                       routeCount={activePaths.length}
@@ -2126,8 +2431,11 @@ export function CareerMapView({
                 <div className={styles.webToolbar}>
                   <span>
                     <MiniIcon name="branch" />
-                    {activePaths.length} routes · {webLayout.placements.length}{" "}
-                    visible bubbles
+                    {mode === "explore"
+                      ? `${activePaths.length} career suggestions`
+                      : `${activePaths.length} routes to ${activeGoal?.destination.label ?? "one destination"}`}
+                    {" · "}
+                    {webLayout.placements.length} visible bubbles
                   </span>
                   <div>
                     <button
@@ -2211,9 +2519,15 @@ export function CareerMapView({
                           </marker>
                         </defs>
                         {webLayout.connections.map((connection) => {
+                          const sourceRadius =
+                            connection.source.nodeId === "current" ? 59 : 52;
+                          const targetRadius =
+                            connection.target.nodeId === "current" ? 59 : 52;
+                          const sourceY = connection.source.y + sourceRadius;
+                          const targetY = connection.target.y - targetRadius;
                           const middleY =
-                            (connection.source.y + connection.target.y) / 2;
-                          const curve = `M ${connection.source.x} ${connection.source.y} C ${connection.source.x} ${middleY}, ${connection.target.x} ${middleY}, ${connection.target.x} ${connection.target.y}`;
+                            (sourceY + targetY) / 2;
+                          const curve = `M ${connection.source.x} ${sourceY} C ${connection.source.x} ${middleY}, ${connection.target.x} ${middleY}, ${connection.target.x} ${targetY}`;
                           return (
                             <path
                               d={curve}
@@ -2227,13 +2541,25 @@ export function CareerMapView({
                       {webLayout.pathLabels.map((pathLabel) => (
                         <span
                           className={styles.webPathLabel}
+                          data-route-label="true"
+                          data-route-number={pathLabel.routeNumber}
                           key={pathLabel.id}
                           style={{
                             left: pathLabel.x,
                             top: pathLabel.y,
                           }}
+                          title={pathLabel.label}
                         >
-                          {pathLabel.label}
+                          <small>
+                            {mode === "explore"
+                              ? `Career ${pathLabel.routeNumber}`
+                              : `Route ${pathLabel.routeNumber}`}
+                          </small>
+                          <strong>
+                            {nodeById.get(pathLabel.destinationId)?.label ??
+                              "Career destination"}
+                          </strong>
+                          <span>{pathLabel.shortLabel}</span>
                         </span>
                       ))}
 
@@ -2616,38 +2942,56 @@ function CareerGoals({
 }
 
 function HorizontalRouteControl({
+  active,
   activeRouteIndex,
   direction,
   disabled,
+  mode,
   onSelect,
   option,
   routeCount,
 }: {
+  active: boolean;
   activeRouteIndex: number;
-  direction: "left" | "right";
+  direction: HorizontalDirection;
   disabled: boolean;
+  mode: CareerMode;
   onSelect: (
     option: HorizontalRouteOption,
-    direction: "left" | "right",
+    direction: HorizontalDirection,
   ) => void;
   option: HorizontalRouteOption | null;
   routeCount: number;
 }) {
   const isLeft = direction === "left";
+  const noun = mode === "explore" ? "career" : "route";
   const boundaryLabel =
     routeCount <= 1
-      ? "Only route"
+      ? `Only ${noun}`
       : isLeft
-        ? "First route"
-        : "Last route";
+        ? `First ${noun}`
+        : `Last ${noun}`;
   const accessibleLabel = option
-    ? `Switch ${direction} to ${option.path.shortLabel} route at ${option.node.label}`
-    : `${boundaryLabel}; no ${isLeft ? "previous" : "next"} horizontal route`;
+    ? mode === "explore"
+      ? `Switch ${direction} to ${option.destination.label} career at ${option.node.label}`
+      : `Switch ${direction} to ${option.path.shortLabel} route at ${option.node.label}`
+    : `${boundaryLabel}; no ${isLeft ? "previous" : "next"} ${noun}`;
+  const primaryLabel =
+    mode === "explore"
+      ? option?.destination.label
+      : option?.path.shortLabel;
+  const secondaryLabel =
+    mode === "explore"
+      ? option
+        ? `${option.path.shortLabel} · ${option.node.label}`
+        : `${activeRouteIndex + 1} of ${routeCount}`
+      : option?.node.label ?? `${activeRouteIndex + 1} of ${routeCount}`;
 
   return (
     <button
       aria-label={accessibleLabel}
       className={styles.horizontalRoute}
+      data-active={active ? "true" : "false"}
       data-direction={direction}
       disabled={!option || disabled}
       onClick={() => (option ? onSelect(option, direction) : undefined)}
@@ -2655,11 +2999,16 @@ function HorizontalRouteControl({
     >
       {isLeft ? <MiniIcon name="arrow-left" /> : null}
       <span className={styles.horizontalRouteCopy}>
-        <span>{option ? `${isLeft ? "Previous" : "Next"} route` : boundaryLabel}</span>
-        <strong>{option?.path.shortLabel ?? `Route ${activeRouteIndex + 1}`}</strong>
-        <small>
-          {option?.node.label ?? `${activeRouteIndex + 1} of ${routeCount}`}
-        </small>
+        <span>
+          {option
+            ? `${isLeft ? "Previous" : "Next"} ${noun}`
+            : boundaryLabel}
+        </span>
+        <strong>
+          {primaryLabel ??
+            `${mode === "explore" ? "Career" : "Route"} ${activeRouteIndex + 1}`}
+        </strong>
+        <small>{secondaryLabel}</small>
       </span>
       {!isLeft ? <MiniIcon name="arrow-right" /> : null}
     </button>
