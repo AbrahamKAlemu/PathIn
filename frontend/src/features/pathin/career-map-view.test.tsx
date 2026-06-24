@@ -9,12 +9,32 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createCareerMap } from "./career-map-data";
 import { CareerMapView } from "./career-map-view";
+import type { RegenerationAction } from "./pathin-api";
 import type { CareerMapData } from "./types";
+
+type RegenerateHandler = (
+  action: RegenerationAction,
+  options?: {
+    targetId?: string;
+    pinnedNodeIds?: string[];
+    dismissedNodeIds?: string[];
+  },
+) => Promise<void>;
+
+type ReopenHandler = () => Promise<{
+  source: "backend" | "browser";
+}>;
+
+type SaveHandler = (
+  pinnedNodeIds: string[],
+  dismissedNodeIds: string[],
+) => Promise<{
+  savedAt: string;
+  storage: "backend_and_browser" | "browser";
+}>;
 
 function renderCareerMap({
   initialMap = createCareerMap(),
-  onBuildToward = vi.fn().mockResolvedValue(undefined),
-  onExplore = vi.fn().mockResolvedValue(undefined),
   onRegenerate = vi.fn().mockResolvedValue(undefined),
   onReopenSaved = vi.fn().mockResolvedValue({ source: "browser" }),
   onSave = vi.fn().mockResolvedValue({
@@ -23,17 +43,13 @@ function renderCareerMap({
   }),
 }: {
   initialMap?: CareerMapData;
-  onBuildToward?: ReturnType<typeof vi.fn>;
-  onExplore?: ReturnType<typeof vi.fn>;
-  onRegenerate?: ReturnType<typeof vi.fn>;
-  onReopenSaved?: ReturnType<typeof vi.fn>;
-  onSave?: ReturnType<typeof vi.fn>;
+  onRegenerate?: RegenerateHandler;
+  onReopenSaved?: ReopenHandler;
+  onSave?: SaveHandler;
 } = {}) {
   return render(
     <CareerMapView
       initialMap={initialMap}
-      onBuildToward={onBuildToward}
-      onExplore={onExplore}
       onRegenerate={onRegenerate}
       onReopenSaved={onReopenSaved}
       onSave={onSave}
@@ -164,15 +180,30 @@ describe("CareerMapView navigation", () => {
     ).toBeInTheDocument();
   });
 
-  it("asks Flask to build personalized routes for the selected career", async () => {
-    const onBuildToward = vi.fn().mockResolvedValue(undefined);
-    renderCareerMap({ onBuildToward });
+  it("switches between Explore and Build My Path without regenerating", () => {
+    const onRegenerate = vi.fn().mockResolvedValue(undefined);
+    renderCareerMap({ onRegenerate });
 
     fireEvent.click(screen.getByRole("tab", { name: "Build My Path" }));
 
-    await waitFor(() =>
-      expect(onBuildToward).toHaveBeenCalledWith("data-senior"),
+    expect(
+      screen.getByRole("tab", { name: "Build My Path" }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("region", { name: "Build path editor" }),
+    ).toBeInTheDocument();
+    expect(onRegenerate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Explore" }));
+
+    expect(screen.getByRole("tab", { name: "Explore" })).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
+    expect(
+      screen.queryByRole("region", { name: "Build path editor" }),
+    ).not.toBeInTheDocument();
+    expect(onRegenerate).not.toHaveBeenCalled();
   });
 
   it("renders a returned build map as one goal with multiple routes", async () => {
@@ -207,18 +238,157 @@ describe("CareerMapView navigation", () => {
     ).toBeInTheDocument();
   });
 
-  it("returns to Flask-powered career exploration from a build map", async () => {
-    const onExplore = vi.fn().mockResolvedValue(undefined);
+  it("returns to career exploration locally from a build map", () => {
     const initialMap: CareerMapData = {
       ...createCareerMap(),
       mode: "build",
       destinationIds: ["data-senior"],
     };
-    renderCareerMap({ initialMap, onExplore });
+    renderCareerMap({ initialMap });
 
     fireEvent.click(screen.getByRole("tab", { name: "Explore" }));
 
-    await waitFor(() => expect(onExplore).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("tab", { name: "Explore" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      screen.queryByRole("region", { name: "Build path editor" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reorders generated build steps with controls and drag-and-drop", () => {
+    renderCareerMap();
+    fireEvent.click(screen.getByRole("tab", { name: "Build My Path" }));
+
+    const editor = screen.getByRole("region", {
+      name: "Build path editor",
+    });
+    const stepLabels = () =>
+      within(editor)
+        .getAllByRole("button", { name: /^Select / })
+        .map((button) => button.getAttribute("aria-label"));
+
+    expect(stepLabels()).toEqual([
+      "Select Your current standing",
+      "Select Machine Learning Fundamentals",
+      "Select Applied data analysis",
+      "Select Applied data project",
+      "Select Data Scientist",
+      "Select Senior Data Scientist",
+    ]);
+
+    fireEvent.click(
+      within(editor).getByRole("button", {
+        name: "Move Applied data analysis earlier",
+      }),
+    );
+    expect(stepLabels().slice(0, 3)).toEqual([
+      "Select Your current standing",
+      "Select Applied data analysis",
+      "Select Machine Learning Fundamentals",
+    ]);
+
+    const dataTransfer = {
+      dropEffect: "move",
+      effectAllowed: "move",
+      getData: vi.fn(() => "course-ml"),
+      setData: vi.fn(),
+    };
+    const source = within(editor)
+      .getByRole("button", {
+        name: "Select Machine Learning Fundamentals",
+      })
+      .closest("article");
+    const target = within(editor)
+      .getByRole("button", { name: "Select Data Scientist" })
+      .closest("article");
+    expect(source).toHaveAttribute("draggable", "true");
+
+    fireEvent.dragStart(source!, { dataTransfer });
+    fireEvent.dragOver(target!, { dataTransfer });
+    fireEvent.drop(target!, { dataTransfer });
+
+    const reordered = stepLabels();
+    expect(reordered.indexOf("Select Machine Learning Fundamentals")).toBe(
+      reordered.indexOf("Select Data Scientist") + 1,
+    );
+  });
+
+  it("adds recommended nodes and custom steps to the active route", () => {
+    renderCareerMap();
+    fireEvent.click(screen.getByRole("tab", { name: "Build My Path" }));
+
+    const editor = screen.getByRole("region", {
+      name: "Build path editor",
+    });
+    fireEvent.click(
+      within(editor).getByRole("button", {
+        name: "Add Cloud Computing with AWS",
+      }),
+    );
+    expect(
+      within(editor).getByRole("button", {
+        name: "Select Cloud Computing with AWS",
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Add custom step" }),
+    );
+    fireEvent.change(
+      within(editor).getByLabelText("Step title"),
+      { target: { value: "Ship an observability dashboard" } },
+    );
+    fireEvent.change(
+      within(editor).getByLabelText("What this step proves"),
+      {
+        target: {
+          value: "Show production ownership with measurable service signals.",
+        },
+      },
+    );
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Add to route" }),
+    );
+
+    expect(
+      within(editor).getByRole("button", {
+        name: "Select Ship an observability dashboard",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("edits a generated node without changing the source map", () => {
+    const initialMap = createCareerMap();
+    renderCareerMap({ initialMap });
+    fireEvent.click(screen.getByRole("tab", { name: "Build My Path" }));
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Edit Machine Learning Fundamentals",
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Step title"), {
+      target: { value: "Build an ML evaluation pipeline" },
+    });
+    fireEvent.change(screen.getByLabelText("What this step proves"), {
+      target: {
+        value: "Evaluate a model and document the tradeoffs.",
+      },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save changes" }),
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "Select Build an ML evaluation pipeline",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      initialMap.nodes.find((node) => node.id === "course-ml")?.label,
+    ).toBe("Machine Learning Fundamentals");
   });
 
   it("builds live LinkedIn Learning searches from skills to build", () => {
@@ -436,13 +606,27 @@ describe("CareerMapView navigation", () => {
     );
   });
 
-  it("shows existing alternative steps without regenerating the map", () => {
+  it("shows existing alternative steps without regenerating the map", async () => {
     const onRegenerate = vi.fn().mockResolvedValue(undefined);
     renderCareerMap({ onRegenerate });
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: /Your current standing, focused node/,
+        name: "Focus Machine Learning Fundamentals, next step",
+      }),
+    );
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole("button", {
+            name: /Machine Learning Fundamentals, focused node/,
+          }),
+        ).toBeInTheDocument(),
+      { timeout: 1_200 },
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Machine Learning Fundamentals, focused node/,
       }),
     );
     fireEvent.click(
@@ -566,8 +750,6 @@ describe("CareerMapView navigation", () => {
     view.rerender(
       <CareerMapView
         initialMap={currentMap}
-        onBuildToward={vi.fn().mockResolvedValue(undefined)}
-        onExplore={vi.fn().mockResolvedValue(undefined)}
         onRegenerate={vi.fn().mockResolvedValue(undefined)}
         onReopenSaved={onReopenSaved}
         onSave={onSave}

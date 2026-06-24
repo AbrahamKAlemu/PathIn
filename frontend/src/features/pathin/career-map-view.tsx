@@ -3,6 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
+  type DragEvent as ReactDragEvent,
+  type FormEvent as ReactFormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -96,11 +98,22 @@ type LinkedInLearningRecommendation = {
   matchedSkill: string;
 };
 
+type NodeEdit = {
+  label: string;
+  summary: string;
+};
+
+type BuildSuggestion = {
+  id: string;
+  node: CareerNode;
+  reason: string;
+};
+
 type CareerMapViewProps = {
   initialMap: CareerMapData;
   generationError?: string;
-  onBuildToward: (destinationId: string) => Promise<void>;
-  onExplore: () => Promise<void>;
+  onBuildToward?: (destinationId: string) => Promise<void>;
+  onExplore?: () => Promise<void>;
   onRegenerate: (
     action: RegenerationAction,
     options?: {
@@ -1028,8 +1041,6 @@ function calculateWebLayout(paths: CareerPath[]): WebLayout {
 export function CareerMapView({
   initialMap,
   generationError,
-  onBuildToward,
-  onExplore,
   onRegenerate,
   onReopenSaved,
   onSave,
@@ -1047,15 +1058,36 @@ export function CareerMapView({
     () => createProfileNodes(initialMap),
     [initialMap],
   );
+  const [customNodes, setCustomNodes] = useState<Record<string, CareerNode>>(
+    {},
+  );
+  const [nodeEdits, setNodeEdits] = useState<Record<string, NodeEdit>>({});
+  const [pathNodeOverrides, setPathNodeOverrides] = useState<
+    Record<string, string[]>
+  >({});
   const nodeById = useMemo(
     () =>
       new Map(
-        [...initialMap.nodes, ...profileNodes].map((node) => {
-          const sanitizedNode = sanitizeCareerNode(node);
+        [
+          ...initialMap.nodes,
+          ...profileNodes,
+          ...Object.values(customNodes),
+        ].map((node) => {
+          const edit = nodeEdits[node.id];
+          const sanitizedNode = sanitizeCareerNode(
+            edit
+              ? {
+                  ...node,
+                  label: edit.label,
+                  summary: edit.summary,
+                  preview: edit.summary,
+                }
+              : node,
+          );
           return [sanitizedNode.id, sanitizedNode];
         }),
       ),
-    [initialMap.nodes, profileNodes],
+    [customNodes, initialMap.nodes, nodeEdits, profileNodes],
   );
   const edgeByKey = useMemo(
     () =>
@@ -1095,6 +1127,14 @@ export function CareerMapView({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [alternativeOptionsOpen, setAlternativeOptionsOpen] =
     useState(false);
+  const [draggedBuildNodeId, setDraggedBuildNodeId] =
+    useState<string | null>(null);
+  const [nodeEditorId, setNodeEditorId] = useState<string | null>(null);
+  const [nodeEditorLabel, setNodeEditorLabel] = useState("");
+  const [nodeEditorSummary, setNodeEditorSummary] = useState("");
+  const [customStepOpen, setCustomStepOpen] = useState(false);
+  const [customStepLabel, setCustomStepLabel] = useState("");
+  const [customStepSummary, setCustomStepSummary] = useState("");
   const [detailMotion, setDetailMotion] =
     useState<DetailMotion>("select");
   const [focusTransition, setFocusTransition] =
@@ -1132,6 +1172,10 @@ export function CareerMapView({
   const focusTransitionTimerRef = useRef<number | null>(null);
   const savedPanelRef = useRef<HTMLElement>(null);
   const explicitlySavedMapIdRef = useRef<string | null>(null);
+  const lastExplorePathIdRef = useRef(
+    initialMap.explorePathIds[0] ?? initialFocusedPathId,
+  );
+  const lastBuildPathByDestinationRef = useRef<Record<string, string>>({});
   const webViewportRef = useRef<HTMLDivElement>(null);
   const webDragState = useRef<{
     pointerId: number;
@@ -1168,9 +1212,11 @@ export function CareerMapView({
       .map((pathId) => pathById.get(pathId))
       .filter((path): path is CareerPath => Boolean(path))
       .map((path) => {
+        const editableNodeIds =
+          pathNodeOverrides[path.id] ?? path.nodeIds;
         return {
           ...path,
-          nodeIds: path.nodeIds.filter(
+          nodeIds: editableNodeIds.filter(
             (nodeId) =>
               !dismissedNodeIds.includes(nodeId) ||
               pinnedNodeIds.includes(nodeId) ||
@@ -1179,7 +1225,13 @@ export function CareerMapView({
           ),
         };
       });
-  }, [activePathIds, dismissedNodeIds, pathById, pinnedNodeIds]);
+  }, [
+    activePathIds,
+    dismissedNodeIds,
+    pathById,
+    pathNodeOverrides,
+    pinnedNodeIds,
+  ]);
 
   const selectedNode = nodeById.get(selectedNodeId) ?? nodeById.get("current")!;
   const profileInitials =
@@ -1254,6 +1306,112 @@ export function CareerMapView({
   const alternativeGoals = goalOptions.filter(
     (goal) => goal.destination.id !== activeGoal?.destination.id,
   );
+  const buildSuggestions = useMemo<BuildSuggestion[]>(() => {
+    if (mode !== "build" || !focusedPath) {
+      return [];
+    }
+
+    const suggestions: BuildSuggestion[] = [];
+    const currentNodeIds = new Set(focusedPath.nodeIds);
+    const currentLabels = new Set(
+      focusedPath.nodeIds
+        .map((nodeId) => nodeById.get(nodeId)?.label.toLowerCase())
+        .filter((label): label is string => Boolean(label)),
+    );
+    const routeIds =
+      initialMap.buildPathIdsByDestination[focusedPath.destinationId] ?? [];
+
+    for (const routeId of routeIds) {
+      if (routeId === focusedPath.id) {
+        continue;
+      }
+      const route = pathById.get(routeId);
+      if (!route) {
+        continue;
+      }
+      const routeNodeIds =
+        pathNodeOverrides[route.id] ?? route.nodeIds;
+      for (const nodeId of routeNodeIds.slice(1, -1)) {
+        const node = nodeById.get(nodeId);
+        if (
+          !node ||
+          currentNodeIds.has(node.id) ||
+          currentLabels.has(node.label.toLowerCase())
+        ) {
+          continue;
+        }
+        suggestions.push({
+          id: `existing-${node.id}`,
+          node,
+          reason: `From ${route.shortLabel}`,
+        });
+        currentLabels.add(node.label.toLowerCase());
+      }
+    }
+
+    const destination = nodeById.get(focusedPath.destinationId);
+    const skillGaps = uniqueDisplayValues([
+      ...(destination?.skillsToBuild ?? []),
+      ...(destination?.recommendation?.gaps ?? []),
+    ]);
+    for (const skill of skillGaps) {
+      const label = `Build ${skill}`;
+      if (currentLabels.has(label.toLowerCase())) {
+        continue;
+      }
+      const slug = skill
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 40);
+      const id = `suggested-${focusedPath.destinationId}-${slug || "skill"}`;
+      if (currentNodeIds.has(id)) {
+        continue;
+      }
+      suggestions.push({
+        id,
+        reason: `Closes the ${skill} gap`,
+        node: {
+          id,
+          type: "skill",
+          label,
+          eyebrow: "Recommended skill step",
+          summary: `Add reviewable evidence of ${skill} before targeting ${destination?.label ?? "this career goal"}.`,
+          stage: "Skill-building step",
+          workSetting: "Course, project, or current role",
+          whyItFits: [
+            `${skill} appears in the remaining gap between your profile and this goal.`,
+          ],
+          responsibilities: [
+            `Choose one concrete way to practice ${skill}.`,
+            "Produce an artifact or outcome that another person can review.",
+          ],
+          existingSkills: [],
+          transferableSkills: [],
+          skillsToBuild: [skill],
+          preview: `Build and document one concrete example of ${skill}.`,
+          challenges: [
+            "Keep the step specific enough to verify rather than listing the skill alone.",
+          ],
+          sourceRecord: {
+            id: `build-suggestion-${slug || "skill"}`,
+            kind: "generated",
+            label: "Generated from the selected destination skill gap",
+          },
+        },
+      });
+      currentLabels.add(label.toLowerCase());
+    }
+
+    return suggestions.slice(0, 4);
+  }, [
+    focusedPath,
+    initialMap.buildPathIdsByDestination,
+    mode,
+    nodeById,
+    pathById,
+    pathNodeOverrides,
+  ]);
   const focusSequence = useMemo(
     () => [
       ...PROFILE_NODE_IDS,
@@ -2018,54 +2176,362 @@ export function CareerMapView({
     );
   }
 
-  async function buildSelectedDestination() {
+  function showExploreMode() {
+    cancelFocusTransition();
+    if (mode === "explore") {
+      setStatusMessage("Explore is already showing your career options.");
+      return;
+    }
+
+    if (focusedPath) {
+      lastBuildPathByDestinationRef.current[focusedPath.destinationId] =
+        focusedPath.id;
+    }
+    const preferredPathId =
+      (lastExplorePathIdRef.current &&
+      initialMap.explorePathIds.includes(lastExplorePathIdRef.current)
+        ? lastExplorePathIdRef.current
+        : initialMap.explorePathIds.find(
+            (pathId) =>
+              pathById.get(pathId)?.destinationId === destinationId,
+          )) ?? initialMap.explorePathIds[0];
+    const preferredPath = preferredPathId
+      ? pathById.get(preferredPathId)
+      : undefined;
+    const preferredNodeIds = preferredPath
+      ? pathNodeOverrides[preferredPath.id] ?? preferredPath.nodeIds
+      : [];
+
+    setMode("explore");
+    if (preferredPath) {
+      setDestinationId(preferredPath.destinationId);
+      setFocusedPathId(preferredPath.id);
+    }
+    if (
+      !PROFILE_NODE_ID_SET.has(selectedNodeId) &&
+      selectedNodeId !== "current" &&
+      !preferredNodeIds.includes(selectedNodeId)
+    ) {
+      setSelectedNodeId("current");
+      setDetailsOpen(false);
+    }
+    setAlternativeOptionsOpen(false);
+    setStatusMessage(
+      "Explore restored instantly. Your Build My Path edits are still available.",
+    );
+  }
+
+  function showBuildMode(targetDestinationId?: string) {
+    cancelFocusTransition();
+    const targetId =
+      targetDestinationId ??
+      focusedPath?.destinationId ??
+      destinationId ??
+      initialDestinationId;
+    const routeIds =
+      initialMap.buildPathIdsByDestination[targetId] ?? [];
+    if (routeIds.length === 0) {
+      setStatusMessage(
+        "No generated build routes are available for this career goal.",
+      );
+      return;
+    }
+
+    if (mode === "explore" && focusedPath) {
+      lastExplorePathIdRef.current = focusedPath.id;
+    }
+    const preferredPathId =
+      (lastBuildPathByDestinationRef.current[targetId] &&
+      routeIds.includes(lastBuildPathByDestinationRef.current[targetId])
+        ? lastBuildPathByDestinationRef.current[targetId]
+        : focusedPath && routeIds.includes(focusedPath.id)
+          ? focusedPath.id
+          : routeIds[0]);
+    const preferredPath = pathById.get(preferredPathId);
+    const preferredNodeIds = preferredPath
+      ? pathNodeOverrides[preferredPath.id] ?? preferredPath.nodeIds
+      : [];
+
+    setMode("build");
+    setDestinationId(targetId);
+    setFocusedPathId(preferredPathId);
+    lastBuildPathByDestinationRef.current[targetId] = preferredPathId;
+    if (
+      !PROFILE_NODE_ID_SET.has(selectedNodeId) &&
+      selectedNodeId !== "current" &&
+      !preferredNodeIds.includes(selectedNodeId)
+    ) {
+      setSelectedNodeId("current");
+      setDetailsOpen(false);
+    }
+    setAlternativeOptionsOpen(false);
+    setStatusMessage(
+      `Build My Path opened instantly with ${routeIds.length} editable routes.`,
+    );
+  }
+
+  function buildSelectedDestination() {
     if (selectedNode.type !== "destination") {
       return;
     }
-    setStatusMessage(`Building two routes toward ${selectedNode.label}.`);
-    await onBuildToward(selectedNode.id);
+    showBuildMode(selectedNode.id);
+    setDetailsOpen(false);
   }
 
-  async function showExploreRecommendations() {
-    cancelFocusTransition();
-    if (mode === "explore") {
-      setFocusedPathId(explorePathIds[0] ?? "");
-      setSelectedNodeId("current");
-      setDetailsOpen(false);
-      setStatusMessage(
-        "Explore mode selected. Current standing is focused.",
-      );
+  function moveBuildNode(nodeId: string, offset: -1 | 1) {
+    if (!focusedPath) {
+      return;
+    }
+    const pathId = focusedPath.id;
+    const originalPath = pathById.get(pathId);
+    if (
+      !originalPath ||
+      nodeId === "current" ||
+      nodeId === originalPath.destinationId
+    ) {
       return;
     }
 
+    setPathNodeOverrides((current) => {
+      const nodeIds = [
+        ...(current[pathId] ?? originalPath.nodeIds),
+      ];
+      const index = nodeIds.indexOf(nodeId);
+      const nextIndex = index + offset;
+      if (index < 1 || nextIndex < 1 || nextIndex >= nodeIds.length - 1) {
+        return current;
+      }
+      [nodeIds[index], nodeIds[nextIndex]] = [
+        nodeIds[nextIndex],
+        nodeIds[index],
+      ];
+      return { ...current, [pathId]: nodeIds };
+    });
+    setSelectedNodeId(nodeId);
     setStatusMessage(
-      "Refreshing career suggestions from your profile evidence.",
+      `${nodeById.get(nodeId)?.label ?? "Step"} moved ${offset < 0 ? "earlier" : "later"} in this route.`,
     );
-    await onExplore();
   }
 
-  async function buildPersonalizedPath() {
-    cancelFocusTransition();
-    if (mode === "build") {
-      setFocusedPathId(activePaths[0]?.id ?? "");
-      setSelectedNodeId("current");
-      setDetailsOpen(false);
-      setStatusMessage(
-        `Build My Path selected. Showing personalized routes toward ${activeGoal?.destination.label ?? "your career goal"}.`,
-      );
+  function reorderBuildNode(sourceNodeId: string, targetNodeId: string) {
+    if (!focusedPath || sourceNodeId === targetNodeId) {
+      return;
+    }
+    const pathId = focusedPath.id;
+    const originalPath = pathById.get(pathId);
+    if (
+      !originalPath ||
+      sourceNodeId === "current" ||
+      sourceNodeId === originalPath.destinationId
+    ) {
       return;
     }
 
-    const targetId =
-      activeGoal?.destination.id ??
-      focusedPath?.destinationId ??
-      destinationId;
-    const targetLabel =
-      nodeById.get(targetId)?.label ?? "your selected career goal";
+    setPathNodeOverrides((current) => {
+      const nodeIds = [
+        ...(current[pathId] ?? originalPath.nodeIds),
+      ];
+      const sourceIndex = nodeIds.indexOf(sourceNodeId);
+      const originalTargetIndex = nodeIds.indexOf(targetNodeId);
+      if (sourceIndex < 1 || originalTargetIndex < 0) {
+        return current;
+      }
+
+      nodeIds.splice(sourceIndex, 1);
+      let targetIndex = nodeIds.indexOf(targetNodeId);
+      if (targetNodeId === "current") {
+        targetIndex = 1;
+      } else if (targetNodeId === originalPath.destinationId) {
+        targetIndex = nodeIds.length - 1;
+      } else if (
+        sourceIndex < originalTargetIndex &&
+        targetIndex < nodeIds.length - 1
+      ) {
+        targetIndex += 1;
+      }
+      targetIndex = Math.max(1, Math.min(targetIndex, nodeIds.length - 1));
+      nodeIds.splice(targetIndex, 0, sourceNodeId);
+      return { ...current, [pathId]: nodeIds };
+    });
+    setSelectedNodeId(sourceNodeId);
     setStatusMessage(
-      `Generating personalized routes toward ${targetLabel} from your profile evidence.`,
+      `${nodeById.get(sourceNodeId)?.label ?? "Step"} repositioned in this route.`,
     );
-    await onBuildToward(targetId);
+  }
+
+  function handleBuildDragStart(
+    event: ReactDragEvent<HTMLElement>,
+    nodeId: string,
+  ) {
+    setDraggedBuildNodeId(nodeId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", nodeId);
+  }
+
+  function handleBuildDrop(
+    event: ReactDragEvent<HTMLElement>,
+    targetNodeId: string,
+  ) {
+    event.preventDefault();
+    const sourceNodeId =
+      draggedBuildNodeId || event.dataTransfer.getData("text/plain");
+    if (sourceNodeId) {
+      reorderBuildNode(sourceNodeId, targetNodeId);
+    }
+    setDraggedBuildNodeId(null);
+  }
+
+  function removeBuildNode(nodeId: string) {
+    if (!focusedPath) {
+      return;
+    }
+    const originalPath = pathById.get(focusedPath.id);
+    if (
+      !originalPath ||
+      nodeId === "current" ||
+      nodeId === originalPath.destinationId
+    ) {
+      return;
+    }
+    setPathNodeOverrides((current) => ({
+      ...current,
+      [focusedPath.id]: (
+        current[focusedPath.id] ?? originalPath.nodeIds
+      ).filter((candidateId) => candidateId !== nodeId),
+    }));
+    if (selectedNodeId === nodeId) {
+      setSelectedNodeId("current");
+      setDetailsOpen(false);
+    }
+    setStatusMessage(
+      `${nodeById.get(nodeId)?.label ?? "Step"} removed from this route.`,
+    );
+  }
+
+  function resetFocusedRoute() {
+    if (!focusedPath || !pathNodeOverrides[focusedPath.id]) {
+      return;
+    }
+    setPathNodeOverrides((current) => {
+      const next = { ...current };
+      delete next[focusedPath.id];
+      return next;
+    });
+    setSelectedNodeId("current");
+    setDetailsOpen(false);
+    setStatusMessage("This route was reset to the Flask-generated version.");
+  }
+
+  function addBuildSuggestion(suggestion: BuildSuggestion) {
+    if (!focusedPath) {
+      return;
+    }
+    const originalPath = pathById.get(focusedPath.id);
+    if (!originalPath) {
+      return;
+    }
+    if (!nodeById.has(suggestion.node.id)) {
+      setCustomNodes((current) => ({
+        ...current,
+        [suggestion.node.id]: suggestion.node,
+      }));
+    }
+    setPathNodeOverrides((current) => {
+      const nodeIds = [
+        ...(current[focusedPath.id] ?? originalPath.nodeIds),
+      ];
+      if (nodeIds.includes(suggestion.node.id)) {
+        return current;
+      }
+      const destinationIndex = nodeIds.indexOf(originalPath.destinationId);
+      nodeIds.splice(
+        destinationIndex >= 0 ? destinationIndex : nodeIds.length,
+        0,
+        suggestion.node.id,
+      );
+      return { ...current, [focusedPath.id]: nodeIds };
+    });
+    setSelectedNodeId(suggestion.node.id);
+    setStatusMessage(`${suggestion.node.label} added to this route.`);
+  }
+
+  function openNodeEditor(nodeId: string) {
+    const node = nodeById.get(nodeId);
+    if (!node || nodeId === "current" || PROFILE_NODE_ID_SET.has(nodeId)) {
+      return;
+    }
+    setNodeEditorId(nodeId);
+    setNodeEditorLabel(node.label);
+    setNodeEditorSummary(node.summary);
+  }
+
+  function closeNodeEditor() {
+    setNodeEditorId(null);
+    setNodeEditorLabel("");
+    setNodeEditorSummary("");
+  }
+
+  function saveNodeEdit(event: ReactFormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!nodeEditorId) {
+      return;
+    }
+    const label = nodeEditorLabel.trim();
+    const summary = nodeEditorSummary.trim();
+    if (!label || !summary) {
+      return;
+    }
+    setNodeEdits((current) => ({
+      ...current,
+      [nodeEditorId]: { label, summary },
+    }));
+    setSelectedNodeId(nodeEditorId);
+    setStatusMessage(`${label} updated in this route.`);
+    closeNodeEditor();
+  }
+
+  function addCustomStep(event: ReactFormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!focusedPath) {
+      return;
+    }
+    const label = customStepLabel.trim();
+    const summary = customStepSummary.trim();
+    if (!label || !summary) {
+      return;
+    }
+    const id = `custom-step-${Date.now()}`;
+    const destination = nodeById.get(focusedPath.destinationId);
+    addBuildSuggestion({
+      id,
+      reason: "Your custom step",
+      node: {
+        id,
+        type: "experience",
+        label,
+        eyebrow: "Custom path step",
+        summary,
+        stage: "User-added step",
+        workSetting: "Your preferred setting",
+        whyItFits: [
+          `You added this step while building toward ${destination?.label ?? "your selected goal"}.`,
+        ],
+        responsibilities: [summary],
+        existingSkills: [],
+        transferableSkills: [],
+        skillsToBuild: [],
+        preview: summary,
+        challenges: [],
+        sourceRecord: {
+          id,
+          kind: "generated",
+          label: "User-created Build My Path step",
+        },
+      },
+    });
+    setCustomStepLabel("");
+    setCustomStepSummary("");
+    setCustomStepOpen(false);
   }
 
   function closeFeedback() {
@@ -2101,7 +2567,10 @@ export function CareerMapView({
         if (event.key !== "Escape") {
           return;
         }
-        if (feedbackTarget) {
+        if (nodeEditorId) {
+          event.preventDefault();
+          closeNodeEditor();
+        } else if (feedbackTarget) {
           event.preventDefault();
           closeFeedback();
         } else if (detailsOpen) {
@@ -2334,7 +2803,7 @@ export function CareerMapView({
                 <button
                   aria-selected={mode === "explore"}
                   className={styles.modeTab}
-                  onClick={showExploreRecommendations}
+                  onClick={showExploreMode}
                   role="tab"
                   type="button"
                 >
@@ -2344,7 +2813,7 @@ export function CareerMapView({
                 <button
                   aria-selected={mode === "build"}
                   className={styles.modeTab}
-                  onClick={buildPersonalizedPath}
+                  onClick={() => showBuildMode()}
                   role="tab"
                   type="button"
                 >
@@ -2443,6 +2912,246 @@ export function CareerMapView({
                 </div>
               )}
             </div>
+
+            {mode === "build" && focusedPath ? (
+              <section
+                aria-label="Build path editor"
+                className={styles.buildPathEditor}
+              >
+                <div className={styles.buildEditorHeader}>
+                  <div>
+                    <p>Edit this route</p>
+                    <h3>{focusedPath.shortLabel}</h3>
+                    <span>
+                      Drag steps to reorder them, or use the move buttons.
+                    </span>
+                  </div>
+                  <div className={styles.buildEditorActions}>
+                    <button
+                      disabled={!pathNodeOverrides[focusedPath.id]}
+                      onClick={resetFocusedRoute}
+                      type="button"
+                    >
+                      <MiniIcon name="refresh" />
+                      Reset route
+                    </button>
+                    <button
+                      aria-expanded={customStepOpen}
+                      onClick={() =>
+                        setCustomStepOpen((current) => !current)
+                      }
+                      type="button"
+                    >
+                      <MiniIcon name="plus" />
+                      Add custom step
+                    </button>
+                  </div>
+                </div>
+
+                <div className={styles.buildRouteTrack}>
+                  {focusedPath.nodeIds.map((nodeId, index) => {
+                    const node = nodeById.get(nodeId);
+                    if (!node) {
+                      return null;
+                    }
+                    const isStart = nodeId === "current";
+                    const isGoal = nodeId === focusedPath.destinationId;
+                    const isLocked = isStart || isGoal;
+
+                    return (
+                      <article
+                        className={styles.buildRouteStep}
+                        data-dragging={
+                          draggedBuildNodeId === nodeId ? "true" : "false"
+                        }
+                        data-locked={isLocked ? "true" : "false"}
+                        draggable={!isLocked}
+                        key={nodeId}
+                        onDragEnd={() => setDraggedBuildNodeId(null)}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                        }}
+                        onDragStart={(event) =>
+                          handleBuildDragStart(event, nodeId)
+                        }
+                        onDrop={(event) =>
+                          handleBuildDrop(event, nodeId)
+                        }
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={styles.buildDragHandle}
+                        >
+                          <MiniIcon
+                            name={
+                              isStart
+                                ? "current"
+                                : isGoal
+                                  ? "destination"
+                                  : "grip"
+                            }
+                          />
+                        </span>
+                        <button
+                          aria-current={
+                            selectedNodeId === nodeId ? "step" : undefined
+                          }
+                          aria-label={`Select ${node.label}`}
+                          className={styles.buildStepSelect}
+                          onClick={() =>
+                            selectAndFocusNode(nodeId, focusedPath.id)
+                          }
+                          type="button"
+                        >
+                          <small>
+                            {isStart
+                              ? "Start"
+                              : isGoal
+                                ? "Goal"
+                                : `Step ${index}`}
+                          </small>
+                          <strong>{node.label}</strong>
+                        </button>
+                        {nodeId !== "current" ? (
+                          <div className={styles.buildStepActions}>
+                            {!isLocked ? (
+                              <>
+                                <button
+                                  aria-label={`Move ${node.label} earlier`}
+                                  disabled={index <= 1}
+                                  onClick={() =>
+                                    moveBuildNode(nodeId, -1)
+                                  }
+                                  type="button"
+                                >
+                                  <MiniIcon name="arrow-left" />
+                                </button>
+                                <button
+                                  aria-label={`Move ${node.label} later`}
+                                  disabled={
+                                    index >= focusedPath.nodeIds.length - 2
+                                  }
+                                  onClick={() =>
+                                    moveBuildNode(nodeId, 1)
+                                  }
+                                  type="button"
+                                >
+                                  <MiniIcon name="arrow-right" />
+                                </button>
+                              </>
+                            ) : null}
+                            <button
+                              aria-label={`Edit ${node.label}`}
+                              onClick={() => openNodeEditor(nodeId)}
+                              type="button"
+                            >
+                              <MiniIcon name="edit" />
+                            </button>
+                            {!isLocked ? (
+                              <button
+                                aria-label={`Remove ${node.label}`}
+                                onClick={() => removeBuildNode(nodeId)}
+                                type="button"
+                              >
+                                <MiniIcon name="trash" />
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+
+                {customStepOpen ? (
+                  <form
+                    className={styles.customStepForm}
+                    onSubmit={addCustomStep}
+                  >
+                    <div>
+                      <label htmlFor="pathin-custom-step-title">
+                        Step title
+                      </label>
+                      <input
+                        id="pathin-custom-step-title"
+                        maxLength={80}
+                        onChange={(event) =>
+                          setCustomStepLabel(event.target.value)
+                        }
+                        placeholder="Example: Lead a cross-team launch"
+                        required
+                        value={customStepLabel}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="pathin-custom-step-summary">
+                        What this step proves
+                      </label>
+                      <input
+                        id="pathin-custom-step-summary"
+                        maxLength={180}
+                        onChange={(event) =>
+                          setCustomStepSummary(event.target.value)
+                        }
+                        placeholder="Describe the evidence or outcome"
+                        required
+                        value={customStepSummary}
+                      />
+                    </div>
+                    <button type="submit">
+                      <MiniIcon name="plus" />
+                      Add to route
+                    </button>
+                  </form>
+                ) : null}
+
+                <div className={styles.buildRecommendations}>
+                  <div>
+                    <p>Recommended nodes</p>
+                    <span>
+                      Based on alternate generated routes and remaining skill
+                      gaps.
+                    </span>
+                  </div>
+                  <div className={styles.buildSuggestionList}>
+                    {buildSuggestions.length > 0 ? (
+                      buildSuggestions.map((suggestion) => (
+                        <article
+                          className={styles.buildSuggestion}
+                          key={suggestion.id}
+                        >
+                          <span>{suggestion.reason}</span>
+                          <strong>{suggestion.node.label}</strong>
+                          <small>
+                            {compactMapText(
+                              suggestion.node.preview ||
+                                suggestion.node.summary,
+                              92,
+                              "Recommended route step",
+                            )}
+                          </small>
+                          <button
+                            aria-label={`Add ${suggestion.node.label}`}
+                            onClick={() =>
+                              addBuildSuggestion(suggestion)
+                            }
+                            type="button"
+                          >
+                            <MiniIcon name="plus" />
+                            Add
+                          </button>
+                        </article>
+                      ))
+                    ) : (
+                      <p className={styles.buildSuggestionsEmpty}>
+                        All current recommendations are already in this route.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             {viewMode === "focus" ? (
               <section
@@ -3037,6 +3746,15 @@ export function CareerMapView({
                   ? "Unpin step"
                   : "Pin step"}
               </button>
+              {mode === "build" && selectedNode.id !== "current" ? (
+                <button
+                  onClick={() => openNodeEditor(selectedNode.id)}
+                  type="button"
+                >
+                  <MiniIcon name="edit" />
+                  Edit step
+                </button>
+              ) : null}
               {selectedNode.type === "destination" ? (
                 <>
                   <button onClick={buildSelectedDestination} type="button">
@@ -3064,6 +3782,64 @@ export function CareerMapView({
           )}
         </aside>
       </div>
+
+      {nodeEditorId ? (
+        <div className={styles.buildEditorBackdrop}>
+          <form
+            aria-labelledby="pathin-node-editor-title"
+            aria-modal="true"
+            className={styles.buildNodeDialog}
+            onSubmit={saveNodeEdit}
+            role="dialog"
+          >
+            <div className={styles.buildNodeDialogHeading}>
+              <div>
+                <p>Edit route step</p>
+                <h2 id="pathin-node-editor-title">
+                  Make this node yours
+                </h2>
+              </div>
+              <button
+                aria-label="Close node editor"
+                onClick={closeNodeEditor}
+                type="button"
+              >
+                <MiniIcon name="close" />
+              </button>
+            </div>
+            <label htmlFor="pathin-node-title">Step title</label>
+            <input
+              autoFocus
+              id="pathin-node-title"
+              maxLength={80}
+              onChange={(event) =>
+                setNodeEditorLabel(event.target.value)
+              }
+              required
+              value={nodeEditorLabel}
+            />
+            <label htmlFor="pathin-node-summary">
+              What this step proves
+            </label>
+            <textarea
+              id="pathin-node-summary"
+              maxLength={240}
+              onChange={(event) =>
+                setNodeEditorSummary(event.target.value)
+              }
+              required
+              rows={4}
+              value={nodeEditorSummary}
+            />
+            <div className={styles.buildNodeDialogActions}>
+              <button onClick={closeNodeEditor} type="button">
+                Cancel
+              </button>
+              <button type="submit">Save changes</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       {feedbackTarget ? (
         <div className={styles.feedbackBackdrop}>

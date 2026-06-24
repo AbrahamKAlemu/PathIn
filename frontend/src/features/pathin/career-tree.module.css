@@ -2173,6 +2173,362 @@
   max-width: 660px;
 }
 
+.buildPathEditor {
+  background: #f6f8fa;
+  border-bottom: 1px solid #dfe3e7;
+  border-top: 1px solid #dfe3e7;
+  padding: 14px 16px;
+}
+
+.buildEditorHeader {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.buildEditorHeader p,
+.buildRecommendations p {
+  color: var(--blue-dark);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.buildEditorHeader h3 {
+  color: var(--ink);
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  margin: 2px 0 0;
+}
+
+.buildEditorHeader span,
+.buildRecommendations > div:first-child > span {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.buildEditorActions {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.buildEditorActions button,
+.customStepForm > button {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #aeb8c2;
+  border-radius: 999px;
+  color: #41505f;
+  cursor: pointer;
+  display: flex;
+  font-size: 10px;
+  font-weight: 700;
+  gap: 5px;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 11px;
+}
+
+.buildEditorActions button:last-child,
+.customStepForm > button {
+  border-color: var(--blue);
+  color: var(--blue-dark);
+}
+
+.buildEditorActions button:hover:not(:disabled),
+.buildEditorActions button:focus-visible,
+.customStepForm > button:hover,
+.customStepForm > button:focus-visible {
+  background: var(--blue-soft);
+  outline: 2px solid rgba(10, 102, 194, 0.16);
+}
+
+.buildEditorActions button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.buildEditorActions svg,
+.customStepForm > button svg {
+  height: 14px;
+  width: 14px;
+}
+
+.buildRouteTrack {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  overflow-x: auto;
+  padding: 2px 2px 7px;
+  scrollbar-color: #aab4bd transparent;
+  scrollbar-width: thin;
+}
+
+.buildRouteStep {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cfd6dc;
+  border-radius: 10px;
+  display: grid;
+  flex: 0 0 238px;
+  gap: 7px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-height: 68px;
+  padding: 7px;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.buildRouteStep[data-locked="true"] {
+  background: #f8fbff;
+  border-color: #b9d4eb;
+}
+
+.buildRouteStep[data-dragging="true"] {
+  border-color: var(--blue);
+  box-shadow: 0 8px 20px rgba(10, 102, 194, 0.18);
+  opacity: 0.62;
+  transform: scale(0.98);
+}
+
+.buildRouteStep:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(10, 102, 194, 0.1);
+}
+
+.buildDragHandle {
+  align-items: center;
+  color: #65717c;
+  display: flex;
+  height: 28px;
+  justify-content: center;
+  width: 24px;
+}
+
+.buildRouteStep:not([data-locked="true"]) .buildDragHandle {
+  cursor: grab;
+}
+
+.buildDragHandle svg {
+  height: 17px;
+  width: 17px;
+}
+
+.buildStepSelect {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.buildStepSelect small,
+.buildStepSelect strong {
+  display: block;
+}
+
+.buildStepSelect small {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.buildStepSelect strong {
+  font-size: 11px;
+  line-height: 1.25;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.buildStepSelect[aria-current="step"] strong {
+  color: var(--blue-dark);
+}
+
+.buildStepActions {
+  display: grid;
+  gap: 3px;
+  grid-template-columns: repeat(2, 24px);
+}
+
+.buildStepActions button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  color: #5d6873;
+  cursor: pointer;
+  display: flex;
+  height: 24px;
+  justify-content: center;
+  padding: 0;
+  width: 24px;
+}
+
+.buildStepActions button:hover:not(:disabled),
+.buildStepActions button:focus-visible {
+  background: #e8f2fb;
+  color: var(--blue-dark);
+  outline: 0;
+}
+
+.buildStepActions button:disabled {
+  cursor: default;
+  opacity: 0.28;
+}
+
+.buildStepActions svg {
+  height: 13px;
+  width: 13px;
+}
+
+.customStepForm {
+  align-items: end;
+  background: #ffffff;
+  border: 1px solid #cfd6dc;
+  border-radius: 10px;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.4fr) auto;
+  margin-top: 9px;
+  padding: 10px;
+}
+
+.customStepForm label {
+  color: #4c5863;
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.customStepForm input {
+  background: #ffffff;
+  border: 1px solid #aeb8c2;
+  border-radius: 7px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  height: 34px;
+  padding: 0 9px;
+  width: 100%;
+}
+
+.customStepForm input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(10, 102, 194, 0.12);
+  outline: 0;
+}
+
+.buildRecommendations {
+  align-items: start;
+  border-top: 1px solid #dfe3e7;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 150px minmax(0, 1fr);
+  margin-top: 9px;
+  padding-top: 10px;
+}
+
+.buildSuggestionList {
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 1px 1px 4px;
+}
+
+.buildSuggestion {
+  background: #ffffff;
+  border: 1px solid #cfd6dc;
+  border-radius: 9px;
+  display: grid;
+  flex: 0 0 190px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 8px;
+}
+
+.buildSuggestion > span,
+.buildSuggestion > strong,
+.buildSuggestion > small {
+  grid-column: 1;
+}
+
+.buildSuggestion > span {
+  color: var(--blue-dark);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.buildSuggestion > strong {
+  color: var(--ink);
+  font-size: 10px;
+  line-height: 1.3;
+  margin-top: 3px;
+}
+
+.buildSuggestion > small {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.buildSuggestion > button {
+  align-items: center;
+  align-self: center;
+  background: #ffffff;
+  border: 1px solid var(--blue);
+  border-radius: 999px;
+  color: var(--blue-dark);
+  cursor: pointer;
+  display: flex;
+  font-size: 9px;
+  font-weight: 750;
+  gap: 3px;
+  grid-column: 2;
+  grid-row: 1 / 4;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.buildSuggestion > button:hover,
+.buildSuggestion > button:focus-visible {
+  background: var(--blue-soft);
+  outline: 2px solid rgba(10, 102, 194, 0.14);
+}
+
+.buildSuggestion > button svg {
+  height: 12px;
+  width: 12px;
+}
+
+.buildSuggestionsEmpty {
+  color: var(--muted) !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  margin: 9px 0 !important;
+  text-transform: none !important;
+}
+
 .focusModeBadge {
   align-items: center;
   background: #f3f8fd;
@@ -5566,6 +5922,131 @@
   width: 14px;
 }
 
+.buildEditorBackdrop {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.48);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 18px;
+  position: fixed;
+  z-index: 110;
+}
+
+.buildNodeDialog {
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+  max-width: 470px;
+  padding: 19px;
+  width: 100%;
+}
+
+.buildNodeDialogHeading {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+}
+
+.buildNodeDialogHeading p {
+  color: var(--blue-dark);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.buildNodeDialogHeading h2 {
+  color: var(--ink);
+  font-size: 19px;
+  margin: 3px 0 0;
+}
+
+.buildNodeDialogHeading > button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  width: 32px;
+}
+
+.buildNodeDialogHeading > button:hover,
+.buildNodeDialogHeading > button:focus-visible {
+  background: #eef3f7;
+  outline: 2px solid rgba(10, 102, 194, 0.14);
+}
+
+.buildNodeDialogHeading svg {
+  height: 18px;
+  width: 18px;
+}
+
+.buildNodeDialog > label {
+  color: #44505b;
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 15px;
+}
+
+.buildNodeDialog > input,
+.buildNodeDialog > textarea {
+  border: 1px solid #aeb8c2;
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  margin-top: 5px;
+  padding: 9px 10px;
+  resize: vertical;
+  width: 100%;
+}
+
+.buildNodeDialog > input:focus,
+.buildNodeDialog > textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(10, 102, 194, 0.12);
+  outline: 0;
+}
+
+.buildNodeDialogActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 17px;
+}
+
+.buildNodeDialogActions button {
+  background: #ffffff;
+  border: 1px solid #aeb8c2;
+  border-radius: 999px;
+  color: #44505b;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  min-height: 34px;
+  padding: 0 14px;
+}
+
+.buildNodeDialogActions button:last-child {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #ffffff;
+}
+
+.buildNodeDialogActions button:hover,
+.buildNodeDialogActions button:focus-visible {
+  box-shadow: 0 0 0 2px rgba(10, 102, 194, 0.14);
+  outline: 0;
+}
+
 .edgeReportButton {
   align-items: center;
   background: #ffffff;
@@ -6799,6 +7280,53 @@
 
   .scenarioStatus {
     display: none;
+  }
+
+  .buildPathEditor {
+    padding: 11px 10px;
+  }
+
+  .buildEditorHeader {
+    align-items: flex-start;
+    display: block;
+  }
+
+  .buildEditorHeader > div:first-child > span {
+    display: none;
+  }
+
+  .buildEditorActions {
+    margin-top: 9px;
+  }
+
+  .buildEditorActions button {
+    flex: 1;
+  }
+
+  .buildRouteStep {
+    flex-basis: 224px;
+  }
+
+  .customStepForm {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .customStepForm > button {
+    justify-self: start;
+  }
+
+  .buildRecommendations {
+    display: block;
+  }
+
+  .buildSuggestionList {
+    margin-top: 8px;
+  }
+
+  .buildNodeDialog {
+    border-radius: 12px;
+    padding: 16px;
   }
 
   .focusStage {
