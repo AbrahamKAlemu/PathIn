@@ -184,12 +184,6 @@ const PROFILE_NODE_IDS = [
 ] as const;
 
 const PROFILE_NODE_ID_SET = new Set<string>(PROFILE_NODE_IDS);
-const EXPERIENCE_MONTH =
-  "Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?";
-const EXPERIENCE_DATE_SUFFIX = new RegExp(
-  `\\b(?:(?:${EXPERIENCE_MONTH})\\s+)?(?:19|20)\\d{2}(?:\\s*[-–—]\\s*(?:Present|(?:(?:${EXPERIENCE_MONTH})\\s+)?(?:19|20)\\d{2}))?\\s*$`,
-  "i",
-);
 
 function uniqueDisplayValues(values: string[]) {
   return values.reduce<string[]>((result, value) => {
@@ -264,27 +258,18 @@ function profileRoleValues(initialMap: CareerMapData) {
   });
 }
 
-function structuredExperience(value: string) {
+function conciseExperienceLabel(value: string) {
   const formatted = safeMapText(value, "Imported experience");
-  const dateMatch = formatted.match(EXPERIENCE_DATE_SUFFIX);
-  const dates = dateMatch
-    ? formatMapText(dateMatch[0]).replace(/\s*[-–—]\s*/g, " - ")
-    : "";
-  const rawLabel = dateMatch
-    ? formatted
-        .slice(0, dateMatch.index)
-        .replace(/[\s·|,;:()[\]-]+$/g, "")
-        .trim()
-    : formatted;
-
-  return {
-    dates,
-    label: compactMapText(
-      rawLabel || formatted,
-      72,
-      "Imported experience",
-    ),
-  };
+  const parts = formatted.split(/\s+·\s+/);
+  const trailingPart = parts.at(-1) ?? "";
+  const hasTrailingDate =
+    /\b(?:19|20)\d{2}\b|\bpresent\b/i.test(trailingPart);
+  const titleParts = hasTrailingDate ? parts.slice(0, -1) : parts;
+  return compactMapText(
+    titleParts.join(" · ") || formatted,
+    72,
+    "Imported experience",
+  );
 }
 
 function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
@@ -299,8 +284,6 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
     roleValues[0] || "No current experience supplied";
   const priorExperience =
     roleValues[1] || "No earlier experience supplied";
-  const currentExperienceDisplay = structuredExperience(currentExperience);
-  const priorExperienceDisplay = structuredExperience(priorExperience);
   const skills =
     skillValues.join(", ") || "No confirmed skills supplied";
   const interests =
@@ -400,13 +383,12 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
     {
       id: "profile-prior-experience",
       type: "experience",
-      label: priorExperienceDisplay.label,
+      label: conciseExperienceLabel(priorExperience),
       eyebrow: "Prior experience",
       summary:
-        priorExperienceDisplay.dates || "Dates not supplied",
-      stage:
-        priorExperienceDisplay.dates || "Earlier experience",
-      workSetting: priorExperienceDisplay.label,
+        `${priorExperience}. PathIn keeps this entry factual and does not infer unsupported responsibilities or seniority.`,
+      stage: "Earlier professional signal",
+      workSetting: priorExperience,
       whyItFits: [
         "Earlier experience can contribute transferable responsibilities when the profile states them.",
       ],
@@ -417,12 +399,8 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
       existingSkills: skillValues,
       transferableSkills: skillValues.slice(0, 4),
       skillsToBuild: ["Specific accomplishment evidence"],
-      preview: [
-        priorExperienceDisplay.label,
-        priorExperienceDisplay.dates,
-      ]
-        .filter(Boolean)
-        .join(" · "),
+      preview:
+        "PathIn keeps this node factual until the user supplies more detail.",
       challenges: [
         "The current profile does not include enough detail to infer a title or achievement safely.",
       ],
@@ -435,13 +413,12 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
     {
       id: "profile-current-experience",
       type: "experience",
-      label: currentExperienceDisplay.label,
+      label: conciseExperienceLabel(currentExperience),
       eyebrow: "Current experience",
       summary:
-        currentExperienceDisplay.dates || "Dates not supplied",
-      stage:
-        currentExperienceDisplay.dates || "Current experience",
-      workSetting: currentExperienceDisplay.label,
+        `${currentExperience}. This is the nearest supplied experience beneath the combined current standing.`,
+      stage: "Current professional signal",
+      workSetting: currentExperience,
       whyItFits: [
         "Current responsibilities influence experience-adjacency scoring only when explicitly supplied.",
       ],
@@ -452,12 +429,8 @@ function createProfileNodes(initialMap: CareerMapData): CareerNode[] {
       existingSkills: skillValues,
       transferableSkills: skillValues.slice(0, 5),
       skillsToBuild: ["Outcome documentation", "Role-specific evidence"],
-      preview: [
-        currentExperienceDisplay.label,
-        currentExperienceDisplay.dates,
-      ]
-        .filter(Boolean)
-        .join(" · "),
+      preview:
+        "This node connects the user's nearest supplied experience to the generated routes above.",
       challenges: [
         "The imported profile entry does not provide enough detail to infer responsibilities or seniority.",
       ],
@@ -1326,13 +1299,8 @@ export function CareerMapView({
     Boolean(
       initialMap.profileFingerprint?.sourcesPresent.includes("linkedin"),
     );
-  const isProfileExperienceNode =
-    PROFILE_NODE_ID_SET.has(selectedNode.id) &&
-    selectedNode.type === "experience";
   const focusNodeSummary =
-    isProfileExperienceNode
-      ? ""
-      : selectedNode.type === "destination"
+    selectedNode.type === "destination"
       ? [
           ...selectedNode.transferableSkills,
           ...selectedNode.existingSkills,
@@ -1586,10 +1554,8 @@ export function CareerMapView({
       ? nodeById.get(focusSequence[focusIndex + 1]) ?? null
       : null;
   const positionLabel =
-    isProfileExperienceNode
-      ? selectedNode.stage
-      : PROFILE_NODE_ID_SET.has(selectedNode.id)
-        ? "Profile foundation"
+    PROFILE_NODE_ID_SET.has(selectedNode.id)
+      ? "Profile foundation"
       : selectedNode.id === "current"
         ? "Current standing"
         : focusedPath
@@ -3377,7 +3343,7 @@ export function CareerMapView({
                       </span>
                       <strong>{selectedNode.label}</strong>
                       <small>{positionLabel}</small>
-                      {focusNodeSummary ? <p>{focusNodeSummary}</p> : null}
+                      <p>{focusNodeSummary}</p>
                       <span className={styles.focusNodeAction}>
                         Open focused details
                         <MiniIcon name="arrow-right" />

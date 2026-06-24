@@ -1,10 +1,8 @@
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
-const INVISIBLE_CHARACTERS = /[\u00ad\u200b-\u200d\u2060\ufeff]/g;
 const TOKEN_PATTERN = /[A-Za-z0-9]+|[^\w\s]/g;
 const CAMEL_TOKEN = /\b[A-Za-z][A-Za-z0-9]{5,}\b/g;
 const CAMEL_ACRONYM_BOUNDARY = /([A-Z]+)([A-Z][a-z])/g;
 const CAMEL_WORD_BOUNDARY = /([a-z0-9])([A-Z])/g;
-const SPLIT_YEAR = /\b[12](?:\s*\d){3}\b/g;
 const MONTH_YEAR =
   /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(\d{4})\b/gi;
 const DATE_RANGE =
@@ -36,19 +34,10 @@ function splitCompactedCamelToken(token: string) {
     .replace(CAMEL_WORD_BOUNDARY, "$1 $2");
 }
 
-function collapseSplitYear(value: string) {
-  const digits = value.replace(/\s+/g, "");
-  const year = Number(digits);
-  return digits.length === 4 && year >= 1900 && year <= 2099
-    ? digits
-    : value;
-}
-
 export function formatMapText(value: string | null | undefined) {
   const normalized = String(value ?? "")
     .normalize("NFKC")
     .replace(CONTROL_CHARACTERS, " ")
-    .replace(INVISIBLE_CHARACTERS, "")
     .replace(/[\u00a0\u2007\u202f]/g, " ");
 
   return normalized
@@ -58,7 +47,6 @@ export function formatMapText(value: string | null | undefined) {
     .join(" ")
     .replace(/\s*\|\s*/g, " · ")
     .replace(CAMEL_TOKEN, splitCompactedCamelToken)
-    .replace(SPLIT_YEAR, collapseSplitYear)
     .replace(MONTH_YEAR, "$1 $2")
     .replace(DATE_RANGE, "$1 - $2")
     .replace(/\s+([,.;:!?])/g, "$1")

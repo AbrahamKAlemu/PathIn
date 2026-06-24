@@ -19,17 +19,6 @@ describe("PathIn map display text", () => {
     expect(
       formatMapText("N e w  S t u d e n t  R e p r e s e n t a t i v e"),
     ).toBe("New Student Representative");
-    expect(
-      formatMapText(
-        "Incoming Summer Analyst June 202 6 – August 20 26",
-      ),
-    ).toBe("Incoming Summer Analyst June 2026 - August 2026");
-    expect(formatMapText("Expected graduation: 2 0 2 7")).toBe(
-      "Expected graduation: 2027",
-    );
-    expect(
-      formatMapText("Incoming\u200b Analyst\u00a0June 202\n6"),
-    ).toBe("Incoming Analyst June 2026");
   });
 
   it("preserves normal technology names", () => {

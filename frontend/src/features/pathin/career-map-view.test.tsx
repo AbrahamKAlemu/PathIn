@@ -140,36 +140,6 @@ describe("CareerMapView navigation", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("repairs split years and separates experience dates from role titles", () => {
-    const baseMap = createCareerMap();
-    const malformedRole =
-      "Incoming Summer Analyst June 202 6 - August 20 26";
-    const initialMap: CareerMapData = {
-      ...baseMap,
-      profile: {
-        ...baseMap.profile,
-        roles: [malformedRole, "Software Engineering Intern May 2 0 2 5"],
-        experience: [malformedRole],
-      },
-    };
-
-    renderCareerMap({ initialMap });
-
-    const navigator = screen.getByRole("region", {
-      name: "Focused career bubble navigator",
-    });
-    expect(
-      within(navigator).getByText("Incoming Summer Analyst"),
-    ).toBeInTheDocument();
-    expect(
-      within(navigator).getByText("June 2026 - August 2026"),
-    ).toBeInTheDocument();
-    expect(navigator).not.toHaveTextContent(/202\s+6|20\s+26|2\s+0\s+2\s+5/);
-    expect(navigator).not.toHaveTextContent(
-      /PathIn keeps this entry factual/,
-    );
-  });
-
   it("does not render placeholder blocks when the focused route ends", async () => {
     const { container } = renderCareerMap({
       initialMap: createDirectDestinationMap(),
