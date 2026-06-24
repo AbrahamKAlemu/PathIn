@@ -1116,6 +1116,67 @@ def test_interdisciplinary_routes_use_supplied_project_evidence(
     )
 
 
+def test_interdisciplinary_copy_uses_grounded_profile_language(
+    client: FlaskClient,
+) -> None:
+    profile = {
+        "education": [
+            "Public health coursework",
+            "Computer science coursework",
+        ],
+        "roles": ["Program Assistant"],
+        "responsibilities": [
+            "Analyzed patient workflow data with Python",
+            "Interviewed nurses and documented requirements",
+        ],
+        "skills": [
+            "Python",
+            "Data Analysis",
+            "User Research",
+            "Communication",
+        ],
+        "interests": ["Digital health", "Patient experience"],
+        "goals": ["Use technology to improve healthcare access"],
+    }
+    payload = _explore(client, profile)
+
+    for recommendation in payload["rankedDestinations"]:
+        transferable = recommendation["transferableSkills"]
+        assert set(transferable) <= set(profile["skills"])
+        if transferable:
+            expected_strengths = ", ".join(transferable[:3])
+            assert (
+                f"Current evidence: {expected_strengths}."
+                in recommendation["explanation"]
+            )
+        fit = recommendation.get("interdisciplinaryFit")
+        if fit and len(fit["capabilityThemes"]) >= 2:
+            first, second = fit["capabilityThemes"][:2]
+            assert (
+                f"applies {first}; {second} in {fit['domain']['label']}"
+                in recommendation["explanation"]
+            )
+        assert "Current evidence: Financial Analysis" not in (
+            recommendation["explanation"]
+        )
+        assert "Current evidence: Presentation" not in (
+            recommendation["explanation"]
+        )
+
+    route_step_labels = {
+        node["label"]
+        for node in payload["nodes"]
+        if node["type"] not in {"current", "destination"}
+    }
+    assert any(
+        " in healthcare" in label for label in route_step_labels
+    )
+    assert all(
+        " for healthcare" not in label.lower()
+        for label in route_step_labels
+    )
+
+
 def test_interest_and_goal_changes_alter_results(client: FlaskClient) -> None:
     base = {
         "education": ["BA Communications"],
@@ -1496,7 +1557,7 @@ def test_generated_route_copy_uses_real_artifacts_and_credible_learning(
     ).get_json()
     career_change_labels = {node["label"] for node in career_change["nodes"]}
     assert (
-        "Design product adoption for a sample product for education"
+        "Design product adoption for a sample product in education"
         in career_change_labels
     )
     assert "Customer Service Manager" not in career_change_labels

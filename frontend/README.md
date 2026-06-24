@@ -11,6 +11,9 @@ The connected profile is sufficient to generate. PDF, DOCX, and TXT files are
 sent to Flask for in-memory parsing. PNG and JPEG OCR runs in the browser with
 Tesseract.js, and only extracted TXT is uploaded.
 
+Recommendation details expose weighted evidence, skill gaps, uncertainty, and
+any supported interdisciplinary domain/capability fit returned by Flask.
+
 ## Run locally
 
 ```bash

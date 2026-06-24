@@ -15,6 +15,7 @@ improve personalization.
 - Browser-side OCR for images; Flask receives extracted text only
 - Fourteen connected-profile category controls
 - Deterministic, component-scored destination ranking
+- Evidence-thresholded domain and portable-capability composition
 - Explore and editable Build My Path modes
 - Focus and pannable/zoomable Web views
 - Evidence, fit, skills, path, and provenance details

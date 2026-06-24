@@ -820,6 +820,10 @@ def _matching_signal_labels(
     }
 
 
+def _capability_summary(values: list[str]) -> str:
+    return "; ".join(dict.fromkeys(value for value in values if value))
+
+
 def _entry(
     value: str,
     *,
@@ -1243,7 +1247,7 @@ class ProfileNormalizer:
             if role_id:
                 return f"role:{role_id}"
         if category == "skills":
-            return f"skill:{SKILL_NORMALIZATION.get(normalized, normalized)}"
+            return f"skill:{_normalized_skill(item['value'])}"
         return normalized
 
     @staticmethod
@@ -1307,6 +1311,69 @@ class RecommendationEngine:
     def __init__(self, catalog: dict[str, Any]):
         self.catalog = copy.deepcopy(catalog)
         self.candidates = self._candidate_catalog()
+        self._value_feature_cache: dict[
+            str,
+            tuple[str, frozenset[str], frozenset[str]],
+        ] = {}
+
+    def _value_features(
+        self,
+        value: str,
+    ) -> tuple[str, frozenset[str], frozenset[str]]:
+        cached = self._value_feature_cache.get(value)
+        if cached is not None:
+            return cached
+        features = (
+            _normalized_text(value),
+            frozenset(semantic_concepts([value])),
+            frozenset(_terms([value])),
+        )
+        self._value_feature_cache[value] = features
+        return features
+
+    def _evidence_value_matches(
+        self,
+        profile_value: str,
+        candidate_value: str,
+    ) -> bool:
+        (
+            normalized_profile,
+            profile_concepts,
+            profile_terms,
+        ) = self._value_features(profile_value)
+        (
+            normalized_candidate,
+            candidate_concepts,
+            candidate_terms,
+        ) = self._value_features(candidate_value)
+        if not normalized_profile or not normalized_candidate:
+            return False
+        if (
+            normalized_profile == normalized_candidate
+            or f" {normalized_candidate} " in f" {normalized_profile} "
+            or f" {normalized_profile} " in f" {normalized_candidate} "
+        ):
+            return True
+        if profile_concepts & candidate_concepts:
+            return True
+        return len(profile_terms & candidate_terms) >= 2
+
+    def _matching_profile_values(
+        self,
+        profile_values: list[str],
+        candidate_values: list[str],
+    ) -> list[str]:
+        return [
+            profile_value
+            for profile_value in profile_values
+            if any(
+                self._evidence_value_matches(
+                    profile_value,
+                    candidate_value,
+                )
+                for candidate_value in candidate_values
+            )
+        ]
 
     def recommend(
         self,
@@ -1384,6 +1451,10 @@ class RecommendationEngine:
             primary_adjacent_ids = set(
                 primary_role.get("adjacentRoleIds", [])
             )
+            primary_is_explicit_goal = primary["id"] in profile.get(
+                "goalRoleIds",
+                [],
+            )
 
             def fallback_key(item: dict[str, Any]) -> tuple[Any, ...]:
                 item_role = ROLE_BY_ID.get(item["id"], {})
@@ -1394,10 +1465,11 @@ class RecommendationEngine:
                 )
                 return (
                     item["id"] not in profile.get("goalRoleIds", []),
+                    primary_is_explicit_goal and not is_adjacent,
                     not bool(item.get("interdisciplinaryFit")),
                     not bool(item.get("topMatchingSignals")),
-                    -item["overallScore"],
                     not is_adjacent,
+                    -item["overallScore"],
                     item["family"] != primary["family"],
                     item["title"],
                 )
@@ -1641,7 +1713,7 @@ class RecommendationEngine:
                 "taxonomyVersion": TAXONOMY_VERSION,
                 "modelVersion": MODEL_VERSION,
                 "algorithmVersion": ALGORITHM_VERSION,
-                "promptVersion": "evidence-grounded-career-paths-2.2",
+                "promptVersion": "evidence-grounded-career-paths-2.3",
                 "requestFingerprint": fingerprint,
                 "generatedAt": generated_at,
             },
@@ -1777,8 +1849,8 @@ class RecommendationEngine:
             CAPABILITY_SIGNALS,
         )
 
-    @staticmethod
     def _role_anchor_count(
+        self,
         profile: dict[str, Any],
         candidate: dict[str, Any],
     ) -> int:
@@ -1788,19 +1860,16 @@ class RecommendationEngine:
             *profile["projects"],
             *profile["education"],
         ]
-        profile_concepts = semantic_concepts(profile_values)
-        normalized_profile_skills = {
-            _normalized_skill(value) for value in profile["skills"]
-        }
-        matched_anchors = {
-            skill
-            for skill in candidate["skills"]
-            if (
-                _normalized_skill(skill) in normalized_profile_skills
-                or semantic_concepts([skill]) & profile_concepts
-            )
-        }
-        return len(matched_anchors)
+        return len(
+            {
+                skill
+                for skill in candidate["skills"]
+                if any(
+                    self._evidence_value_matches(value, skill)
+                    for value in profile_values
+                )
+            }
+        )
 
     @classmethod
     def _interdisciplinary_alignment(
@@ -2113,7 +2182,12 @@ class RecommendationEngine:
             overall += 10
         overall = round(max(0, min(100, overall)), 1)
 
-        confidence = self._confidence(overall, profile["completeness"], candidate)
+        confidence = self._confidence(
+            overall,
+            profile["completeness"],
+            candidate,
+            profile,
+        )
         difficulty = self._difficulty(transition_effort_score, seniority_penalty)
         stage = self._match_stage(
             skill_score, responsibility_score, candidate["level"], profile
@@ -2130,6 +2204,10 @@ class RecommendationEngine:
                 ]
             )
         )[:10]
+        grounded_skill_matches = self._matching_profile_values(
+            profile["skills"],
+            candidate["skills"],
+        )
         top_profile_signals = self._matching_profile_evidence(profile, candidate)
         if interdisciplinary_fit:
             supporting_evidence = [
@@ -2160,7 +2238,7 @@ class RecommendationEngine:
             top_profile_signals,
             gaps,
             stage,
-            skill_matches,
+            grounded_skill_matches,
             interdisciplinary_fit,
         )
         explanation = self._explanation(
@@ -2205,7 +2283,7 @@ class RecommendationEngine:
             "explanation": explanation,
             "topMatchingSignals": top_profile_signals[:5],
             "matches": matches,
-            "transferableSkills": skill_matches[:6],
+            "transferableSkills": grounded_skill_matches[:6],
             "gaps": gaps[:6],
             "constraintsApplied": self._constraints_applied(profile),
             "uncertainty": uncertainty,
@@ -2227,29 +2305,24 @@ class RecommendationEngine:
             "alternativeRoleFamilies": [],
         }
 
-    @staticmethod
     def _overlap_score(
+        self,
         profile_values: list[str],
         candidate_values: list[str],
     ) -> tuple[float, list[str]]:
         if not profile_values:
             return 0.0, []
-        profile_concepts = semantic_concepts(profile_values)
-        profile_terms = _terms(profile_values)
-        normalized_profile_values = {
-            _normalized_skill(value) for value in profile_values
-        }
-        matches = []
-        for candidate_value in candidate_values:
-            candidate_concepts = semantic_concepts([candidate_value])
-            candidate_terms = _terms([candidate_value])
-            if (
-                profile_concepts & candidate_concepts
-                or profile_terms & candidate_terms
-                or _normalized_skill(candidate_value)
-                in normalized_profile_values
-            ):
-                matches.append(candidate_value)
+        matches = [
+            candidate_value
+            for candidate_value in candidate_values
+            if any(
+                self._evidence_value_matches(
+                    profile_value,
+                    candidate_value,
+                )
+                for profile_value in profile_values
+            )
+        ]
         denominator = max(1, min(8, len(candidate_values)))
         return min(100.0, len(matches) / denominator * 100), matches
 
@@ -2306,8 +2379,8 @@ class RecommendationEngine:
             matches.extend(location_matches)
         return sum(score_parts) / len(score_parts), matches
 
-    @staticmethod
     def _skill_gaps(
+        self,
         profile: dict[str, Any],
         candidate: dict[str, Any],
     ) -> list[str]:
@@ -2317,20 +2390,14 @@ class RecommendationEngine:
             *profile["projects"],
             *profile["education"],
         ]
-        concepts = semantic_concepts(profile_values)
-        terms = _terms(profile_values)
-        normalized_profile_skills = {
-            _normalized_skill(value) for value in profile["skills"]
-        }
-        gaps = []
-        for skill in candidate["skills"]:
-            if not (
-                semantic_concepts([skill]) & concepts
-                or _terms([skill]) & terms
-                or _normalized_skill(skill) in normalized_profile_skills
-            ):
-                gaps.append(skill)
-        return gaps
+        return [
+            skill
+            for skill in candidate["skills"]
+            if not any(
+                self._evidence_value_matches(value, skill)
+                for value in profile_values
+            )
+        ]
 
     @staticmethod
     def _seniority_penalty(
@@ -2407,8 +2474,11 @@ class RecommendationEngine:
         overall: float,
         completeness: float,
         candidate: dict[str, Any],
+        profile: dict[str, Any],
     ) -> str:
         adjusted = overall * (0.65 + completeness * 0.35)
+        if candidate["id"] in profile.get("currentRoleIds", []):
+            adjusted += 8
         if not candidate.get("market"):
             adjusted -= 5
         if adjusted >= 75:
@@ -2445,8 +2515,8 @@ class RecommendationEngine:
             return "realistic_next_move"
         return "longer_term_path"
 
-    @staticmethod
     def _matching_profile_evidence(
+        self,
         profile: dict[str, Any],
         candidate: dict[str, Any],
     ) -> list[dict[str, Any]]:
@@ -2460,15 +2530,13 @@ class RecommendationEngine:
             *candidate["education"],
             *candidate["workStyles"],
         ]
-        candidate_concepts = semantic_concepts(candidate_values)
-        candidate_terms = _terms(candidate_values)
         matches = []
         for category in profile["enabledSignals"]:
             for item in profile["fieldEvidence"].get(category, []):
                 value = item["value"]
-                if (
-                    semantic_concepts([value]) & candidate_concepts
-                    or _terms([value]) & candidate_terms
+                if any(
+                    self._evidence_value_matches(value, candidate_value)
+                    for candidate_value in candidate_values
                 ):
                     matches.append(
                         {
@@ -2553,7 +2621,7 @@ class RecommendationEngine:
         top_signals: list[dict[str, Any]],
         gaps: list[str],
         stage: str,
-        skill_matches: list[str],
+        grounded_skill_matches: list[str],
         interdisciplinary_fit: dict[str, Any] | None,
     ) -> dict[str, Any]:
         specialization = candidate["title"]
@@ -2621,7 +2689,7 @@ class RecommendationEngine:
             "realistic_next_move": "next_move",
             "longer_term_path": "longer_term",
         }
-        current_strengths = skill_matches[:3]
+        current_strengths = grounded_skill_matches[:3]
         if not current_strengths:
             current_strengths = [
                 item["value"]
@@ -2637,8 +2705,8 @@ class RecommendationEngine:
             else []
         )
         intersection_copy = (
-            f"Intersection: {', '.join(capability_themes)} applied to "
-            f"{target_domain}. "
+            f"Intersection in {target_domain}: "
+            f"{_capability_summary(capability_themes)}. "
             if target_domain and capability_themes
             else ""
         )
@@ -2765,8 +2833,9 @@ class RecommendationEngine:
         capability_themes = personalization.get("capabilityThemes", [])
         if target_domain and capability_themes:
             return (
-                f"This interdisciplinary option connects "
-                f"{', '.join(capability_themes[:2])} with {target_domain}. "
+                f"This interdisciplinary option applies "
+                f"{_capability_summary(capability_themes[:2])} in "
+                f"{target_domain}. "
                 f"Current evidence: {strength_copy}. Next gap: {gap_copy}."
             )
         return (
@@ -3675,7 +3744,7 @@ class RecommendationEngine:
                 target_domain
                 and not _terms([target_domain]) & _terms([fallback])
             ):
-                return f"{fallback} for {target_domain.lower()}"
+                return f"{fallback} in {target_domain.lower()}"
             return fallback
         return cls._subject_from_evidence(str(seed.get("value", "")), fallback)
 

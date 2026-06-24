@@ -2,9 +2,10 @@
 
 Flask API for PathIn. The service validates and parses PDF, DOCX, and TXT
 profiles, merges reviewed profile evidence, ranks personalized destinations,
-generates dynamic routes, validates saved route edits, suppresses sparse
-cohort evidence, and accepts recommendation feedback. Image OCR is performed
-in the browser before extracted TXT reaches this service.
+composes supported domains with portable capabilities, generates dynamic
+routes, validates saved route edits, suppresses sparse cohort evidence, and
+accepts recommendation feedback. Image OCR is performed in the browser before
+extracted TXT reaches this service.
 
 ```bash
 uv sync --dev

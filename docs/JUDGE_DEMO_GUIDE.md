@@ -157,6 +157,16 @@ Source priority is deliberate:
 
 Inferred skills remain labeled and receive less weight than explicit evidence.
 
+The normalizer also derives a profile fingerprint:
+
+- Domain themes, such as Healthcare or Legal and Policy
+- Portable capability themes, such as Computational Building or Research and
+  Synthesis
+- Problem themes
+- Evidence quality and completeness
+
+Every derived theme retains the supplied evidence that triggered it.
+
 ## 6. Ranking algorithm
 
 PathIn scores every role in a maintained 26-role taxonomy. It uses deterministic
@@ -207,6 +217,26 @@ If a supplied goal exactly matches a taxonomy alias, its interests-and-goals
 component becomes 100 and the North Star is marked as user selected. The role
 still exposes gaps, seniority, and uncertainty.
 
+### Interdisciplinary composition
+
+PathIn can combine a demonstrated capability with a supplied domain instead of
+requiring the profile to contain an exact job title. For example, it can
+connect software and research evidence with healthcare.
+
+An interdisciplinary fit requires:
+
+- At least one portable capability shared by the profile and role
+- An evidence-fit component of at least 20
+- At least two role-skill anchors, unless the role is explicit or adjacent
+- A domain strength of at least 0.6
+- At least two supporting domain facts, unless an industry, interest, or goal
+  states the direction explicitly
+
+The fit may strengthen the interests-and-goals component, but it does not erase
+skill gaps or seniority penalties. When the primary result comes from an
+explicit goal, an adjacent role is preferred as the comparison. Otherwise, a
+supported interdisciplinary option can outrank a weakly related adjacent role.
+
 ### Seniority protection
 
 Targets far above the explicit current level receive a seniority penalty.
@@ -243,7 +273,15 @@ The weighted evidence fit for one destination.
 
 ### Confidence
 
-Confidence adjusts the score for profile completeness and market evidence.
+Confidence adjusts the score for profile completeness, an explicit current-role
+anchor, and market evidence.
+
+```text
+adjusted confidence score =
+  overall score * (0.65 + completeness * 0.35)
+  + 8 when the role directly matches an explicit current role
+  - 5 when no market aggregate is available
+```
 
 - Strong: adjusted score at least 75
 - Moderate: at least 58
@@ -367,6 +405,11 @@ Text is assembled from:
 
 Each node includes a source record. Recommendation details show the evidence
 items and uncertainty used for that result.
+
+Displayed strengths use the profile's supplied wording. Candidate-side
+taxonomy labels are not relabeled as user evidence. A match requires an exact
+phrase, a shared maintained semantic concept, or at least two meaningful
+shared terms; one generic word such as "analysis" is not enough.
 
 If role-specific evidence is sparse, the copy says that evidence is limited.
 It does not describe an invented strength.
@@ -575,6 +618,8 @@ Computed at runtime:
 - Corroboration and conflicts
 - Destination ranking and scores
 - Confidence, difficulty, and match stage
+- Domain and portable-capability fingerprint
+- Interdisciplinary role fit
 - Skill gaps
 - Route nodes and order
 - Personalized explanations
@@ -711,7 +756,15 @@ easier to audit, test, and defend.
 
 Enabled skills, roles, responsibilities, projects, education, interests,
 goals, industries, work styles, constraints, evidence quality, and seniority
-all affect the score or route.
+all affect the score or route. Domain themes can also combine with demonstrated
+portable capabilities when the evidence clears explicit thresholds.
+
+### How do interdisciplinary recommendations work?
+
+PathIn does not concatenate random interests with job titles. It requires a
+supported domain, a shared portable capability, and role-skill anchors. The UI
+shows the domain evidence and capability themes, while the route still exposes
+the missing role skills.
 
 ### Is the score a probability?
 
@@ -810,13 +863,14 @@ and split parsing into an isolated worker for large volume.
 
 The engine has adversarial tests across every taxonomy target, validates graph
 references, checks score bounds, and grounds text in profile facts, taxonomy
-facts, or computed gaps. Sparse evidence uses explicit uncertainty language.
+facts, or computed gaps. Displayed strengths are checked against supplied
+profile values, and sparse evidence uses explicit uncertainty language.
 
 ## 18. Verified stress evidence
 
 Current automated baseline:
 
-- 51 backend tests passing
+- 54 backend tests passing
 - 44 frontend tests passing
 - Frontend lint passing
 - Production Next.js build passing
@@ -843,16 +897,20 @@ Browser workflows verified:
 Load and structural stress:
 
 - 52 concurrent generations
+- 53 targeted and cross-domain maps containing 103,179 text fields
 - All 26 taxonomy roles targeted
 - Every exact target ranked first
+- Zero structural, grounding, malformed-copy, or placeholder-string errors in
+  that corpus
 - 20 concurrent saves
 - Graph node/path references validated
 - Scores and score components validated from 0 to 100
 - Unsupported update, invalid destination, and missing-map errors validated
 
-The concurrent development server run had a median generation latency of about
-5.0 seconds at 12-way concurrency. Single-user generation is faster, and the
-frontend no longer adds artificial wait time after the API response.
+The current 12-worker in-process API stress run had a 3.26-second median,
+4.01-second p95, and 4.49-second maximum generation time. Single-user
+generation is faster, and the frontend no longer adds artificial wait time
+after the API response.
 
 ## 19. Honest limitations to volunteer
 
