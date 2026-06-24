@@ -186,6 +186,87 @@ CONTRASTING_PROFILES: dict[str, dict[str, list[str]]] = {
     },
 }
 
+INTERDISCIPLINARY_PROFILES: dict[str, dict[str, list[str]]] = {
+    "health_tech": {
+        "education": ["BS Computer Science", "Minor in Public Health"],
+        "roles": ["Hospital Innovation Lab Software Intern"],
+        "responsibilities": [
+            "Built a Python patient scheduling tool with clinicians",
+            "Analyzed hospital workflow data and interviewed nurses",
+        ],
+        "projects": [
+            "Accessible mobile prototype for medication reminders"
+        ],
+        "skills": [
+            "Python",
+            "JavaScript",
+            "Data Analysis",
+            "User Research",
+        ],
+        "interests": ["Digital health", "Patient experience"],
+        "goals": ["Use technology to improve healthcare access"],
+    },
+    "law_tech": {
+        "education": [
+            "BA Political Science",
+            "Computer Science coursework",
+        ],
+        "roles": ["Legal Technology Intern"],
+        "responsibilities": [
+            "Automated contract review workflows with Python",
+            (
+                "Researched privacy law and translated regulations into "
+                "product requirements"
+            ),
+        ],
+        "projects": ["Privacy compliance dashboard for a legal clinic"],
+        "skills": [
+            "Python",
+            "Requirements Analysis",
+            "Legal Research",
+            "Data Analysis",
+        ],
+        "interests": ["Law", "Privacy", "Technology"],
+        "goals": [
+            "Build technology that makes legal services easier to navigate"
+        ],
+    },
+    "creative_tech": {
+        "education": ["BA Digital Media and Computer Science"],
+        "roles": ["Creative Coding Assistant"],
+        "responsibilities": [
+            "Built interactive music visualizations in JavaScript",
+            "Designed and tested an installation with museum visitors",
+        ],
+        "projects": ["Generative art and sound installation"],
+        "skills": [
+            "JavaScript",
+            "Creative Coding",
+            "Visual Communication",
+            "Prototyping",
+        ],
+        "interests": ["Art", "Music", "Interactive media"],
+        "goals": ["Create expressive technology experiences"],
+    },
+    "logic": {
+        "education": ["BS Mathematics"],
+        "roles": ["Mathematics Research Assistant"],
+        "responsibilities": [
+            "Developed proofs and algorithms for optimization problems",
+            "Explained complex logical arguments and tested edge cases",
+        ],
+        "projects": ["Constraint-solving research project"],
+        "skills": [
+            "Logical Reasoning",
+            "Python",
+            "Problem Solving",
+            "Statistics",
+        ],
+        "interests": ["Puzzles", "Decision making", "Research"],
+        "goals": ["Solve difficult structured problems"],
+    },
+}
+
 
 @pytest.fixture
 def service() -> CareerService:
@@ -942,6 +1023,99 @@ def test_five_contrasting_resumes_receive_materially_different_rankings(
     )
 
 
+def test_interdisciplinary_profiles_compose_domains_with_capabilities(
+    client: FlaskClient,
+) -> None:
+    health = _explore(client, INTERDISCIPLINARY_PROFILES["health_tech"])
+    legal = _explore(client, INTERDISCIPLINARY_PROFILES["law_tech"])
+    creative = _explore(client, INTERDISCIPLINARY_PROFILES["creative_tech"])
+    logic = _explore(client, INTERDISCIPLINARY_PROFILES["logic"])
+
+    assert {
+        item["canonicalRole"]
+        for item in health["rankedDestinations"]
+    } >= {"UX Designer", "Data Scientist"}
+    assert all(
+        item["targetIndustryOrDomain"] == "Healthcare"
+        for item in health["rankedDestinations"]
+    )
+    assert all(
+        "Healthcare" in item["personalizedTitle"]
+        for item in health["rankedDestinations"]
+    )
+
+    assert [
+        item["canonicalRole"]
+        for item in legal["rankedDestinations"]
+    ][:2] == ["Business Analyst", "Data Scientist"]
+    assert all(
+        item["targetIndustryOrDomain"] == "Legal and Policy"
+        for item in legal["rankedDestinations"]
+    )
+    assert all(
+        item["interdisciplinaryFit"]["capabilityThemes"]
+        for item in legal["rankedDestinations"]
+    )
+
+    assert [
+        item["canonicalRole"]
+        for item in creative["rankedDestinations"]
+    ][:2] == ["UX Designer", "Software Engineer"]
+    assert all(
+        item["targetIndustryOrDomain"]
+        == "Arts and Creative Technology"
+        for item in creative["rankedDestinations"]
+    )
+
+    assert logic["profileFingerprint"]["domains"] == []
+    logic_capabilities = {
+        item["label"]
+        for item in logic["profileFingerprint"]["capabilityThemes"]
+    }
+    assert {
+        "Quantitative and Logical Reasoning",
+        "Systems Problem Solving",
+    } <= logic_capabilities
+    assert logic["rankedDestinations"][0]["canonicalRole"] == "Data Scientist"
+    assert all(
+        item["targetIndustryOrDomain"] is None
+        for item in logic["rankedDestinations"]
+    )
+
+
+def test_interdisciplinary_routes_use_supplied_project_evidence(
+    client: FlaskClient,
+) -> None:
+    payload = _explore(client, INTERDISCIPLINARY_PROFILES["law_tech"])
+    destination = payload["rankedDestinations"][0]
+    route_ids = payload["buildPathIdsByDestination"][
+        destination["destinationId"]
+    ]
+    route_nodes = {
+        node_id
+        for path in payload["paths"]
+        if path["id"] in route_ids
+        for node_id in path["nodeIds"]
+    }
+    nodes = {
+        node["id"]: node
+        for node in payload["nodes"]
+        if node["id"] in route_nodes
+    }
+
+    assert any(
+        "privacy compliance dashboard" in (
+            f"{node['label']} {node['summary']}"
+        ).lower()
+        for node in nodes.values()
+    )
+    assert any(
+        evidence["value"]
+        == "Privacy compliance dashboard for a legal clinic"
+        for evidence in destination["personalizationEvidence"]
+    )
+
+
 def test_interest_and_goal_changes_alter_results(client: FlaskClient) -> None:
     base = {
         "education": ["BA Communications"],
@@ -1274,7 +1448,10 @@ def test_generated_route_copy_uses_real_artifacts_and_credible_learning(
         },
     ).get_json()
     career_change_labels = {node["label"] for node in career_change["nodes"]}
-    assert "Design product adoption for a sample product" in career_change_labels
+    assert (
+        "Design product adoption for a sample product for education"
+        in career_change_labels
+    )
     assert "Customer Service Manager" not in career_change_labels
     assert all(
         "for elementary school teacher" not in label.lower()

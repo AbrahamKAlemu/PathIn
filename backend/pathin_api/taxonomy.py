@@ -3,9 +3,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
-TAXONOMY_VERSION = "pathin-occupations-1.1"
-ALGORITHM_VERSION = "pathin-ranking-2.1"
-MODEL_VERSION = "evidence-grounded-personalization-2.1"
+TAXONOMY_VERSION = "pathin-occupations-1.2"
+ALGORITHM_VERSION = "pathin-ranking-2.2"
+MODEL_VERSION = "evidence-grounded-personalization-2.2"
 
 
 def role(
@@ -747,7 +747,14 @@ for item in OCCUPATIONAL_TAXONOMY:
 
 
 CONCEPT_ALIASES: dict[str, list[str]] = {
-    "programming": ["programming", "coding", "software development", "developer"],
+    "programming": [
+        "programming",
+        "coding",
+        "software development",
+        "developer",
+        "algorithm",
+        "algorithms",
+    ],
     "python": ["python", "pandas", "numpy"],
     "javascript": ["javascript", "typescript", "react", "next.js", "node.js"],
     "apis": ["api", "apis", "rest", "graphql", "backend"],
@@ -811,6 +818,33 @@ CONCEPT_ALIASES: dict[str, list[str]] = {
         "test fixture",
         "failure analysis",
     ],
+    "logical reasoning": [
+        "logic",
+        "logical reasoning",
+        "mathematical reasoning",
+        "algorithmic thinking",
+        "proof",
+        "proofs",
+    ],
+    "problem solving": [
+        "problem solving",
+        "problem-solving",
+        "systems thinking",
+        "root cause",
+        "troubleshooting",
+        "debugging",
+        "testing",
+    ],
+    "creative practice": [
+        "creative",
+        "creative coding",
+        "art",
+        "music",
+        "film",
+        "animation",
+        "interactive media",
+        "visual storytelling",
+    ],
 }
 
 
@@ -862,7 +896,9 @@ def role_concepts(item: dict[str, Any]) -> set[str]:
             *item["skills"],
             *item["responsibilities"],
             *item["interests"],
+            *item["industries"],
             *item["education"],
             *item["projects"],
+            *item["workStyles"],
         ]
     )

@@ -127,6 +127,44 @@ DOMAIN_SIGNALS: dict[str, tuple[str, ...]] = {
         "patient",
         "clinical",
         "medical",
+        "hospital",
+        "public health",
+        "biomedical",
+        "health informatics",
+        "digital health",
+    ),
+    "Legal and Policy": (
+        "law",
+        "legal",
+        "policy",
+        "public policy",
+        "regulatory",
+        "regulation",
+        "compliance",
+        "contract",
+        "privacy",
+        "governance",
+        "court",
+        "legislation",
+        "civic technology",
+    ),
+    "Arts and Creative Technology": (
+        "art",
+        "arts",
+        "artist",
+        "music",
+        "musician",
+        "piano",
+        "film",
+        "animation",
+        "game design",
+        "creative coding",
+        "digital media",
+        "interactive media",
+        "theater",
+        "theatre",
+        "visual storytelling",
+        "creative technology",
     ),
     "Financial Services": (
         "finance",
@@ -175,6 +213,125 @@ DOMAIN_SIGNALS: dict[str, tuple[str, ...]] = {
         "threat",
         "incident response",
     ),
+}
+
+CAPABILITY_SIGNALS: dict[str, tuple[str, ...]] = {
+    "Computational Building": (
+        "programming",
+        "coding",
+        "software",
+        "developer",
+        "python",
+        "javascript",
+        "api",
+        "automation",
+        "embedded systems",
+    ),
+    "Quantitative and Logical Reasoning": (
+        "mathematics",
+        "mathematical",
+        "statistics",
+        "probability",
+        "logic",
+        "logical reasoning",
+        "algorithm",
+        "proof",
+        "quantitative",
+        "data analysis",
+        "financial analysis",
+    ),
+    "Systems Problem Solving": (
+        "problem solving",
+        "debugging",
+        "troubleshooting",
+        "root cause",
+        "systems thinking",
+        "process improvement",
+        "requirements",
+        "testing",
+        "reliability",
+    ),
+    "Research and Synthesis": (
+        "research",
+        "experiment",
+        "study",
+        "investigation",
+        "literature review",
+        "user interview",
+        "policy analysis",
+        "legal research",
+    ),
+    "Human-Centered Design": (
+        "user research",
+        "usability",
+        "interaction design",
+        "product design",
+        "prototype",
+        "accessibility",
+        "psychology",
+    ),
+    "Creative Production and Storytelling": (
+        "creative",
+        "art",
+        "music",
+        "film",
+        "animation",
+        "creative coding",
+        "content",
+        "writing",
+        "storytelling",
+        "visual communication",
+    ),
+    "Communication and Facilitation": (
+        "communication",
+        "presentation",
+        "public speaking",
+        "teaching",
+        "facilitation",
+        "stakeholder",
+        "mentoring",
+        "negotiation",
+    ),
+    "Coordination and Execution": (
+        "coordination",
+        "project management",
+        "scheduling",
+        "operations",
+        "launch",
+        "planning",
+        "workflow",
+    ),
+}
+
+DOMAIN_PORTABLE_CAPABILITIES = {
+    "Computational Building",
+    "Quantitative and Logical Reasoning",
+    "Systems Problem Solving",
+    "Research and Synthesis",
+    "Human-Centered Design",
+    "Creative Production and Storytelling",
+    "Communication and Facilitation",
+    "Coordination and Execution",
+}
+
+DOMAIN_INDUSTRY_ALIASES: dict[str, tuple[str, ...]] = {
+    "Robotics and Hardware": ("engineering", "manufacturing", "automotive"),
+    "Education": ("education",),
+    "Healthcare": ("healthcare", "medical", "biomedical"),
+    "Legal and Policy": ("legal", "law", "government", "public sector"),
+    "Arts and Creative Technology": (
+        "arts",
+        "media",
+        "entertainment",
+        "music",
+        "film",
+    ),
+    "Financial Services": ("finance", "financial services", "banking"),
+    "People Operations": ("human resources", "people operations"),
+    "Cloud Platforms": ("cloud", "technology"),
+    "Consumer Products": ("retail", "consumer", "ecommerce"),
+    "Marketing and Media": ("marketing", "media", "advertising"),
+    "Cybersecurity": ("cybersecurity", "security"),
 }
 
 PROBLEM_SIGNALS: dict[str, tuple[str, ...]] = {
@@ -243,6 +400,46 @@ PROBLEM_SIGNALS: dict[str, tuple[str, ...]] = {
         "automation",
         "debugging",
         "ci/cd",
+    ),
+    "interpreting rules and reducing risk": (
+        "law",
+        "legal",
+        "policy",
+        "regulation",
+        "regulatory",
+        "compliance",
+        "contract",
+        "privacy",
+        "governance",
+    ),
+    "improving health decisions and experiences": (
+        "health",
+        "healthcare",
+        "patient",
+        "clinical",
+        "medical",
+        "hospital",
+        "public health",
+    ),
+    "creating expressive digital experiences": (
+        "art",
+        "music",
+        "film",
+        "animation",
+        "creative coding",
+        "interactive media",
+        "digital media",
+        "storytelling",
+    ),
+    "solving complex structured problems": (
+        "logic",
+        "logical reasoning",
+        "mathematics",
+        "algorithm",
+        "proof",
+        "root cause",
+        "systems thinking",
+        "problem solving",
     ),
 }
 
@@ -608,6 +805,18 @@ def _terms(values: list[str]) -> set[str]:
         token
         for token in re.findall(r"[a-z0-9+#.]+", " ".join(values).lower())
         if len(token) > 2 and token not in STOP_WORDS
+    }
+
+
+def _matching_signal_labels(
+    values: list[str],
+    definitions: dict[str, tuple[str, ...]],
+) -> set[str]:
+    combined = " ".join(values).lower()
+    return {
+        label
+        for label, keywords in definitions.items()
+        if any(contains_alias(combined, keyword) for keyword in keywords)
     }
 
 
@@ -1004,6 +1213,7 @@ class ProfileNormalizer:
                 include_education=False,
             )[:4],
             "problemThemes": derive_signals(PROBLEM_SIGNALS)[:4],
+            "capabilityThemes": derive_signals(CAPABILITY_SIGNALS)[:6],
             "capabilityCombination": [
                 item["value"] for item in capabilities[:3]
             ],
@@ -1184,10 +1394,11 @@ class RecommendationEngine:
                 )
                 return (
                     item["id"] not in profile.get("goalRoleIds", []),
-                    not is_adjacent,
-                    item["family"] != primary["family"],
+                    not bool(item.get("interdisciplinaryFit")),
                     not bool(item.get("topMatchingSignals")),
                     -item["overallScore"],
+                    not is_adjacent,
+                    item["family"] != primary["family"],
                     item["title"],
                 )
 
@@ -1430,7 +1641,7 @@ class RecommendationEngine:
                 "taxonomyVersion": TAXONOMY_VERSION,
                 "modelVersion": MODEL_VERSION,
                 "algorithmVersion": ALGORITHM_VERSION,
-                "promptVersion": "evidence-grounded-career-paths-2.1",
+                "promptVersion": "evidence-grounded-career-paths-2.2",
                 "requestFingerprint": fingerprint,
                 "generatedAt": generated_at,
             },
@@ -1548,6 +1759,145 @@ class RecommendationEngine:
             )
         )
 
+    @staticmethod
+    def _candidate_capability_labels(
+        candidate: dict[str, Any],
+    ) -> set[str]:
+        return _matching_signal_labels(
+            [
+                candidate["title"],
+                candidate["family"],
+                candidate["description"],
+                *candidate["skills"],
+                *candidate["responsibilities"],
+                *candidate["interests"],
+                *candidate["projects"],
+                *candidate["workStyles"],
+            ],
+            CAPABILITY_SIGNALS,
+        )
+
+    @staticmethod
+    def _role_anchor_count(
+        profile: dict[str, Any],
+        candidate: dict[str, Any],
+    ) -> int:
+        profile_values = [
+            *profile["skills"],
+            *profile["responsibilities"],
+            *profile["projects"],
+            *profile["education"],
+        ]
+        profile_concepts = semantic_concepts(profile_values)
+        normalized_profile_skills = {
+            _normalized_skill(value) for value in profile["skills"]
+        }
+        matched_anchors = {
+            skill
+            for skill in candidate["skills"]
+            if (
+                _normalized_skill(skill) in normalized_profile_skills
+                or semantic_concepts([skill]) & profile_concepts
+            )
+        }
+        return len(matched_anchors)
+
+    @classmethod
+    def _interdisciplinary_alignment(
+        cls,
+        profile: dict[str, Any],
+        candidate: dict[str, Any],
+        *,
+        evidence_fit: float,
+        role_anchor_count: int,
+    ) -> dict[str, Any] | None:
+        fingerprint = profile.get("profileFingerprint", {})
+        profile_capabilities = {
+            str(item["label"])
+            for item in fingerprint.get("capabilityThemes", [])
+        }
+        candidate_capabilities = cls._candidate_capability_labels(candidate)
+        shared_capabilities = sorted(
+            profile_capabilities
+            & candidate_capabilities
+            & DOMAIN_PORTABLE_CAPABILITIES
+        )
+        current_role_ids = set(profile.get("currentRoleIds", []))
+        explicit_role_direction = (
+            candidate["id"]
+            in {
+                *current_role_ids,
+                *profile.get("goalRoleIds", []),
+            }
+            or bool(
+                current_role_ids & set(candidate["adjacentRoleIds"])
+            )
+        )
+        if (
+            not shared_capabilities
+            or evidence_fit < 20
+            or (role_anchor_count < 2 and not explicit_role_direction)
+        ):
+            return None
+
+        candidate_industries = {
+            _normalized_text(value) for value in candidate["industries"]
+        }
+        alignments = []
+        for domain in fingerprint.get("domains", []):
+            support = domain.get("supportingEvidence", [])
+            explicitly_directional = any(
+                item.get("explicit")
+                and item.get("category")
+                in {"industries", "interests", "goals"}
+                for item in support
+            )
+            if (
+                float(domain.get("strength", 0)) < 0.6
+                or (len(support) < 2 and not explicitly_directional)
+            ):
+                continue
+
+            industry_aliases = {
+                _normalized_text(value)
+                for value in DOMAIN_INDUSTRY_ALIASES.get(
+                    str(domain["label"]),
+                    (),
+                )
+            }
+            direct_industry_match = bool(
+                candidate_industries & industry_aliases
+            )
+            score = (
+                float(domain["strength"]) * 60
+                + min(3, len(shared_capabilities)) * 10
+                + min(100, evidence_fit) * 0.2
+                + (10 if direct_industry_match else 0)
+            )
+            alignments.append(
+                {
+                    "domain": copy.deepcopy(domain),
+                    "capabilityThemes": shared_capabilities[:3],
+                    "score": round(min(100.0, score), 1),
+                    "alignmentType": (
+                        "industry_and_transferable_capabilities"
+                        if direct_industry_match
+                        else "transferable_capabilities"
+                    ),
+                }
+            )
+
+        if not alignments:
+            return None
+        return max(
+            alignments,
+            key=lambda item: (
+                float(item["score"]),
+                float(item["domain"]["strength"]),
+                item["domain"]["label"],
+            ),
+        )
+
     def _retrieval_score(
         self, profile: dict[str, Any], candidate: dict[str, Any]
     ) -> float:
@@ -1577,7 +1927,30 @@ class RecommendationEngine:
             for role_id in profile["currentRoleIds"]
         ) else 0
         same_role = 18 if candidate["id"] in profile["currentRoleIds"] else 0
-        return concept_score + token_score + adjacency + same_role
+        profile_capabilities = {
+            str(item["label"])
+            for item in profile.get("profileFingerprint", {}).get(
+                "capabilityThemes",
+                [],
+            )
+        }
+        shared_capabilities = (
+            profile_capabilities
+            & self._candidate_capability_labels(candidate)
+        )
+        domain_bonus = 0
+        if shared_capabilities and profile.get(
+            "profileFingerprint", {}
+        ).get("domains"):
+            domain_bonus = min(12, len(shared_capabilities) * 4)
+        return (
+            concept_score
+            + token_score
+            + adjacency
+            + same_role
+            + len(shared_capabilities) * 6
+            + domain_bonus
+        )
 
     def _score_candidate(
         self,
@@ -1620,13 +1993,36 @@ class RecommendationEngine:
                 ],
             ],
         )
-        if candidate["id"] in profile["currentRoleIds"]:
-            responsibility_score = min(100.0, responsibility_score + 35)
-        elif any(
+        same_current_role = candidate["id"] in profile["currentRoleIds"]
+        adjacent_current_role = any(
             role_id in candidate["adjacentRoleIds"]
             for role_id in profile["currentRoleIds"]
-        ):
+        )
+        if same_current_role:
+            responsibility_score = min(100.0, responsibility_score + 35)
+        elif adjacent_current_role:
             responsibility_score = min(100.0, responsibility_score + 25)
+        role_anchor_count = self._role_anchor_count(profile, candidate)
+        profile_capability_items = profile.get(
+            "profileFingerprint", {}
+        ).get("capabilityThemes", [])
+        profile_capabilities = {
+            str(item["label"]) for item in profile_capability_items
+        }
+        candidate_capabilities = self._candidate_capability_labels(candidate)
+        shared_capabilities = sorted(
+            profile_capabilities & candidate_capabilities
+        )
+        if shared_capabilities and (
+            role_anchor_count >= 2
+            or same_current_role
+            or adjacent_current_role
+            or candidate["id"] in profile.get("goalRoleIds", [])
+        ):
+            responsibility_score = max(
+                responsibility_score,
+                min(80.0, 30 + len(shared_capabilities) * 18),
+            )
 
         interest_score, interest_matches = self._overlap_score(
             [*profile["interests"], *profile["goals"]],
@@ -1645,6 +2041,23 @@ class RecommendationEngine:
         preference_score, preference_matches = self._preference_score(
             profile, candidate
         )
+        evidence_fit = max(
+            skill_score,
+            responsibility_score,
+            project_score,
+            education_score,
+        )
+        interdisciplinary_fit = self._interdisciplinary_alignment(
+            profile,
+            candidate,
+            evidence_fit=evidence_fit,
+            role_anchor_count=role_anchor_count,
+        )
+        if interdisciplinary_fit:
+            interest_score = max(
+                interest_score,
+                float(interdisciplinary_fit["score"]),
+            )
 
         gaps = self._skill_gaps(profile, candidate)
         seniority_penalty, seniority_reason = self._seniority_penalty(
@@ -1718,6 +2131,29 @@ class RecommendationEngine:
             )
         )[:10]
         top_profile_signals = self._matching_profile_evidence(profile, candidate)
+        if interdisciplinary_fit:
+            supporting_evidence = [
+                *interdisciplinary_fit["domain"].get(
+                    "supportingEvidence",
+                    [],
+                ),
+                *[
+                    evidence
+                    for item in profile_capability_items
+                    if item["label"]
+                    in interdisciplinary_fit["capabilityThemes"]
+                    for evidence in item.get("supportingEvidence", [])
+                ],
+            ]
+            seen_signals = {
+                (item["category"], item["value"])
+                for item in top_profile_signals
+            }
+            for item in supporting_evidence:
+                key = (item["category"], item["value"])
+                if key not in seen_signals:
+                    top_profile_signals.append(copy.deepcopy(item))
+                    seen_signals.add(key)
         personalization = self._personalize_candidate(
             profile,
             candidate,
@@ -1725,6 +2161,7 @@ class RecommendationEngine:
             gaps,
             stage,
             skill_matches,
+            interdisciplinary_fit,
         )
         explanation = self._explanation(
             personalization,
@@ -1755,6 +2192,7 @@ class RecommendationEngine:
             ],
             "careerThesis": personalization["careerThesis"],
             "sourceBlend": personalization["sourceBlend"],
+            "interdisciplinaryFit": copy.deepcopy(interdisciplinary_fit),
             "aspirationSource": "inferred",
             "isDreamCareer": False,
             "family": candidate["family"],
@@ -2018,7 +2456,9 @@ class RecommendationEngine:
             *candidate["skills"],
             *candidate["responsibilities"],
             *candidate["interests"],
+            *candidate["industries"],
             *candidate["education"],
+            *candidate["workStyles"],
         ]
         candidate_concepts = semantic_concepts(candidate_values)
         candidate_terms = _terms(candidate_values)
@@ -2114,6 +2554,7 @@ class RecommendationEngine:
         gaps: list[str],
         stage: str,
         skill_matches: list[str],
+        interdisciplinary_fit: dict[str, Any] | None,
     ) -> dict[str, Any]:
         specialization = candidate["title"]
         specialization_evidence: list[dict[str, Any]] = []
@@ -2127,43 +2568,9 @@ class RecommendationEngine:
                 break
 
         fingerprint = profile.get("profileFingerprint", {})
-        candidate_values = [
-            candidate["title"],
-            candidate["family"],
-            *candidate["skills"],
-            *candidate["responsibilities"],
-            *candidate["interests"],
-            *candidate["industries"],
-        ]
-        candidate_concepts = semantic_concepts(candidate_values)
-        candidate_terms = _terms(candidate_values)
-
-        def domain_fit(item: dict[str, Any]) -> tuple[int, int, float]:
-            support = item.get("supportingEvidence", [])
-            compatible = sum(
-                1
-                for evidence in support
-                if (
-                    semantic_concepts([evidence["value"]])
-                    & candidate_concepts
-                    or _terms([evidence["value"]]) & candidate_terms
-                )
-            )
-            non_education = sum(
-                1
-                for evidence in support
-                if evidence.get("category") != "education"
-            )
-            return compatible, non_education, float(item.get("strength", 0))
-
-        compatible_domains = [
-            item
-            for item in fingerprint.get("domains", [])
-            if domain_fit(item)[0] > 0 and domain_fit(item)[1] > 0
-        ]
         domain = (
-            max(compatible_domains, key=domain_fit)
-            if compatible_domains
+            interdisciplinary_fit["domain"]
+            if interdisciplinary_fit
             else None
         )
         target_domain = str(domain["label"]) if domain else ""
@@ -2174,13 +2581,8 @@ class RecommendationEngine:
         )
         domain_terms = _terms([target_domain])
         title_terms = _terms([specialization, candidate["family"]])
-        industry_terms = _terms(
-            [*candidate["industries"], *candidate["interests"]]
-        )
         append_domain = bool(
             target_domain
-            and len(domain.get("supportingEvidence", [])) >= 2
-            and domain_terms & industry_terms
             and not domain_terms & title_terms
             and target_domain
             not in {"Cloud Platforms", "Marketing and Media"}
@@ -2229,7 +2631,19 @@ class RecommendationEngine:
         if not current_strengths:
             current_strengths = ["limited role-specific evidence"]
         gap_copy = gaps[0] if gaps else "role-specific proof"
+        capability_themes = (
+            interdisciplinary_fit["capabilityThemes"]
+            if interdisciplinary_fit
+            else []
+        )
+        intersection_copy = (
+            f"Intersection: {', '.join(capability_themes)} applied to "
+            f"{target_domain}. "
+            if target_domain and capability_themes
+            else ""
+        )
         career_thesis = (
+            f"{intersection_copy}"
             f"Current evidence: {', '.join(current_strengths)}. "
             f"Build next: {gap_copy}."
         )
@@ -2243,6 +2657,7 @@ class RecommendationEngine:
             "careerPosition": position_by_stage[stage],
             "personalizationEvidence": combined_evidence[:6],
             "currentStrengths": current_strengths,
+            "capabilityThemes": capability_themes,
             "careerThesis": career_thesis,
             "sourceBlend": self._source_blend_label(combined_evidence),
         }
@@ -2346,6 +2761,14 @@ class RecommendationEngine:
             personalization["currentStrengths"][:3]
         )
         gap_copy = gaps[0] if gaps else "role-specific applied proof"
+        target_domain = personalization.get("targetIndustryOrDomain")
+        capability_themes = personalization.get("capabilityThemes", [])
+        if target_domain and capability_themes:
+            return (
+                f"This interdisciplinary option connects "
+                f"{', '.join(capability_themes[:2])} with {target_domain}. "
+                f"Current evidence: {strength_copy}. Next gap: {gap_copy}."
+            )
         return (
             f"Current evidence: {strength_copy}. Next gap: {gap_copy}."
         )
@@ -2660,6 +3083,7 @@ class RecommendationEngine:
         subject = self._route_subject(
             seed,
             role_id,
+            recommendation.get("targetIndustryOrDomain"),
         )
         artifact_template, completion_evidence = ROLE_ARTIFACTS.get(
             role_id,
@@ -3240,12 +3664,18 @@ class RecommendationEngine:
         cls,
         seed: dict[str, Any],
         role_id: str,
+        target_domain: str | None = None,
     ) -> str:
         fallback = ROLE_ROUTE_SUBJECTS.get(
             role_id,
             "a small role-relevant work sample",
         )
         if seed.get("category") != "projects":
+            if (
+                target_domain
+                and not _terms([target_domain]) & _terms([fallback])
+            ):
+                return f"{fallback} for {target_domain.lower()}"
             return fallback
         return cls._subject_from_evidence(str(seed.get("value", "")), fallback)
 

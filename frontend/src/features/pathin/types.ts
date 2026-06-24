@@ -147,6 +147,18 @@ export type CareerRecommendation = {
   personalizationEvidence: ProfileEvidence[];
   careerThesis: string;
   sourceBlend: string;
+  interdisciplinaryFit?: {
+    domain: {
+      label: string;
+      strength: number;
+      supportingEvidence: ProfileEvidence[];
+    };
+    capabilityThemes: string[];
+    score: number;
+    alignmentType:
+      | "industry_and_transferable_capabilities"
+      | "transferable_capabilities";
+  } | null;
   aspirationSource: "inferred" | "user_selected";
   isDreamCareer: boolean;
   family: string;
@@ -204,6 +216,11 @@ export type ProfileFingerprint = {
     supportingEvidence: ProfileEvidence[];
   }>;
   problemThemes: Array<{
+    label: string;
+    strength: number;
+    supportingEvidence: ProfileEvidence[];
+  }>;
+  capabilityThemes: Array<{
     label: string;
     strength: number;
     supportingEvidence: ProfileEvidence[];

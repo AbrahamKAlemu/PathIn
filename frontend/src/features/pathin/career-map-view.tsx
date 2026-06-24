@@ -4175,6 +4175,30 @@ function NodeDetailSection({
             <p className={styles.recommendationExplanation}>
               {node.recommendation.explanation}
             </p>
+            {node.recommendation.interdisciplinaryFit ? (
+              <>
+                <h3>Interdisciplinary fit</h3>
+                <div className={styles.profileEvidenceList}>
+                  <span>
+                    <strong>
+                      {
+                        node.recommendation.interdisciplinaryFit.domain
+                          .label
+                      }
+                    </strong>
+                    <small>domain evidence</small>
+                  </span>
+                  {node.recommendation.interdisciplinaryFit.capabilityThemes
+                    .slice(0, 2)
+                    .map((capability) => (
+                      <span key={capability}>
+                        <strong>{capability}</strong>
+                        <small>transferable capability</small>
+                      </span>
+                    ))}
+                </div>
+              </>
+            ) : null}
           </>
         ) : null}
         <h3>Why it may fit</h3>
