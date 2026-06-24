@@ -1505,11 +1505,10 @@
 
 .pathinLogo {
   border-radius: 10px;
+  display: block;
   flex: 0 0 auto;
   height: 46px;
   margin-right: 14px;
-  object-fit: cover;
-  object-position: left center;
   width: 46px;
 }
 

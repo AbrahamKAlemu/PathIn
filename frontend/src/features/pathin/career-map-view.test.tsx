@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createCareerMap } from "./career-map-data";
@@ -22,8 +28,7 @@ describe("CareerMapView navigation", () => {
   beforeEach(() => {
     window.localStorage.clear();
     window.requestAnimationFrame = (callback) => {
-      callback(0);
-      return 1;
+      return window.setTimeout(() => callback(0), 0);
     };
     HTMLElement.prototype.scrollTo = vi.fn();
   });
@@ -31,10 +36,7 @@ describe("CareerMapView navigation", () => {
   it("uses the approved PathIn logo and returns directly to current standing", () => {
     renderCareerMap();
 
-    expect(screen.getByAltText("PathIn")).toHaveAttribute(
-      "src",
-      expect.stringContaining("pathin-logo.png"),
-    );
+    expect(screen.getByRole("img", { name: "PathIn" })).toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
         name: "Return focus to current standing",
@@ -89,7 +91,7 @@ describe("CareerMapView navigation", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lays out the complete Web view from profile evidence to destinations", () => {
+  it("lays out the complete Web view from profile evidence to destinations", async () => {
     renderCareerMap();
 
     fireEvent.click(screen.getByRole("button", { name: "Web" }));
@@ -97,6 +99,11 @@ describe("CareerMapView navigation", () => {
     const web = screen.getByRole("region", {
       name: "Complete connected career path web",
     });
+    await waitFor(() =>
+      expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledWith(
+        expect.objectContaining({ top: 0 }),
+      ),
+    );
     const current = within(web).getByRole("button", {
       name: /Your current standing/,
     });

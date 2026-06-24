@@ -729,6 +729,37 @@ function MiniIcon({
   }
 }
 
+function PathInLogo() {
+  return (
+    <svg
+      aria-label="PathIn"
+      className={styles.pathinLogo}
+      role="img"
+      viewBox="0 0 48 48"
+    >
+      <rect fill="#0a66c2" height="48" rx="10" width="48" />
+      <circle cx="15.8" cy="19" fill="#ffffff" r="2.3" />
+      <rect fill="#ffffff" height="13" rx="1" width="4.6" x="13.5" y="23" />
+      <path
+        d="M22 23h4.4v1.8c1.3-1.6 3-2.4 5.2-2.4 4 0 6.4 2.7 6.4 7.5V36h-4.7v-5.7c0-2.5-.9-3.8-2.8-3.8-2.2 0-3.8 1.6-3.8 4.5v5H22V23Z"
+        fill="#ffffff"
+      />
+      <path
+        d="m34 5.8 1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2 1.2-3Z"
+        fill="#ffffff"
+      />
+      <path
+        d="m25.8 8.7.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7.7-1.7Z"
+        fill="#ffffff"
+      />
+      <path
+        d="m40.2 15.3.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8.8-1.9Z"
+        fill="#ffffff"
+      />
+    </svg>
+  );
+}
+
 function formatCurrency(value: number) {
   if (!value) {
     return "Not available";
@@ -1237,7 +1268,20 @@ export function CareerMapView({
   function showWebView() {
     setViewMode("web");
     window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => centerWebView("auto"));
+      window.requestAnimationFrame(() => {
+        const viewport = webViewportRef.current;
+        if (!viewport) {
+          return;
+        }
+        viewport.scrollTo({
+          left: Math.max(
+            0,
+            webLayout.current.x * webZoom - viewport.clientWidth / 2,
+          ),
+          top: 0,
+          behavior: "auto",
+        });
+      });
     });
   }
 
@@ -1484,13 +1528,7 @@ export function CareerMapView({
     >
       <section className={styles.featureHeader}>
         <div className={styles.featureIdentity}>
-          <Image
-            src="/pathin-logo.png"
-            alt="PathIn"
-            width={52}
-            height={52}
-            className={styles.pathinLogo}
-          />
+          <PathInLogo />
           <div>
             <div className={styles.featureTitleLine}>
               <h1>Path[IN]</h1>
