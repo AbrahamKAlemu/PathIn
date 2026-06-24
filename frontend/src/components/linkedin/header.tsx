@@ -54,7 +54,7 @@ export function Header({
   return (
     <header className="sticky top-0 z-50 h-[66px] border-b border-[#dedede] bg-white">
       <div className="linkedin-header-inner flex h-full items-center">
-        <Link aria-label="LinkedIn home" href="/">
+        <Link aria-label="PathIn home" href="/">
           <LinkedInLogo className="w-10 h-auto object-contain shrink-0 -translate-y-[3px]" />
         </Link>
 

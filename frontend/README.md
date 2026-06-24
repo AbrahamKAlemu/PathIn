@@ -1,8 +1,15 @@
-# Path[IN] frontend
+# PathIn frontend
 
-The `/career-tree` route starts with resume/profile onboarding. It does not
-render a career map until the Flask recommendation request succeeds. The
-returned map is displayed in focused vertical and pannable web views.
+The Next.js frontend contains:
+
+- `/`: product entry point and recommendation boundaries
+- `/in/winstoniskandar`: authorized profile evidence controls
+- `/career-tree`: optional uploads, generation, exploration, route editing,
+  feedback, save, and restore
+
+The connected profile is sufficient to generate. PDF, DOCX, and TXT files are
+sent to Flask for in-memory parsing. PNG and JPEG OCR runs in the browser with
+Tesseract.js, and only extracted TXT is uploaded.
 
 ## Run locally
 
@@ -13,6 +20,8 @@ npm run dev
 
 Set `NEXT_PUBLIC_API_URL` in `.env.local` when Flask is not running at
 `http://127.0.0.1:5000`.
+
+Node 22.x is required.
 
 ## Verify
 

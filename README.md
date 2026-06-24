@@ -1,46 +1,43 @@
 # PathIn
 
-PathIn is organized as a small monorepo with a Next.js frontend and a Flask
-API.
+PathIn is an explainable career exploration product built as a Next.js
+frontend and Flask API.
 
-Live feature:
-[pit26codepin.vercel.app/career-tree](https://pit26codepin.vercel.app/career-tree)
+Live product: [pit26codepin.vercel.app](https://pit26codepin.vercel.app)
 
-## Path[In] prototype
+## Product
 
-The `/career-tree` page is a LinkedIn-integrated, resume-driven career
-explorer. It includes:
+The `/career-tree` route works from the enabled connected profile without
+requiring a resume. A resume or LinkedIn export is optional evidence that can
+improve personalization.
 
-- Blank onboarding before any recommendation or map is shown
-- Secure PDF, DOCX, TXT, and LinkedIn-export parsing
-- Reviewable profile fields with provenance, confidence, and category controls
-- Optional interests, goals, work styles, constraints, and training context
-- Flask-generated, explainable destination ranking with no frontend fallback
-- Explore and Build My Path modes
-- A visible career-goal layer with a selected destination and alternate goals
-- A Focus view with one dominant node and two connected previews above/below
-- A Web view with every active route connected on a pannable, zoomable canvas
-- Clickable, touch-friendly, and keyboard-navigable career bubbles
-- Up/down step traversal with left/right branch scaffolding
-- Skill, course, project, role, and destination details
-- Editable profile inputs with per-category controls
-- Pin, dismiss, alternative, regenerate, save, reopen, and feedback actions
-- SQLite persistence only for maps the user explicitly saves
-- Responsive desktop and mobile layouts
-- PIT-derived aggregate evidence with a 20-profile privacy threshold
+- Optional PDF, DOCX, TXT, PNG, and JPEG evidence
+- Browser-side OCR for images; Flask receives extracted text only
+- Fourteen connected-profile category controls
+- Deterministic, component-scored destination ranking
+- Explore and editable Build My Path modes
+- Focus and pannable/zoomable Web views
+- Evidence, fit, skills, path, and provenance details
+- Pin, dismiss, alternatives, feedback, regenerate, save, and restore actions
+- Browser snapshots plus a best-effort SQLite server copy
+- Live synthetic PIT aggregates with a deterministic snapshot fallback
+- Suppression of transition counts below 20 profiles
 
-The PIT source is synthetic and is labeled as such throughout the interface.
-Sparse career transitions are suppressed rather than exposed as exact counts.
+The current implementation is an explainable deterministic ranking system, not
+an LLM. Every recommendation exposes its evidence and uncertainty.
+
+See [docs/JUDGE_DEMO_GUIDE.md](docs/JUDGE_DEMO_GUIDE.md) for the architecture,
+feature defense, demo script, limitations, and judge Q&A.
 
 ## Stack
 
-- Frontend: Next.js, React, TypeScript, and Tailwind CSS
+- Frontend: Next.js 16, React 19, TypeScript, and Tailwind CSS
 - Backend: Flask and Flask-CORS
 - Package managers: npm and uv
 
 ## Requirements
 
-- Node.js 22.15.1
+- Node.js 22.x
 - Python 3.10 or newer
 - uv
 
@@ -55,9 +52,8 @@ npm run dev
 
 The frontend runs at [http://localhost:3000](http://localhost:3000).
 
-To point browser-side generation at a Flask API, copy
-`frontend/.env.example` to `frontend/.env.local` and set
-`NEXT_PUBLIC_API_URL`.
+Set `NEXT_PUBLIC_API_URL` in `frontend/.env.local` when the API is not at
+`http://127.0.0.1:5000`.
 
 ## Backend
 
@@ -68,10 +64,10 @@ uv run flask --app pathin_api run --debug --port 5000
 ```
 
 The API runs at [http://localhost:5000](http://localhost:5000). Its health
-endpoint is `GET /api/health`.
+endpoint is `GET /api/v1/health`.
 
-To allow additional frontend origins, copy `backend/.env.example` to
-`backend/.env` and provide a comma-separated `FRONTEND_ORIGINS` value.
+If macOS AirPlay occupies port 5000, use another port and update
+`NEXT_PUBLIC_API_URL`.
 
 ## Checks
 

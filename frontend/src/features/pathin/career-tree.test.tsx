@@ -554,6 +554,40 @@ describe("CareerTree evidence-first onboarding", () => {
       .toEqual(["resume"]);
   });
 
+  it("opens a saved browser snapshot directly from onboarding", async () => {
+    const map = createCareerMap();
+    window.localStorage.setItem(
+      SAVED_MAP_SNAPSHOT_KEY,
+      JSON.stringify({
+        map,
+        savedAt: "2026-06-24T10:30:00.000Z",
+      }),
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(currentProfileResponse()));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<CareerTree />);
+
+    expect(
+      await screen.findByText("Saved path available"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open saved path" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Compare career directions one step at a time",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Senior Data Scientist/ }),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("restores the browser snapshot after regeneration without relying on server storage", async () => {
     const map = createCareerMap();
     const regeneratedMap = {

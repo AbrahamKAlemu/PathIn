@@ -167,6 +167,8 @@ class CareerService:
     ) -> dict[str, Any]:
         allowed = {
             "name",
+            "nodes",
+            "paths",
             "pinnedNodeIds",
             "dismissedNodeIds",
             "viewport",
@@ -179,6 +181,20 @@ class CareerService:
                 details={"unsupportedFields": sorted(unknown)},
             )
         career_map = self.get_map(map_id)
+        if "nodes" in payload:
+            career_map["nodes"] = self._saved_nodes(
+                career_map["nodes"],
+                payload["nodes"],
+            )
+        if "paths" in payload:
+            career_map["paths"] = self._saved_paths(
+                career_map["paths"],
+                payload["paths"],
+                {
+                    node["id"]
+                    for node in career_map["nodes"]
+                },
+            )
         node_ids = {node["id"] for node in career_map["nodes"]}
         for field in ("pinnedNodeIds", "dismissedNodeIds"):
             if field not in payload:
@@ -205,6 +221,224 @@ class CareerService:
         self._store_map(career_map)
         self.saved_map_store.save(career_map)
         return copy.deepcopy(career_map)
+
+    @staticmethod
+    def _saved_nodes(
+        current_nodes: list[dict[str, Any]],
+        proposed_nodes: Any,
+    ) -> list[dict[str, Any]]:
+        if not isinstance(proposed_nodes, list) or len(proposed_nodes) > 300:
+            raise ApiError(
+                "INVALID_MAP_CUSTOMIZATION",
+                "Saved map nodes must be a bounded list.",
+                details={"field": "nodes"},
+            )
+
+        current_by_id = {
+            str(node.get("id", "")): node
+            for node in current_nodes
+        }
+        seen: set[str] = set()
+        saved_nodes: list[dict[str, Any]] = []
+        custom_count = 0
+
+        for proposed in proposed_nodes:
+            if not isinstance(proposed, dict):
+                raise ApiError(
+                    "INVALID_MAP_CUSTOMIZATION",
+                    "Every saved map node must be an object.",
+                    details={"field": "nodes"},
+                )
+            node_id = str(proposed.get("id", "")).strip()
+            if not node_id or len(node_id) > 160 or node_id in seen:
+                raise ApiError(
+                    "INVALID_MAP_CUSTOMIZATION",
+                    "Saved map node identifiers must be unique.",
+                    details={"nodeId": node_id},
+                )
+            seen.add(node_id)
+
+            current = current_by_id.get(node_id)
+            if current is not None:
+                label = str(
+                    proposed.get("label", current.get("label", ""))
+                ).strip()[:80]
+                summary = str(
+                    proposed.get("summary", current.get("summary", ""))
+                ).strip()[:240]
+                if not label or not summary:
+                    raise ApiError(
+                        "INVALID_MAP_CUSTOMIZATION",
+                        "Edited map steps need a title and explanation.",
+                        details={"nodeId": node_id},
+                    )
+                saved_nodes.append(
+                    {
+                        **copy.deepcopy(current),
+                        "label": label,
+                        "summary": summary,
+                        "preview": summary,
+                    }
+                )
+                continue
+
+            custom_count += 1
+            if (
+                custom_count > 50
+                or not node_id.startswith(("custom-step-", "suggested-"))
+            ):
+                raise ApiError(
+                    "INVALID_MAP_CUSTOMIZATION",
+                    "Custom map steps must use a PathIn-generated identifier.",
+                    details={"nodeId": node_id},
+                )
+            node_type = str(proposed.get("type", "")).strip()
+            if node_type not in {
+                "course",
+                "skill",
+                "experience",
+                "entry_role",
+                "role",
+            }:
+                raise ApiError(
+                    "INVALID_MAP_CUSTOMIZATION",
+                    "Custom map steps must use a supported step type.",
+                    details={"nodeId": node_id, "type": node_type},
+                )
+            label = str(proposed.get("label", "")).strip()[:80]
+            summary = str(proposed.get("summary", "")).strip()[:240]
+            if not label or not summary:
+                raise ApiError(
+                    "INVALID_MAP_CUSTOMIZATION",
+                    "Custom map steps need a title and explanation.",
+                    details={"nodeId": node_id},
+                )
+
+            def text_list(field: str, *, limit: int = 12) -> list[str]:
+                value = proposed.get(field, [])
+                if not isinstance(value, list):
+                    return []
+                return [
+                    str(item).strip()[:160]
+                    for item in value[:limit]
+                    if str(item).strip()
+                ]
+
+            saved_nodes.append(
+                {
+                    "id": node_id,
+                    "type": node_type,
+                    "label": label,
+                    "eyebrow": str(
+                        proposed.get("eyebrow", "Custom path step")
+                    ).strip()[:80],
+                    "summary": summary,
+                    "stage": str(
+                        proposed.get("stage", "User-added step")
+                    ).strip()[:120],
+                    "workSetting": str(
+                        proposed.get(
+                            "workSetting",
+                            "Your preferred setting",
+                        )
+                    ).strip()[:120],
+                    "whyItFits": text_list("whyItFits"),
+                    "responsibilities": text_list("responsibilities"),
+                    "existingSkills": text_list("existingSkills"),
+                    "transferableSkills": text_list(
+                        "transferableSkills"
+                    ),
+                    "skillsToBuild": text_list("skillsToBuild"),
+                    "preview": str(
+                        proposed.get("preview", summary)
+                    ).strip()[:240],
+                    "challenges": text_list("challenges"),
+                    "sourceRecord": {
+                        "id": node_id,
+                        "kind": "generated",
+                        "label": "User-customized Build My Path step",
+                    },
+                }
+            )
+
+        missing = sorted(set(current_by_id) - seen)
+        if missing:
+            raise ApiError(
+                "INVALID_MAP_CUSTOMIZATION",
+                "Saving cannot remove generated map nodes.",
+                details={"missingNodeIds": missing},
+            )
+        return saved_nodes
+
+    @staticmethod
+    def _saved_paths(
+        current_paths: list[dict[str, Any]],
+        proposed_paths: Any,
+        node_ids: set[str],
+    ) -> list[dict[str, Any]]:
+        if not isinstance(proposed_paths, list):
+            raise ApiError(
+                "INVALID_MAP_CUSTOMIZATION",
+                "Saved paths must be a list.",
+                details={"field": "paths"},
+            )
+        proposed_by_id = {
+            str(path.get("id", "")): path
+            for path in proposed_paths
+            if isinstance(path, dict)
+        }
+        current_ids = {
+            str(path.get("id", ""))
+            for path in current_paths
+        }
+        if set(proposed_by_id) != current_ids:
+            raise ApiError(
+                "INVALID_MAP_CUSTOMIZATION",
+                "Saving cannot add or remove generated route records.",
+                details={"field": "paths"},
+            )
+
+        saved_paths: list[dict[str, Any]] = []
+        for current in current_paths:
+            path_id = str(current.get("id", ""))
+            proposed = proposed_by_id[path_id]
+            proposed_node_ids = proposed.get("nodeIds")
+            if not isinstance(proposed_node_ids, list):
+                raise ApiError(
+                    "INVALID_MAP_CUSTOMIZATION",
+                    "Each saved route must contain an ordered node list.",
+                    details={"pathId": path_id},
+                )
+            ordered_ids = [
+                str(node_id).strip()
+                for node_id in proposed_node_ids
+                if str(node_id).strip()
+            ]
+            destination_id = str(current.get("destinationId", ""))
+            invalid = sorted(set(ordered_ids) - node_ids)
+            if (
+                len(ordered_ids) < 2
+                or len(ordered_ids) > 50
+                or len(set(ordered_ids)) != len(ordered_ids)
+                or ordered_ids[0] != "current"
+                or ordered_ids[-1] != destination_id
+                or invalid
+            ):
+                raise ApiError(
+                    "INVALID_MAP_CUSTOMIZATION",
+                    "Saved route order must keep the current and goal nodes.",
+                    details={
+                        "pathId": path_id,
+                        "invalidNodeIds": invalid,
+                    },
+                )
+            saved_paths.append(
+                {
+                    **copy.deepcopy(current),
+                    "nodeIds": ordered_ids,
+                }
+            )
+        return saved_paths
 
     def regenerate(
         self,

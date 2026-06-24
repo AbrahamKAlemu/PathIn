@@ -4,7 +4,7 @@ import { Header } from "@/components/linkedin/header";
 import { CareerTree } from "@/features/pathin/career-tree";
 
 export const metadata: Metadata = {
-  title: "Path[In] | LinkedIn",
+  title: "Career Tree | PathIn",
   description:
     "Explore possible career paths, compare route evidence, and build practical next steps from your profile.",
 };

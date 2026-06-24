@@ -1,4 +1,8 @@
-# Path[IN] Interactive Career Bubble Map Prototype Prompt
+# PathIn Interactive Career Bubble Map (Historical Prompt)
+
+> This is the original visualization prompt and contains superseded branding
+> and scaffolding requirements. See `docs/JUDGE_DEMO_GUIDE.md` for current
+> behavior and defensible product claims.
 
 ## Product Overview
 

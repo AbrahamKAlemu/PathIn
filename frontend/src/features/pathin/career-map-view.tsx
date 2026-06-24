@@ -121,10 +121,7 @@ type CareerMapViewProps = {
     },
   ) => Promise<void>;
   onReopenSaved: () => Promise<ReopenMapResult>;
-  onSave: (
-    pinnedNodeIds: string[],
-    dismissedNodeIds: string[],
-  ) => Promise<SaveMapResult>;
+  onSave: (map: CareerMapData) => Promise<SaveMapResult>;
   onStartOver: () => void;
   onSubmitFeedback: (
     target: FeedbackTarget,
@@ -1526,7 +1523,9 @@ export function CareerMapView({
     }),
     [focusSequence, focusedPath],
   );
-  const isProfileNode = PROFILE_NODE_ID_SET.has(selectedNode.id);
+  const isProfileNode =
+    selectedNode.id === "current" ||
+    PROFILE_NODE_ID_SET.has(selectedNode.id);
   const futurePreviewNodes = useMemo<Array<CareerNode | null>>(
     () =>
       [focusIndex + 2, focusIndex + 1].map((index) => {
@@ -2032,8 +2031,36 @@ export function CareerMapView({
   async function saveMap() {
     setPersistenceError("");
     let result: SaveMapResult;
+    const materializedMap: CareerMapData = {
+      ...initialMap,
+      nodes: [
+        ...initialMap.nodes,
+        ...Object.values(customNodes).filter(
+          (node) =>
+            !initialMap.nodes.some(
+              (existingNode) => existingNode.id === node.id,
+            ),
+        ),
+      ].map((node) => {
+        const edit = nodeEdits[node.id];
+        return edit
+          ? {
+              ...node,
+              label: edit.label,
+              summary: edit.summary,
+              preview: edit.summary,
+            }
+          : node;
+      }),
+      paths: initialMap.paths.map((path) => ({
+        ...path,
+        nodeIds: pathNodeOverrides[path.id] ?? path.nodeIds,
+      })),
+      pinnedNodeIds,
+      dismissedNodeIds,
+    };
     try {
-      result = await onSave(pinnedNodeIds, dismissedNodeIds);
+      result = await onSave(materializedMap);
     } catch (error) {
       const message =
         error instanceof Error
@@ -2539,6 +2566,17 @@ export function CareerMapView({
     });
   }
 
+  function openFeedback() {
+    setFeedbackTarget({
+      id: selectedNode.id,
+      label: selectedNode.label,
+      type: "node",
+    });
+    window.requestAnimationFrame(() => {
+      feedbackCloseRef.current?.focus({ preventScroll: true });
+    });
+  }
+
   async function submitFeedback(category: string) {
     if (!feedbackTarget) {
       return;
@@ -2582,11 +2620,11 @@ export function CareerMapView({
           <PathInLogo />
           <div>
             <div className={styles.featureTitleLine}>
-              <h1>Path[In]</h1>
+              <h1>PathIn</h1>
               <span className={styles.betaBadge}>Beta</span>
             </div>
             <p>
-              Explore AI-generated career routes from your enabled profile evidence.
+              Explore evidence-generated career routes from your enabled profile evidence.
             </p>
           </div>
         </div>
@@ -3775,6 +3813,10 @@ export function CareerMapView({
               <button onClick={dismissSelectedNode} type="button">
                 <MiniIcon name="eye" />
                 Not for me
+              </button>
+              <button onClick={openFeedback} type="button">
+                <MiniIcon name="info" />
+                Give feedback
               </button>
             </div>
           )}

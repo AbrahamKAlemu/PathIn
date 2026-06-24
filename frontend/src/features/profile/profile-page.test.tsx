@@ -43,10 +43,10 @@ describe("ProfilePage", () => {
       screen.getByRole("heading", { name: "Education" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Skills (25)" }),
+      screen.getByRole("heading", { name: "Skills (2)" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Honors & awards (7)" }),
+      screen.getByRole("heading", { name: "Honors & awards (2)" }),
     ).toBeInTheDocument();
     const dataControlsButton = screen.getByRole("button", {
       name: "Review data controls",
@@ -137,7 +137,7 @@ describe("ProfilePage", () => {
     render(<ProfilePage />);
 
     const skillsSection = screen
-      .getByRole("heading", { name: "Skills (25)" })
+      .getByRole("heading", { name: "Skills (2)" })
       .closest("section");
     expect(skillsSection).not.toBeNull();
     fireEvent.click(
@@ -151,12 +151,12 @@ describe("ProfilePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close dialog" }));
 
     const honorsSection = screen
-      .getByRole("heading", { name: "Honors & awards (7)" })
+      .getByRole("heading", { name: "Honors & awards (2)" })
       .closest("section");
     expect(honorsSection).not.toBeNull();
     fireEvent.click(
       within(honorsSection as HTMLElement).getByRole("button", {
-        name: "Show all 7 honors & awards",
+        name: "Show all 2 honors & awards",
       }),
     );
     expect(

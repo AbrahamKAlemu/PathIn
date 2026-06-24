@@ -42,6 +42,7 @@ const categoryLabels: Partial<Record<ProfileCategory, string>> = {
   dates: "Dates",
   projects: "Projects",
   skills: "Skills",
+  certifications: "Certifications",
   industries: "Industries",
   achievements: "Achievements",
   interests: "Interests",
@@ -148,12 +149,10 @@ export function ProfilePage() {
             <SkillsCard
               onEdit={() => setDialog("edit")}
               onShowAll={() => setDialog("skills")}
-              skillCount={profile.skillCount}
               skills={profile.skills}
             />
 
             <HonorsCard
-              honorCount={profile.honorCount}
               honors={profile.honors}
               onEdit={() => setDialog("edit")}
               onShowAll={() => setDialog("honors")}
@@ -447,19 +446,17 @@ function EducationItem({
 function SkillsCard({
   onEdit,
   onShowAll,
-  skillCount,
   skills,
 }: {
   onEdit: () => void;
   onShowAll: () => void;
-  skillCount: number;
   skills: ProfileSkill[];
 }) {
   return (
     <section className={`${styles.card} ${styles.sectionCard}`}>
       <EditableSectionHeading
         onEdit={onEdit}
-        title={`Skills (${skillCount})`}
+        title={`Skills (${skills.length})`}
       />
       <div className={styles.skillList}>
         {skills.map((skill) => (
@@ -475,36 +472,16 @@ function SkillItem({ skill }: { skill: ProfileSkill }) {
   return (
     <article className={styles.skillItem}>
       <h3>{skill.name}</h3>
-      {skill.endorsementNotes.map((note, index) => (
-        <p key={note}>
-          {index === 0 ? (
-            <Image
-              alt=""
-              height={28}
-              src="/linkedin/jane-street.png"
-              width={28}
-            />
-          ) : (
-            <span className={styles.miniAvatar}>WI</span>
-          )}
-          {note}
-        </p>
-      ))}
-      <p>
-        <PeopleIcon />
-        {skill.endorsementCount} endorsements
-      </p>
+      <p>Available to recommendation scoring when the Skills category is enabled.</p>
     </article>
   );
 }
 
 function HonorsCard({
-  honorCount,
   honors,
   onEdit,
   onShowAll,
 }: {
-  honorCount: number;
   honors: ProfileHonor[];
   onEdit: () => void;
   onShowAll: () => void;
@@ -513,7 +490,7 @@ function HonorsCard({
     <section className={`${styles.card} ${styles.sectionCard}`}>
       <EditableSectionHeading
         onEdit={onEdit}
-        title={`Honors & awards (${honorCount})`}
+        title={`Honors & awards (${honors.length})`}
       />
       <div className={styles.honorList}>
         {honors.map((honor) => (
@@ -521,7 +498,7 @@ function HonorsCard({
         ))}
       </div>
       <ShowAllButton
-        label={`Show all ${honorCount} honors & awards`}
+        label={`Show all ${honors.length} honors & awards`}
         onClick={onShowAll}
       />
     </section>
@@ -1039,16 +1016,6 @@ function SparkleIcon() {
         fill="currentColor"
       />
       <path d="M19 16c.3 2 1.2 2.9 3 3-1.8.3-2.7 1.2-3 3-.2-1.8-1.1-2.7-3-3 1.9-.1 2.8-1 3-3Z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function PeopleIcon() {
-  return (
-    <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
-      <circle cx="8" cy="7" r="4" />
-      <circle cx="17.5" cy="8.5" r="3" />
-      <path d="M1 22v-5.5C1 13.5 3.4 11 6.5 11h3c3 0 5.5 2.5 5.5 5.5V22H1Zm15.5 0v-5.1c0-1.7-.5-3.2-1.4-4.4.7-.4 1.5-.5 2.4-.5 3 0 5.5 2.5 5.5 5.5V22h-6.5Z" />
     </svg>
   );
 }

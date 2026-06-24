@@ -25,13 +25,15 @@ type ReopenHandler = () => Promise<{
   source: "backend" | "browser";
 }>;
 
-type SaveHandler = (
-  pinnedNodeIds: string[],
-  dismissedNodeIds: string[],
-) => Promise<{
+type SaveHandler = (map: CareerMapData) => Promise<{
   savedAt: string;
   storage: "backend_and_browser" | "browser";
 }>;
+
+type FeedbackHandler = (
+  target: { id: string; label: string; type: "node" | "edge" },
+  category: string,
+) => Promise<void>;
 
 function renderCareerMap({
   initialMap = createCareerMap(),
@@ -41,11 +43,13 @@ function renderCareerMap({
     savedAt: "2026-06-24T08:00:00.000Z",
     storage: "browser",
   }),
+  onSubmitFeedback = vi.fn().mockResolvedValue(undefined),
 }: {
   initialMap?: CareerMapData;
   onRegenerate?: RegenerateHandler;
   onReopenSaved?: ReopenHandler;
   onSave?: SaveHandler;
+  onSubmitFeedback?: FeedbackHandler;
 } = {}) {
   return render(
     <CareerMapView
@@ -54,7 +58,7 @@ function renderCareerMap({
       onReopenSaved={onReopenSaved}
       onSave={onSave}
       onStartOver={vi.fn()}
-      onSubmitFeedback={vi.fn().mockResolvedValue(undefined)}
+      onSubmitFeedback={onSubmitFeedback}
     />,
   );
 }
@@ -76,7 +80,7 @@ describe("CareerMapView navigation", () => {
     expect(logo).toBeInTheDocument();
     expect(logo.getAttribute("src")).toContain("pathin-logo.png");
     expect(
-      screen.getByRole("heading", { name: "Path[In]" }),
+      screen.getByRole("heading", { name: "PathIn" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
@@ -391,6 +395,70 @@ describe("CareerMapView navigation", () => {
     ).toBe("Machine Learning Fundamentals");
   });
 
+  it("materializes route edits and custom steps when saving", async () => {
+    const initialMap = createCareerMap();
+    const onSave = vi.fn().mockResolvedValue({
+      savedAt: "2026-06-24T08:00:00.000Z",
+      storage: "browser",
+    });
+    renderCareerMap({ initialMap, onSave });
+    fireEvent.click(screen.getByRole("tab", { name: "Build My Path" }));
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Edit Machine Learning Fundamentals",
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Step title"), {
+      target: { value: "Build an ML evaluation pipeline" },
+    });
+    fireEvent.change(screen.getByLabelText("What this step proves"), {
+      target: {
+        value: "Evaluate a model and document the tradeoffs.",
+      },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save changes" }),
+    );
+
+    const editor = screen.getByRole("region", {
+      name: "Build path editor",
+    });
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Add custom step" }),
+    );
+    fireEvent.change(within(editor).getByLabelText("Step title"), {
+      target: { value: "Present an evaluation review" },
+    });
+    fireEvent.change(
+      within(editor).getByLabelText("What this step proves"),
+      {
+        target: {
+          value: "Explain model tradeoffs to a technical reviewer.",
+        },
+      },
+    );
+    fireEvent.click(
+      within(editor).getByRole("button", { name: "Add to route" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save path" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const savedMap = onSave.mock.calls[0][0] as CareerMapData;
+    expect(
+      savedMap.nodes.find((node) => node.id === "course-ml")?.label,
+    ).toBe("Build an ML evaluation pipeline");
+    const customNode = savedMap.nodes.find(
+      (node) => node.label === "Present an evaluation review",
+    );
+    expect(customNode?.id).toMatch(/^custom-step-/);
+    expect(
+      savedMap.paths.some((path) =>
+        path.nodeIds.includes(customNode?.id ?? ""),
+      ),
+    ).toBe(true);
+  });
+
   it("builds live LinkedIn Learning searches from skills to build", () => {
     const initialMap = createCareerMap();
     const mapWithCrmGap: CareerMapData = {
@@ -424,6 +492,59 @@ describe("CareerMapView navigation", () => {
     expect(
       screen.getByText("Live LinkedIn Learning search · For CRM"),
     ).toBeInTheDocument();
+  });
+
+  it("submits explicit recommendation feedback with its node identity", async () => {
+    const onSubmitFeedback = vi.fn().mockResolvedValue(undefined);
+    renderCareerMap({ onSubmitFeedback });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Focus Machine Learning Fundamentals, next step/,
+      }),
+    );
+    await waitFor(
+      () =>
+        expect(
+          screen.getByRole("button", {
+            name: /Machine Learning Fundamentals, focused node/,
+          }),
+        ).toBeInTheDocument(),
+      { timeout: 1_200 },
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Machine Learning Fundamentals, focused node/,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Give feedback" }),
+    );
+
+    expect(
+      screen.getByRole("dialog", {
+        name: "What should PathIn review?",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Incorrect or misleading" }),
+    );
+
+    await waitFor(() =>
+      expect(onSubmitFeedback).toHaveBeenCalledWith(
+        {
+          id: "course-ml",
+          label: "Machine Learning Fundamentals",
+          type: "node",
+        },
+        "incorrect",
+      ),
+    );
+    expect(
+      screen.queryByRole("dialog", {
+        name: "What should PathIn review?",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("animates vertical travel without allowing repeated clicks to skip steps", async () => {

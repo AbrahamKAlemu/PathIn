@@ -1,4 +1,9 @@
-# Path[IN] Product Requirements Document
+# PathIn Product Requirements Document (Historical Design Brief)
+
+> This document preserves the original aspirational product brief. It is not
+> the source of truth for the current implementation. See
+> `docs/JUDGE_DEMO_GUIDE.md` for the verified architecture, behavior,
+> persistence limits, and judge-ready claims.
 
 **Status:** Working product specification
 **Version:** 1.0

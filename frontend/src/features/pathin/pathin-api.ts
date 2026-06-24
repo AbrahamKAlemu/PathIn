@@ -151,19 +151,6 @@ export async function parseProfileFile(
   return uploadProfileText(file, source);
 }
 
-export async function normalizeProfile(
-  profile: ProfileSubmission,
-): Promise<NormalizedProfile> {
-  const response = await fetch(`${API_URL}/api/v1/profiles/normalize`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ profile }),
-  });
-  return parseResponse<NormalizedProfile>(response);
-}
-
 export async function generateCareerMap(
   profile: ProfileSubmission | NormalizedProfile,
 ): Promise<CareerMapData> {
@@ -175,23 +162,6 @@ export async function generateCareerMap(
     body: JSON.stringify({
       profile,
       resultCount: 4,
-    }),
-  });
-  return parseResponse<CareerMapData>(response);
-}
-
-export async function buildCareerMap(
-  profile: ProfileSubmission | NormalizedProfile,
-  destinationId: string,
-): Promise<CareerMapData> {
-  const response = await fetch(`${API_URL}/api/v1/maps/build`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      profile,
-      destinationId,
     }),
   });
   return parseResponse<CareerMapData>(response);
@@ -242,9 +212,13 @@ export async function regenerateCareerMap(
 export async function saveCareerMap(
   mapId: string,
   {
+    nodes,
+    paths,
     pinnedNodeIds,
     dismissedNodeIds,
   }: {
+    nodes: CareerMapData["nodes"];
+    paths: CareerMapData["paths"];
     pinnedNodeIds: string[];
     dismissedNodeIds: string[];
   },
@@ -257,6 +231,8 @@ export async function saveCareerMap(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        nodes,
+        paths,
         pinnedNodeIds,
         dismissedNodeIds,
       }),

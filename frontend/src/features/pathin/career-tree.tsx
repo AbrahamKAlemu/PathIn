@@ -146,6 +146,8 @@ export function CareerTree() {
   const [useConnectedProfile, setUseConnectedProfile] = useState(true);
   const [generationError, setGenerationError] = useState("");
   const [loadingStage, setLoadingStage] = useState(0);
+  const [savedMapAvailable, setSavedMapAvailable] = useState(false);
+  const [openingSavedMap, setOpeningSavedMap] = useState(false);
   const [lastSubmission, setLastSubmission] =
     useState<ProfileSubmission | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -177,6 +179,18 @@ export function CareerTree() {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setSavedMapAvailable(
+        Boolean(
+          readSavedMapSnapshot() ||
+            window.localStorage.getItem(SAVED_MAP_ID_KEY),
+        ),
+      );
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
@@ -409,14 +423,9 @@ export function CareerTree() {
     setGenerationError("");
     setLoadingStage(0);
     setPhase("generating");
-    const startedAt = Date.now();
 
     try {
       const generated = await generateCareerMap(submission);
-      const remaining = Math.max(0, 3200 - (Date.now() - startedAt));
-      if (remaining) {
-        await new Promise((resolve) => window.setTimeout(resolve, remaining));
-      }
       setCareerMap(generated);
       setPhase("map");
     } catch (error) {
@@ -448,7 +457,6 @@ export function CareerTree() {
     setGenerationError("");
     setLoadingStage(0);
     setPhase("generating");
-    const startedAt = Date.now();
 
     try {
       const generated = await regenerateCareerMap(careerMap.id, {
@@ -458,10 +466,6 @@ export function CareerTree() {
         pinnedNodeIds,
         dismissedNodeIds,
       });
-      const remaining = Math.max(0, 2600 - (Date.now() - startedAt));
-      if (remaining) {
-        await new Promise((resolve) => window.setTimeout(resolve, remaining));
-      }
       setCareerMap(generated);
       setPhase("map");
     } catch (error) {
@@ -474,10 +478,7 @@ export function CareerTree() {
     }
   }
 
-  async function saveMap(
-    pinnedNodeIds: string[],
-    dismissedNodeIds: string[],
-  ): Promise<{
+  async function saveMap(map: CareerMapData): Promise<{
     savedAt: string;
     storage: "backend_and_browser" | "browser";
   }> {
@@ -486,22 +487,21 @@ export function CareerTree() {
     }
     const savedAt = new Date().toISOString();
     let storage: "backend_and_browser" | "browser" = "backend_and_browser";
-    let saved: CareerMapData = {
-      ...careerMap,
-      pinnedNodeIds,
-      dismissedNodeIds,
-    };
+    let saved: CareerMapData = map;
 
     try {
-      saved = await saveCareerMap(careerMap.id, {
-        pinnedNodeIds,
-        dismissedNodeIds,
+      saved = await saveCareerMap(map.id, {
+        nodes: map.nodes,
+        paths: map.paths,
+        pinnedNodeIds: map.pinnedNodeIds ?? [],
+        dismissedNodeIds: map.dismissedNodeIds ?? [],
       });
     } catch {
       storage = "browser";
     }
 
     writeSavedMapSnapshot(saved, savedAt);
+    setSavedMapAvailable(true);
     setCareerMap(saved);
     return { savedAt, storage };
   }
@@ -561,6 +561,22 @@ export function CareerTree() {
 
     setPhase("map");
     return { source };
+  }
+
+  async function openSavedMapFromOnboarding() {
+    setGenerationError("");
+    setOpeningSavedMap(true);
+    try {
+      await reopenSavedMap();
+    } catch (error) {
+      setGenerationError(
+        error instanceof Error
+          ? error.message
+          : "PathIn could not open the saved path.",
+      );
+    } finally {
+      setOpeningSavedMap(false);
+    }
   }
 
   async function submitFeedback(
@@ -636,6 +652,24 @@ export function CareerTree() {
         </header>
 
         <section className={styles.uploadCard}>
+          {savedMapAvailable ? (
+            <section className={styles.savedOnboarding}>
+              <div>
+                <strong>Saved path available</strong>
+                <p>
+                  Restore the browser snapshot without generating a new map.
+                </p>
+              </div>
+              <button
+                disabled={openingSavedMap}
+                onClick={openSavedMapFromOnboarding}
+                type="button"
+              >
+                {openingSavedMap ? "Opening..." : "Open saved path"}
+              </button>
+            </section>
+          ) : null}
+
           <ConnectedProfileCard
             enabled={useConnectedProfile}
             error={connectedProfileError}

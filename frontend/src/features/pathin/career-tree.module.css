@@ -760,6 +760,48 @@
   padding: 24px;
 }
 
+.savedOnboarding {
+  align-items: center;
+  background: #eef7ff;
+  border: 1px solid #a8ccef;
+  border-radius: 8px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding: 13px 14px;
+}
+
+.savedOnboarding strong {
+  display: block;
+  font-size: 13px;
+}
+
+.savedOnboarding p {
+  color: #555555;
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 3px 0 0;
+}
+
+.savedOnboarding button {
+  background: #ffffff;
+  border: 1px solid var(--blue);
+  border-radius: 999px;
+  color: var(--blue);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 650;
+  min-height: 34px;
+  padding: 0 14px;
+}
+
+.savedOnboarding button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 .connectedProfile {
   align-items: center;
   background: #f8fafc;

@@ -624,30 +624,6 @@
   margin: 14px 0 0;
 }
 
-.skillItem p img,
-.miniAvatar {
-  border-radius: 50%;
-  height: 25px;
-  object-fit: cover;
-  width: 25px;
-}
-
-.skillItem p svg {
-  color: #555;
-  height: 25px;
-  width: 25px;
-}
-
-.miniAvatar {
-  align-items: center;
-  background: #d9e8f7;
-  color: #004182;
-  display: inline-flex;
-  font-size: 8px;
-  font-weight: 700;
-  justify-content: center;
-}
-
 .recommendationTabs {
   border-bottom: 1px solid #e0e0e0;
   display: flex;

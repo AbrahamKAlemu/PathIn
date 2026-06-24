@@ -1149,6 +1149,53 @@ def test_interest_and_goal_changes_alter_results(client: FlaskClient) -> None:
     assert marketing["destinationIds"] != people["destinationIds"]
 
 
+def test_goal_aliases_and_sparse_fallbacks_stay_relevant(
+    client: FlaskClient,
+) -> None:
+    career_change = _explore(
+        client,
+        {
+            "roles": ["Middle School Teacher"],
+            "responsibilities": [
+                "Led classes, coached students, and explained complex ideas"
+            ],
+            "skills": ["Communication", "Facilitation", "Planning"],
+            "interests": ["Technology", "Helping customers"],
+            "goals": ["Customer Success Manager"],
+        },
+        count=5,
+    )
+
+    assert [
+        item["canonicalRole"]
+        for item in career_change["rankedDestinations"]
+    ] == ["Customer Success Specialist", "Customer Service Manager"]
+    assert career_change["dreamCareer"]["aspirationSource"] == "user_selected"
+    assert "Engineering Manager" not in {
+        item["canonicalRole"]
+        for item in career_change["rankedDestinations"]
+    }
+
+    sparse = _explore(
+        client,
+        {
+            "education": ["High school student"],
+            "interests": ["Helping people"],
+        },
+        count=5,
+    )
+
+    assert [
+        item["canonicalRole"] for item in sparse["rankedDestinations"]
+    ] == ["HR Coordinator", "Customer Success Specialist"]
+    assert sparse["rankedDestinations"][1]["explanation"].startswith(
+        "Current evidence: limited role-specific evidence."
+    )
+    serialized = str(sparse)
+    assert "the upload" not in serialized.lower()
+    assert "uploaded profile" not in serialized.lower()
+
+
 def test_explicit_role_exclusions_are_respected(client: FlaskClient) -> None:
     profile = {
         **CONTRASTING_PROFILES["software"],
@@ -1575,6 +1622,98 @@ def test_saved_map_can_be_reopened_and_feedback_regenerates_backend_ranking(
     assert rejected_destination in payload["generationConstraints"][
         "feedback"
     ]["notForMeRoleIds"]
+
+
+def test_saved_map_preserves_validated_route_customizations(
+    client: FlaskClient,
+) -> None:
+    created = _explore(client, CONTRASTING_PROFILES["design"])
+    map_id = created["id"]
+    edited_node_id = next(
+        node["id"]
+        for node in created["nodes"]
+        if node["id"] != "current" and node["type"] != "destination"
+    )
+    custom_node = {
+        "id": "custom-step-review",
+        "type": "experience",
+        "label": "Present a portfolio review",
+        "eyebrow": "Custom path step",
+        "summary": "Explain design choices and evidence to a reviewer.",
+        "stage": "User-added step",
+        "workSetting": "Portfolio review",
+        "whyItFits": ["The user added this step."],
+        "responsibilities": ["Present the work and collect feedback."],
+        "existingSkills": [],
+        "transferableSkills": ["Communication"],
+        "skillsToBuild": [],
+        "preview": "Explain design choices and evidence to a reviewer.",
+        "challenges": [],
+        "sourceRecord": {
+            "id": "custom-step-review",
+            "kind": "generated",
+            "label": "User-created Build My Path step",
+        },
+    }
+    nodes = [
+        {
+            **node,
+            "label": (
+                "Run a focused design critique"
+                if node["id"] == edited_node_id
+                else node["label"]
+            ),
+            "summary": (
+                "Gather structured feedback on one design artifact."
+                if node["id"] == edited_node_id
+                else node["summary"]
+            ),
+        }
+        for node in created["nodes"]
+    ]
+    nodes.append(custom_node)
+    paths = [{**path, "nodeIds": list(path["nodeIds"])} for path in created["paths"]]
+    paths[0]["nodeIds"].insert(-1, custom_node["id"])
+
+    saved = client.patch(
+        f"/api/v1/maps/{map_id}",
+        json={
+            "nodes": nodes,
+            "paths": paths,
+            "pinnedNodeIds": [custom_node["id"]],
+            "dismissedNodeIds": [],
+        },
+    )
+
+    assert saved.status_code == 200
+    payload = saved.get_json()
+    assert next(
+        node for node in payload["nodes"] if node["id"] == edited_node_id
+    )["label"] == "Run a focused design critique"
+    assert next(
+        node for node in payload["nodes"] if node["id"] == custom_node["id"]
+    )["sourceRecord"]["label"] == "User-customized Build My Path step"
+    assert custom_node["id"] in payload["paths"][0]["nodeIds"]
+    assert payload["pinnedNodeIds"] == [custom_node["id"]]
+
+    reopened = client.get(f"/api/v1/maps/{map_id}")
+    assert reopened.status_code == 200
+    assert custom_node["id"] in reopened.get_json()["paths"][0]["nodeIds"]
+
+    invalid_paths = [
+        {**path, "nodeIds": list(path["nodeIds"])}
+        for path in payload["paths"]
+    ]
+    invalid_paths[0]["nodeIds"][0] = "unknown-node"
+    rejected = client.patch(
+        f"/api/v1/maps/{map_id}",
+        json={"paths": invalid_paths},
+    )
+    assert rejected.status_code == 400
+    assert (
+        rejected.get_json()["error"]["code"]
+        == "INVALID_MAP_CUSTOMIZATION"
+    )
 
 
 def test_regenerate_returns_a_new_destination_set(
